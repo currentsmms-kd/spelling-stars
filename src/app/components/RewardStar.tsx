@@ -1,0 +1,34 @@
+import { Star } from "lucide-react";
+import { cn } from "src/lib/utils";
+
+interface RewardStarProps {
+  filled?: boolean;
+  size?: "sm" | "md" | "lg" | "xl";
+  className?: string;
+}
+
+const sizeMap = {
+  sm: 24,
+  md: 32,
+  lg: 48,
+  xl: 64,
+};
+
+export function RewardStar({
+  filled = false,
+  size = "md",
+  className,
+}: RewardStarProps) {
+  return (
+    <Star
+      size={sizeMap[size]}
+      className={cn(
+        "transition-all",
+        filled
+          ? "fill-secondary-400 text-secondary-500 drop-shadow-md"
+          : "fill-none text-gray-300",
+        className
+      )}
+    />
+  );
+}
