@@ -5,6 +5,7 @@ export interface QueuedAttempt {
   child_id: string;
   word_id: string;
   list_id: string;
+  mode: string;
   is_correct: boolean;
   typed_answer?: string;
   audio_blob_id?: number;
@@ -28,7 +29,8 @@ export class SpellStarsDB extends Dexie {
   constructor() {
     super("SpellStarsDB");
     this.version(1).stores({
-      queuedAttempts: "++id, child_id, word_id, list_id, synced, created_at",
+      queuedAttempts:
+        "++id, child_id, word_id, list_id, mode, synced, created_at",
       queuedAudio: "++id, filename, synced, created_at",
     });
   }

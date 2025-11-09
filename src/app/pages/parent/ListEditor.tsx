@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useForm } from "react-hook-form";
+import {
+  useForm,
+  type UseFormRegister,
+  type FieldErrors,
+  type UseFormHandleSubmit,
+} from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AppShell } from "@/app/components/AppShell";
@@ -39,6 +44,405 @@ type ListMetaFormData = z.infer<typeof listMetaSchema>;
 interface DragState {
   draggedIndex: number | null;
   dragOverIndex: number | null;
+}
+
+interface WordRowProps {
+  word: WordWithIndex;
+  index: number;
+  isSelected: boolean;
+  isDragOver: boolean;
+  onDragStart: () => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDrop: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
+  onSelect: () => void;
+  onUpdateWord: (
+    wordId: string,
+    field: "text" | "phonetic",
+    value: string
+  ) => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  onPlayAudio: (url: string) => void;
+  onDelete: (wordId: string) => void;
+  isDeleting: boolean;
+}
+
+function WordRow({
+  word,
+  index,
+  isSelected,
+  isDragOver,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  onSelect,
+  onUpdateWord,
+  onKeyDown,
+  onPlayAudio,
+  onDelete,
+  isDeleting,
+}: WordRowProps) {
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
+      className={`flex items-center gap-3 p-3 border rounded-lg transition-colors ${
+        isSelected
+          ? "border-primary-500 bg-primary-50"
+          : "border-gray-300 hover:border-gray-400"
+      } ${isDragOver ? "border-primary-500 border-dashed" : ""} cursor-move`}
+      onClick={onSelect}
+    >
+      <GripVertical size={20} className="text-gray-400 flex-shrink-0" />
+      <div className="w-12 text-gray-500 text-sm flex-shrink-0">
+        #{index + 1}
+      </div>
+      <input
+        type="text"
+        value={word.text}
+        onChange={(e) => onUpdateWord(word.id, "text", e.target.value)}
+        onKeyDown={onKeyDown}
+        placeholder="Word"
+        className="flex-1 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        onClick={(e) => e.stopPropagation()}
+      />
+      <input
+        type="text"
+        value={word.phonetic || ""}
+        onChange={(e) => onUpdateWord(word.id, "phonetic", e.target.value)}
+        placeholder="Phonetic (optional)"
+        className="flex-1 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        onClick={(e) => e.stopPropagation()}
+      />
+      {word.prompt_audio_url && (
+        <Button
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (word.prompt_audio_url) {
+              onPlayAudio(word.prompt_audio_url);
+            }
+          }}
+          title="Play audio"
+        >
+          <Play size={16} />
+        </Button>
+      )}
+      <Button
+        size="sm"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete(word.id);
+        }}
+        disabled={isDeleting}
+        title="Delete"
+      >
+        <Trash2 size={16} />
+      </Button>
+    </div>
+  );
+}
+
+function ListMetaForm({
+  isNewList,
+  register,
+  errors,
+  handleSubmit,
+  onSubmitMeta,
+  createListPending,
+  updateListPending,
+  hasUnsavedChanges,
+}: {
+  isNewList: boolean;
+  register: UseFormRegister<ListMetaFormData>;
+  errors: FieldErrors<ListMetaFormData>;
+  handleSubmit: UseFormHandleSubmit<ListMetaFormData>;
+  onSubmitMeta: (data: ListMetaFormData) => Promise<void>;
+  createListPending: boolean;
+  updateListPending: boolean;
+  hasUnsavedChanges: boolean;
+}) {
+  return (
+    <form onSubmit={handleSubmit(onSubmitMeta)} className="space-y-4">
+      <div>
+        <label
+          htmlFor="title"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
+          Title *
+        </label>
+        <input
+          {...register("title")}
+          type="text"
+          id="title"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          placeholder="Week 1"
+        />
+        {errors.title && (
+          <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
+        )}
+      </div>
+
+      <div>
+        <label
+          htmlFor="week_start_date"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
+          Week Start Date
+        </label>
+        <input
+          {...register("week_start_date")}
+          type="date"
+          id="week_start_date"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        />
+      </div>
+
+      <Button
+        type="submit"
+        className="w-full flex items-center justify-center gap-2"
+        disabled={createListPending || updateListPending}
+      >
+        <Save size={18} />
+        {isNewList ? "Create List" : "Save Changes"}
+      </Button>
+
+      {hasUnsavedChanges && (
+        <p className="text-sm text-amber-600">You have unsaved changes</p>
+      )}
+    </form>
+  );
+}
+
+function ListDetailsSection({
+  isNewList,
+  register,
+  errors,
+  handleSubmit,
+  onSubmitMeta,
+  createListPending,
+  updateListPending,
+  hasUnsavedChanges,
+  bulkImportText,
+  setBulkImportText,
+  handleBulkImport,
+  addWordPending,
+}: {
+  isNewList: boolean;
+  register: UseFormRegister<ListMetaFormData>;
+  errors: FieldErrors<ListMetaFormData>;
+  handleSubmit: UseFormHandleSubmit<ListMetaFormData>;
+  onSubmitMeta: (data: ListMetaFormData) => Promise<void>;
+  createListPending: boolean;
+  updateListPending: boolean;
+  hasUnsavedChanges: boolean;
+  bulkImportText: string;
+  setBulkImportText: (text: string) => void;
+  handleBulkImport: () => void;
+  addWordPending: boolean;
+}) {
+  return (
+    <div className="lg:col-span-3">
+      <Card>
+        <h3 className="text-lg font-semibold mb-4">List Details</h3>
+        <ListMetaForm
+          isNewList={isNewList}
+          register={register}
+          errors={errors}
+          handleSubmit={handleSubmit}
+          onSubmitMeta={onSubmitMeta}
+          createListPending={createListPending}
+          updateListPending={updateListPending}
+          hasUnsavedChanges={hasUnsavedChanges}
+        />
+      </Card>
+
+      {!isNewList && (
+        <Card className="mt-6">
+          <h3 className="text-lg font-semibold mb-4">Bulk Import</h3>
+          <textarea
+            value={bulkImportText}
+            onChange={(e) => setBulkImportText(e.target.value)}
+            placeholder="Paste words (one per line)"
+            rows={6}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent mb-3"
+          />
+          <Button
+            onClick={handleBulkImport}
+            disabled={!bulkImportText.trim() || addWordPending}
+            className="w-full flex items-center justify-center gap-2"
+          >
+            <Upload size={18} />
+            Import Words
+          </Button>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function WordsListSection({
+  isNewList,
+  words,
+  handleAddWord,
+  addWordPending,
+  selectedWordId,
+  dragState,
+  handleDragStart,
+  handleDragOver,
+  handleDrop,
+  handleDragEnd,
+  setSelectedWordId,
+  handleUpdateWord,
+  handleKeyDown,
+  handlePlayAudio,
+  handleDeleteWord,
+  deleteWordPending,
+}: {
+  isNewList: boolean;
+  words: WordWithIndex[];
+  handleAddWord: () => void;
+  addWordPending: boolean;
+  selectedWordId: string | null;
+  dragState: DragState;
+  handleDragStart: (index: number) => void;
+  handleDragOver: (e: React.DragEvent, index: number) => void;
+  handleDrop: (e: React.DragEvent, index: number) => void;
+  handleDragEnd: () => void;
+  setSelectedWordId: (id: string) => void;
+  handleUpdateWord: (
+    wordId: string,
+    field: "text" | "phonetic",
+    value: string
+  ) => void;
+  handleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  handlePlayAudio: (url: string) => void;
+  handleDeleteWord: (wordId: string) => void;
+  deleteWordPending: boolean;
+}) {
+  return (
+    <div className="lg:col-span-6">
+      <Card>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Words ({words.length})</h3>
+          <Button
+            onClick={handleAddWord}
+            disabled={isNewList || addWordPending}
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <Plus size={16} />
+            Add Word
+          </Button>
+        </div>
+
+        {isNewList ? (
+          <p className="text-gray-600 text-center py-8">
+            Save the list first to add words
+          </p>
+        ) : words.length === 0 ? (
+          <p className="text-gray-600 text-center py-8">
+            No words yet. Add your first word or use bulk import.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {words.map((word, index) => (
+              <WordRow
+                key={word.id}
+                word={word}
+                index={index}
+                isSelected={selectedWordId === word.id}
+                isDragOver={
+                  dragState.dragOverIndex === index &&
+                  dragState.draggedIndex !== index
+                }
+                onDragStart={() => handleDragStart(index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDrop={(e) => handleDrop(e, index)}
+                onDragEnd={handleDragEnd}
+                onSelect={() => setSelectedWordId(word.id)}
+                onUpdateWord={handleUpdateWord}
+                onKeyDown={handleKeyDown}
+                onPlayAudio={handlePlayAudio}
+                onDelete={handleDeleteWord}
+                isDeleting={deleteWordPending}
+              />
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function AudioRecorderSection({
+  selectedWord,
+  handleAudioRecorded,
+  uploadingAudio,
+  handlePlayAudio,
+}: {
+  selectedWord: WordWithIndex | undefined;
+  handleAudioRecorded: (blob: Blob) => void;
+  uploadingAudio: boolean;
+  handlePlayAudio: (url: string) => void;
+}) {
+  return (
+    <div className="lg:col-span-3">
+      <Card>
+        <h3 className="text-lg font-semibold mb-4">Audio Recorder</h3>
+        {selectedWord ? (
+          <div className="space-y-4">
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600 mb-1">Selected word:</p>
+              <p className="font-semibold text-lg">{selectedWord.text}</p>
+              {selectedWord.phonetic && (
+                <p className="text-sm text-gray-500 mt-1">
+                  {selectedWord.phonetic}
+                </p>
+              )}
+            </div>
+            <AudioRecorder onRecordingComplete={handleAudioRecorded} />
+            {uploadingAudio && (
+              <p className="text-sm text-gray-600">Uploading...</p>
+            )}
+            {selectedWord.prompt_audio_url && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm text-green-800 mb-2">✓ Audio saved</p>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (selectedWord.prompt_audio_url) {
+                      handlePlayAudio(selectedWord.prompt_audio_url);
+                    }
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <Play size={16} />
+                  Play Current
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-gray-600 text-center py-8">
+            Select a word to record audio
+          </p>
+        )}
+      </Card>
+    </div>
+  );
 }
 
 export function ListEditor() {
@@ -143,9 +547,9 @@ export function ListEditor() {
         });
         showToast("success", "List created successfully");
         navigate(`/parent/lists/${newList.id}`, { replace: true });
-      } else {
+      } else if (id) {
         await updateList.mutateAsync({
-          id: id!,
+          id,
           updates: {
             title: data.title,
             week_start_date: data.week_start_date || null,
@@ -338,260 +742,70 @@ export function ListEditor() {
     );
   }
 
+  const toastNotification = toastMessage && (
+    <div
+      className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg ${
+        toastMessage.type === "success"
+          ? "bg-green-500 text-white"
+          : "bg-red-500 text-white"
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        {toastMessage.type === "success" && <Check size={20} />}
+        <span>{toastMessage.message}</span>
+      </div>
+    </div>
+  );
+
   return (
     <AppShell
       title={isNewList ? "New List" : list?.title || "Edit List"}
       variant="parent"
     >
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Toast notification */}
-        {toastMessage && (
-          <div
-            className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg ${
-              toastMessage.type === "success"
-                ? "bg-green-500 text-white"
-                : "bg-red-500 text-white"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              {toastMessage.type === "success" && <Check size={20} />}
-              <span>{toastMessage.message}</span>
-            </div>
-          </div>
-        )}
+        {toastNotification}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left: List metadata */}
-          <div className="lg:col-span-3">
-            <Card>
-              <h3 className="text-lg font-semibold mb-4">List Details</h3>
-              <form onSubmit={handleSubmit(onSubmitMeta)} className="space-y-4">
-                <div>
-                  <label
-                    htmlFor="title"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                  >
-                    Title *
-                  </label>
-                  <input
-                    {...register("title")}
-                    type="text"
-                    id="title"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    placeholder="Week 1"
-                  />
-                  {errors.title && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {errors.title.message}
-                    </p>
-                  )}
-                </div>
+          <ListDetailsSection
+            isNewList={isNewList}
+            register={register}
+            errors={errors}
+            handleSubmit={handleSubmit}
+            onSubmitMeta={onSubmitMeta}
+            createListPending={createList.isPending}
+            updateListPending={updateList.isPending}
+            hasUnsavedChanges={hasUnsavedChanges}
+            bulkImportText={bulkImportText}
+            setBulkImportText={setBulkImportText}
+            handleBulkImport={handleBulkImport}
+            addWordPending={addWord.isPending}
+          />
 
-                <div>
-                  <label
-                    htmlFor="week_start_date"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                  >
-                    Week Start Date
-                  </label>
-                  <input
-                    {...register("week_start_date")}
-                    type="date"
-                    id="week_start_date"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  />
-                </div>
+          <WordsListSection
+            isNewList={isNewList}
+            words={words}
+            handleAddWord={handleAddWord}
+            addWordPending={addWord.isPending}
+            selectedWordId={selectedWordId}
+            dragState={dragState}
+            handleDragStart={handleDragStart}
+            handleDragOver={handleDragOver}
+            handleDrop={handleDrop}
+            handleDragEnd={handleDragEnd}
+            setSelectedWordId={setSelectedWordId}
+            handleUpdateWord={handleUpdateWord}
+            handleKeyDown={handleKeyDown}
+            handlePlayAudio={handlePlayAudio}
+            handleDeleteWord={handleDeleteWord}
+            deleteWordPending={deleteWord.isPending}
+          />
 
-                <Button
-                  type="submit"
-                  className="w-full flex items-center justify-center gap-2"
-                  disabled={createList.isPending || updateList.isPending}
-                >
-                  <Save size={18} />
-                  {isNewList ? "Create List" : "Save Changes"}
-                </Button>
-
-                {hasUnsavedChanges && (
-                  <p className="text-sm text-amber-600">
-                    You have unsaved changes
-                  </p>
-                )}
-              </form>
-            </Card>
-
-            {/* Bulk import */}
-            {!isNewList && (
-              <Card className="mt-6">
-                <h3 className="text-lg font-semibold mb-4">Bulk Import</h3>
-                <textarea
-                  value={bulkImportText}
-                  onChange={(e) => setBulkImportText(e.target.value)}
-                  placeholder="Paste words (one per line)"
-                  rows={6}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent mb-3"
-                />
-                <Button
-                  onClick={handleBulkImport}
-                  disabled={!bulkImportText.trim() || addWord.isPending}
-                  className="w-full flex items-center justify-center gap-2"
-                >
-                  <Upload size={18} />
-                  Import Words
-                </Button>
-              </Card>
-            )}
-          </div>
-
-          {/* Middle: Words table */}
-          <div className="lg:col-span-6">
-            <Card>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">
-                  Words ({words.length})
-                </h3>
-                <Button
-                  onClick={handleAddWord}
-                  disabled={isNewList || addWord.isPending}
-                  size="sm"
-                  className="flex items-center gap-2"
-                >
-                  <Plus size={16} />
-                  Add Word
-                </Button>
-              </div>
-
-              {isNewList ? (
-                <p className="text-gray-600 text-center py-8">
-                  Save the list first to add words
-                </p>
-              ) : words.length === 0 ? (
-                <p className="text-gray-600 text-center py-8">
-                  No words yet. Add your first word or use bulk import.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {words.map((word, index) => (
-                    <div
-                      key={word.id}
-                      draggable
-                      onDragStart={() => handleDragStart(index)}
-                      onDragOver={(e) => handleDragOver(e, index)}
-                      onDrop={(e) => handleDrop(e, index)}
-                      onDragEnd={handleDragEnd}
-                      className={`flex items-center gap-3 p-3 border rounded-lg transition-colors ${
-                        selectedWordId === word.id
-                          ? "border-primary-500 bg-primary-50"
-                          : "border-gray-300 hover:border-gray-400"
-                      } ${
-                        dragState.dragOverIndex === index &&
-                        dragState.draggedIndex !== index
-                          ? "border-primary-500 border-dashed"
-                          : ""
-                      } cursor-move`}
-                      onClick={() => setSelectedWordId(word.id)}
-                    >
-                      <GripVertical
-                        size={20}
-                        className="text-gray-400 flex-shrink-0"
-                      />
-                      <div className="w-12 text-gray-500 text-sm flex-shrink-0">
-                        #{index + 1}
-                      </div>
-                      <input
-                        type="text"
-                        value={word.text}
-                        onChange={(e) =>
-                          handleUpdateWord(word.id, "text", e.target.value)
-                        }
-                        onKeyDown={handleKeyDown}
-                        placeholder="Word"
-                        className="flex-1 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <input
-                        type="text"
-                        value={word.phonetic || ""}
-                        onChange={(e) =>
-                          handleUpdateWord(word.id, "phonetic", e.target.value)
-                        }
-                        placeholder="Phonetic (optional)"
-                        className="flex-1 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      {word.prompt_audio_url && (
-                        <Button
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handlePlayAudio(word.prompt_audio_url!);
-                          }}
-                          title="Play audio"
-                        >
-                          <Play size={16} />
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteWord(word.id);
-                        }}
-                        disabled={deleteWord.isPending}
-                        title="Delete"
-                      >
-                        <Trash2 size={16} />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-          </div>
-
-          {/* Right: Audio recorder */}
-          <div className="lg:col-span-3">
-            <Card>
-              <h3 className="text-lg font-semibold mb-4">Audio Recorder</h3>
-              {selectedWord ? (
-                <div className="space-y-4">
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-600 mb-1">Selected word:</p>
-                    <p className="font-semibold text-lg">{selectedWord.text}</p>
-                    {selectedWord.phonetic && (
-                      <p className="text-sm text-gray-500 mt-1">
-                        {selectedWord.phonetic}
-                      </p>
-                    )}
-                  </div>
-                  <AudioRecorder onRecordingComplete={handleAudioRecorded} />
-                  {uploadingAudio && (
-                    <p className="text-sm text-gray-600">Uploading...</p>
-                  )}
-                  {selectedWord.prompt_audio_url && (
-                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                      <p className="text-sm text-green-800 mb-2">
-                        ✓ Audio saved
-                      </p>
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          handlePlayAudio(selectedWord.prompt_audio_url!)
-                        }
-                        className="flex items-center gap-2"
-                      >
-                        <Play size={16} />
-                        Play Current
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p className="text-gray-600 text-center py-8">
-                  Select a word to record audio
-                </p>
-              )}
-            </Card>
-          </div>
+          <AudioRecorderSection
+            selectedWord={selectedWord}
+            handleAudioRecorded={handleAudioRecorded}
+            uploadingAudio={uploadingAudio}
+            handlePlayAudio={handlePlayAudio}
+          />
         </div>
       </div>
     </AppShell>

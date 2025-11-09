@@ -61,7 +61,8 @@ export function Lists() {
       setDeleteConfirm(null);
     } catch (error) {
       console.error("Error deleting list:", error);
-      alert("Failed to delete list. Please try again.");
+      // TODO: Replace with toast notification
+      console.error("Failed to delete list. Please try again.");
     }
   };
 
@@ -71,7 +72,8 @@ export function Lists() {
       await duplicateList.mutateAsync({ listId: id, userId: user.id });
     } catch (error) {
       console.error("Error duplicating list:", error);
-      alert("Failed to duplicate list. Please try again.");
+      // TODO: Replace with toast notification
+      console.error("Failed to duplicate list. Please try again.");
     }
   };
 

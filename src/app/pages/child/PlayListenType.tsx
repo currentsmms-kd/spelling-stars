@@ -1,46 +1,280 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { AppShell } from "@/app/components/AppShell";
 import { Card } from "@/app/components/Card";
 import { Button } from "@/app/components/Button";
 import { RewardStar } from "@/app/components/RewardStar";
-import { Volume2, CheckCircle, XCircle } from "lucide-react";
+import { Volume2, CheckCircle, XCircle, Home } from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { supabase } from "@/app/supabase";
+import { useAuth } from "@/app/hooks/useAuth";
+import { useOnline } from "@/app/hooks/useOnline";
+import { queueAttempt } from "@/lib/sync";
+import { addStars } from "@/app/api/supa";
+import type { Tables } from "@/types/database.types";
+
+type Word = Tables<"words">;
+
+interface ListWithWords {
+  id: string;
+  title: string;
+  words: Word[];
+}
 
 export function PlayListenType() {
-  const [currentWord] = useState("example");
-  const [answer, setAnswer] = useState("");
-  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
-  const [score, setScore] = useState(0);
+  const [searchParams] = useSearchParams();
+  const listId = searchParams.get("list");
+  const navigate = useNavigate();
+  const { profile } = useAuth();
+  const isOnline = useOnline();
 
-  const playAudio = () => {
-    // Placeholder for audio playback
-    const utterance = new SpeechSynthesisUtterance(currentWord);
-    window.speechSynthesis.speak(utterance);
+  const [currentWordIndex, setCurrentWordIndex] = useState(0);
+  const [answer, setAnswer] = useState("");
+  const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
+  const [showHint, setShowHint] = useState(0); // 0: no hint, 1: first letter, 2: full word
+  const [starsEarned, setStarsEarned] = useState(0);
+  const [hasTriedOnce, setHasTriedOnce] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+
+  // Fetch the selected list or show list selector
+  const { data: listData, isLoading } = useQuery<ListWithWords>({
+    queryKey: ["list-with-words", listId],
+    queryFn: async () => {
+      if (!listId) throw new Error("No list selected");
+
+      const { data: list, error: listError } = await supabase
+        .from("word_lists")
+        .select("id, title")
+        .eq("id", listId)
+        .single();
+
+      if (listError) throw listError;
+
+      const { data: listWords, error: wordsError } = await supabase
+        .from("list_words")
+        .select(
+          `
+          sort_index,
+          words (*)
+        `
+        )
+        .eq("list_id", listId)
+        .order("sort_index", { ascending: true });
+
+      if (wordsError) throw wordsError;
+
+      const words = listWords?.map((lw) => lw.words as Word) || [];
+
+      return {
+        ...list,
+        words,
+      };
+    },
+    enabled: Boolean(listId),
+  });
+
+  // Save attempt mutation
+  const saveAttemptMutation = useMutation({
+    mutationFn: async ({
+      wordId,
+      correct,
+      typedAnswer,
+    }: {
+      wordId: string;
+      correct: boolean;
+      typedAnswer: string;
+    }) => {
+      if (!profile?.id || !listId) return;
+
+      const attemptData = {
+        child_id: profile.id,
+        word_id: wordId,
+        mode: "listen-type",
+        correct,
+        typed_answer: typedAnswer,
+        started_at: new Date().toISOString(),
+      };
+
+      if (isOnline) {
+        const { error } = await supabase.from("attempts").insert(attemptData);
+        if (error) throw error;
+
+        // Add stars if first-try correct
+        if (correct && !hasTriedOnce) {
+          await addStars(profile.id, 1);
+        }
+      } else {
+        // Queue for later sync
+        await queueAttempt(
+          profile.id,
+          wordId,
+          listId,
+          "listen-type",
+          correct,
+          typedAnswer
+        );
+      }
+    },
+  });
+
+  const currentWord = listData?.words[currentWordIndex];
+
+  const playAudio = useCallback(() => {
+    if (!currentWord) return;
+
+    if (currentWord.prompt_audio_url) {
+      const audio = new Audio(currentWord.prompt_audio_url);
+      audio.play();
+    } else {
+      // Use speech synthesis
+      const utterance = new SpeechSynthesisUtterance(currentWord.text);
+      if (currentWord.tts_voice) {
+        utterance.voice =
+          speechSynthesis
+            .getVoices()
+            .find((v) => v.name === currentWord.tts_voice) || null;
+      }
+      speechSynthesis.speak(utterance);
+    }
+  }, [currentWord]);
+
+  // Auto-play on word change
+  useEffect(() => {
+    if (currentWord) {
+      const timer = setTimeout(() => playAudio(), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [currentWord, playAudio]);
+
+  const normalizeAnswer = (text: string) => {
+    return text
+      .toLowerCase()
+      .trim()
+      .replace(/[.,!?;:'"]/g, "");
   };
 
-  const checkAnswer = () => {
-    const correct = answer.toLowerCase().trim() === currentWord.toLowerCase();
-    setIsCorrect(correct);
+  const checkAnswer = async () => {
+    if (!currentWord || !profile?.id) return;
+
+    const normalizedAnswer = normalizeAnswer(answer);
+    const normalizedCorrect = normalizeAnswer(currentWord.text);
+    const correct = normalizedAnswer === normalizedCorrect;
+
     if (correct) {
-      setScore(score + 1);
+      setFeedback("correct");
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 2000);
+
+      if (!hasTriedOnce) {
+        setStarsEarned((prev) => prev + 1);
+      }
+
+      // Save attempt
+      await saveAttemptMutation.mutateAsync({
+        wordId: currentWord.id,
+        correct: true,
+        typedAnswer: answer,
+      });
+
+      // Move to next word after delay
+      setTimeout(() => {
+        nextWord();
+      }, 2000);
+    } else {
+      setFeedback("wrong");
+      setHasTriedOnce(true);
+
+      // Save incorrect attempt
+      await saveAttemptMutation.mutateAsync({
+        wordId: currentWord.id,
+        correct: false,
+        typedAnswer: answer,
+      });
+
+      // Show hint progressively
+      if (showHint === 0) {
+        setShowHint(1);
+      } else {
+        setShowHint(2);
+      }
     }
   };
 
   const nextWord = () => {
-    setAnswer("");
-    setIsCorrect(null);
-    // Load next word logic here
+    if (!listData) return;
+
+    if (currentWordIndex < listData.words.length - 1) {
+      setCurrentWordIndex((prev) => prev + 1);
+      setAnswer("");
+      setFeedback(null);
+      setShowHint(0);
+      setHasTriedOnce(false);
+    } else {
+      // Completed all words
+      navigate("/child/rewards");
+    }
   };
+
+  const retry = () => {
+    setAnswer("");
+    setFeedback(null);
+  };
+
+  if (!listId) {
+    return (
+      <AppShell title="Listen & Type" variant="child">
+        <div className="max-w-3xl mx-auto space-y-8">
+          <Card variant="child">
+            <div className="text-center space-y-6">
+              <h3 className="text-3xl font-bold text-gray-900">
+                Choose a list to practice
+              </h3>
+              <Link to="/child/home">
+                <Button size="child">Go to Home</Button>
+              </Link>
+            </div>
+          </Card>
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (isLoading || !listData) {
+    return (
+      <AppShell title="Listen & Type" variant="child">
+        <div className="max-w-3xl mx-auto">
+          <Card variant="child">
+            <p className="text-2xl text-center">Loading...</p>
+          </Card>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell title="Listen & Type" variant="child">
       <div className="max-w-3xl mx-auto space-y-8">
+        {/* Header with stars and progress */}
         <div className="flex items-center justify-between">
+          <Link to="/child/home">
+            <Button size="child" className="flex items-center gap-2">
+              <Home size={24} />
+              <span>Home</span>
+            </Button>
+          </Link>
           <div className="flex gap-2">
             {[...Array(5)].map((_, i) => (
-              <RewardStar key={i} filled={i < score} size="lg" />
+              <RewardStar key={i} filled={i < starsEarned} size="lg" />
             ))}
           </div>
-          <p className="text-3xl font-bold text-primary-700">Score: {score}</p>
+        </div>
+
+        {/* Progress */}
+        <div className="text-center">
+          <p className="text-2xl font-bold text-gray-700">{listData.title}</p>
+          <p className="text-xl text-gray-600 mt-2">
+            Word {currentWordIndex + 1} of {listData.words.length}
+          </p>
         </div>
 
         <Card variant="child">
@@ -64,12 +298,36 @@ export function PlayListenType() {
                 type="text"
                 value={answer}
                 onChange={(e) => setAnswer(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && answer.trim() && feedback === null) {
+                    checkAnswer();
+                  }
+                }}
                 className="w-full text-4xl text-center px-6 py-4 border-4 border-primary-300 rounded-2xl focus:ring-4 focus:ring-primary-500 focus:border-primary-500 font-bold"
                 placeholder="Type here..."
-                disabled={isCorrect !== null}
+                disabled={feedback === "correct"}
+                autoFocus
               />
 
-              {isCorrect === null && (
+              {/* Hints */}
+              {showHint > 0 && feedback === "wrong" && (
+                <div className="text-center">
+                  {showHint === 1 && (
+                    <p className="text-2xl text-blue-600">
+                      Hint: It starts with &quot;
+                      {currentWord?.text[0].toUpperCase()}&quot;
+                    </p>
+                  )}
+                  {showHint === 2 && (
+                    <p className="text-2xl text-blue-600">
+                      The correct spelling is:{" "}
+                      <strong>{currentWord?.text}</strong>
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {feedback === null && (
                 <Button
                   onClick={checkAnswer}
                   size="child"
@@ -80,35 +338,44 @@ export function PlayListenType() {
                 </Button>
               )}
 
-              {isCorrect === true && (
+              {feedback === "correct" && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-center gap-3 text-green-600">
                     <CheckCircle size={48} />
                     <p className="text-4xl font-bold">Correct! 🎉</p>
                   </div>
-                  <Button onClick={nextWord} size="child" className="w-full">
-                    Next Word
-                  </Button>
+                  {showConfetti && (
+                    <div className="text-6xl animate-bounce">⭐</div>
+                  )}
                 </div>
               )}
 
-              {isCorrect === false && (
+              {feedback === "wrong" && (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-center gap-3 text-red-600">
+                  <div className="flex items-center justify-center gap-3 text-orange-600">
                     <XCircle size={48} />
                     <p className="text-4xl font-bold">Try Again!</p>
                   </div>
-                  <p className="text-2xl text-gray-600">
-                    The correct spelling is: <strong>{currentWord}</strong>
-                  </p>
-                  <Button onClick={nextWord} size="child" className="w-full">
-                    Next Word
-                  </Button>
+                  {showHint < 2 ? (
+                    <Button onClick={retry} size="child" className="w-full">
+                      Retry
+                    </Button>
+                  ) : (
+                    <Button onClick={nextWord} size="child" className="w-full">
+                      Next Word
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
           </div>
         </Card>
+
+        {!isOnline && (
+          <div className="text-center text-orange-600 text-lg">
+            📡 Offline mode - progress will sync when online
+          </div>
+        )}
       </div>
     </AppShell>
   );

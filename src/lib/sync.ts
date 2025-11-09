@@ -87,11 +87,11 @@ async function syncQueuedAttempts(): Promise<void> {
       const { error } = await supabase.from("attempts").insert({
         child_id: attempt.child_id,
         word_id: attempt.word_id,
-        list_id: attempt.list_id,
-        is_correct: attempt.is_correct,
+        mode: attempt.mode,
+        correct: attempt.is_correct,
         typed_answer: attempt.typed_answer,
         audio_url: audioUrl,
-        created_at: attempt.created_at,
+        started_at: attempt.created_at,
       });
 
       if (error) {
@@ -118,6 +118,7 @@ export async function queueAttempt(
   childId: string,
   wordId: string,
   listId: string,
+  mode: string,
   isCorrect: boolean,
   typedAnswer?: string,
   audioBlobId?: number
@@ -126,6 +127,7 @@ export async function queueAttempt(
     child_id: childId,
     word_id: wordId,
     list_id: listId,
+    mode,
     is_correct: isCorrect,
     typed_answer: typedAnswer,
     audio_blob_id: audioBlobId,

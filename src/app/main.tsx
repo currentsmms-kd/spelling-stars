@@ -4,6 +4,7 @@ import { RouterProvider } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { router } from "./router";
 import { queryClient } from "./queryClient";
+import { syncQueuedData, hasPendingSync } from "@/lib/sync";
 import "../styles/index.css";
 
 // Register service worker for PWA
@@ -15,10 +16,11 @@ if ("serviceWorker" in navigator) {
         // Listen for background sync
         if ("sync" in registration) {
           // Background sync is supported
+          console.log("Background sync is available");
         }
       })
-      .catch(() => {
-        // SW registration failed
+      .catch((error) => {
+        console.error("SW registration failed:", error);
       });
   });
 }
@@ -27,11 +29,27 @@ if ("serviceWorker" in navigator) {
 if ("serviceWorker" in navigator && "SyncManager" in window) {
   navigator.serviceWorker.ready.then(() => {
     // The actual sync will be triggered when network is back
+    console.log("Service worker ready for background sync");
   });
 }
 
 // Listen for online/offline events
-window.addEventListener("online", () => {
+window.addEventListener("online", async () => {
+  console.log("App is online - checking for pending sync...");
+
+  // Check if there's data to sync
+  const hasPending = await hasPendingSync();
+
+  if (hasPending) {
+    try {
+      await syncQueuedData();
+      console.log("Successfully synced queued data");
+    } catch (error) {
+      console.error("Failed to sync queued data:", error);
+    }
+  }
+
+  // Register background sync as backup
   if ("serviceWorker" in navigator && "SyncManager" in window) {
     navigator.serviceWorker.ready.then((registration) => {
       // @ts-expect-error - sync API may not be available in all browsers
@@ -41,7 +59,7 @@ window.addEventListener("online", () => {
 });
 
 window.addEventListener("offline", () => {
-  // Will queue operations
+  console.log("App is offline - will queue operations");
 });
 
 const rootElement = document.getElementById("root");

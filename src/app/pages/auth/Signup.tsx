@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import type { UseFormRegister } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useNavigate, Link } from "react-router-dom";
@@ -18,7 +19,54 @@ const signupSchema = z.object({
 
 type SignupFormData = z.infer<typeof signupSchema>;
 
-export function Signup() {
+function RoleSelection({
+  register,
+  error,
+}: {
+  register: UseFormRegister<SignupFormData>;
+  error?: string;
+}) {
+  return (
+    <fieldset>
+      <legend className="block text-sm font-medium text-gray-700 mb-2">
+        I am a...
+      </legend>
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+          <input
+            {...register("role")}
+            type="radio"
+            value="parent"
+            className="w-4 h-4 text-primary-600"
+          />
+          <div>
+            <div className="font-medium">Parent</div>
+            <div className="text-sm text-gray-500">
+              Manage word lists and track progress
+            </div>
+          </div>
+        </label>
+        <label className="flex items-center gap-2 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+          <input
+            {...register("role")}
+            type="radio"
+            value="child"
+            className="w-4 h-4 text-primary-600"
+          />
+          <div>
+            <div className="font-medium">Child</div>
+            <div className="text-sm text-gray-500">
+              Practice spelling and earn rewards
+            </div>
+          </div>
+        </label>
+      </div>
+      {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
+    </fieldset>
+  );
+}
+
+function SignupForm() {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -73,7 +121,6 @@ export function Signup() {
           if (!profileError) {
             profileUpdated = true;
           } else {
-            console.log("Retry profile update, attempts left:", retries - 1);
             retries--;
             if (retries > 0) {
               await new Promise((resolve) => setTimeout(resolve, 500));
@@ -97,140 +144,109 @@ export function Signup() {
   };
 
   return (
+    <>
+      <div className="text-center mb-8">
+        <h1 className="text-4xl font-bold text-primary-700 mb-2">
+          ⭐ SpellStars
+        </h1>
+        <p className="text-gray-600">Create your account</p>
+      </div>
+
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        {error && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+            {error}
+          </div>
+        )}
+
+        <div>
+          <label
+            htmlFor="email"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Email
+          </label>
+          <input
+            {...register("email")}
+            type="email"
+            id="email"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            placeholder="you@example.com"
+          />
+          {errors.email && (
+            <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+          )}
+        </div>
+
+        <div>
+          <label
+            htmlFor="password"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Password
+          </label>
+          <input
+            {...register("password")}
+            type="password"
+            id="password"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            placeholder="••••••••"
+          />
+          {errors.password && (
+            <p className="mt-1 text-sm text-red-600">
+              {errors.password.message}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label
+            htmlFor="displayName"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Name
+          </label>
+          <input
+            {...register("displayName")}
+            type="text"
+            id="displayName"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            placeholder="Your name"
+          />
+          {errors.displayName && (
+            <p className="mt-1 text-sm text-red-600">
+              {errors.displayName.message}
+            </p>
+          )}
+        </div>
+
+        <RoleSelection register={register} error={errors.role?.message} />
+
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading ? "Creating account..." : "Create Account"}
+        </Button>
+      </form>
+
+      <div className="mt-6 text-center text-sm text-gray-600">
+        <p>
+          Already have an account?{" "}
+          <Link
+            to="/login"
+            className="text-primary-600 hover:text-primary-700 font-medium"
+          >
+            Sign in
+          </Link>
+        </p>
+      </div>
+    </>
+  );
+}
+
+export function Signup() {
+  return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-secondary-50 p-4">
       <Card className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-primary-700 mb-2">
-            ⭐ SpellStars
-          </h1>
-          <p className="text-gray-600">Create your account</p>
-        </div>
-
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Email
-            </label>
-            <input
-              {...register("email")}
-              type="email"
-              id="email"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              placeholder="you@example.com"
-            />
-            {errors.email && (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.email.message}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Password
-            </label>
-            <input
-              {...register("password")}
-              type="password"
-              id="password"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              placeholder="••••••••"
-            />
-            {errors.password && (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.password.message}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label
-              htmlFor="displayName"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Name
-            </label>
-            <input
-              {...register("displayName")}
-              type="text"
-              id="displayName"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              placeholder="Your name"
-            />
-            {errors.displayName && (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.displayName.message}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              I am a...
-            </label>
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                <input
-                  {...register("role")}
-                  type="radio"
-                  value="parent"
-                  className="w-4 h-4 text-primary-600"
-                />
-                <div>
-                  <div className="font-medium">Parent</div>
-                  <div className="text-sm text-gray-500">
-                    Manage word lists and track progress
-                  </div>
-                </div>
-              </label>
-              <label className="flex items-center gap-2 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                <input
-                  {...register("role")}
-                  type="radio"
-                  value="child"
-                  className="w-4 h-4 text-primary-600"
-                />
-                <div>
-                  <div className="font-medium">Child</div>
-                  <div className="text-sm text-gray-500">
-                    Practice spelling and earn rewards
-                  </div>
-                </div>
-              </label>
-            </div>
-            {errors.role && (
-              <p className="mt-1 text-sm text-red-600">{errors.role.message}</p>
-            )}
-          </div>
-
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Creating account..." : "Create Account"}
-          </Button>
-        </form>
-
-        <div className="mt-6 text-center text-sm text-gray-600">
-          <p>
-            Already have an account?{" "}
-            <Link
-              to="/login"
-              className="text-primary-600 hover:text-primary-700 font-medium"
-            >
-              Sign in
-            </Link>
-          </p>
-        </div>
+        <SignupForm />
       </Card>
     </div>
   );
