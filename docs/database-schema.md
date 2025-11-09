@@ -57,6 +57,28 @@ Stores child spelling attempts.
 | audio_url    | text      | Audio recording URL (for Say & Spell) |
 | created_at   | timestamp | When attempt was made                 |
 
+### srs
+
+Stores spaced repetition system (SRS) data for tracking word difficulty and review scheduling.
+
+| Column        | Type      | Description                                     |
+| ------------- | --------- | ----------------------------------------------- |
+| id            | uuid      | Primary key                                     |
+| child_id      | uuid      | Foreign key to profiles                         |
+| word_id       | uuid      | Foreign key to words                            |
+| ease          | real      | Ease factor (≥1.3), higher = easier             |
+| interval_days | integer   | Days until next review (0 = due now)            |
+| due_date      | date      | Date when word should be reviewed next          |
+| reps          | integer   | Number of successful repetitions                |
+| lapses        | integer   | Number of times word was missed (not first-try) |
+| created_at    | timestamp | When SRS entry was created                      |
+| updated_at    | timestamp | When SRS entry was last updated                 |
+
+**Algorithm**: Uses SM-2-lite algorithm:
+
+- On first-try correct: ease increases by 0.1, interval = (interval == 0) ? 1 : round(interval \* ease), due_date = now() + interval, reps += 1
+- On miss (not first try): ease decreases by 0.2 (min 1.3), interval = 0, due_date = now(), lapses += 1
+
 ## Storage Buckets
 
 ### audio-recordings

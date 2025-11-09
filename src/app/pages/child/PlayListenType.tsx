@@ -10,7 +10,7 @@ import { supabase } from "@/app/supabase";
 import { useAuth } from "@/app/hooks/useAuth";
 import { useOnline } from "@/app/hooks/useOnline";
 import { queueAttempt } from "@/lib/sync";
-import { addStars } from "@/app/api/supa";
+import { addStars, useUpdateSrs } from "@/app/api/supa";
 import type { Tables } from "@/types/database.types";
 
 type Word = Tables<"words">;
@@ -35,6 +35,9 @@ export function PlayListenType() {
   const [starsEarned, setStarsEarned] = useState(0);
   const [hasTriedOnce, setHasTriedOnce] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+
+  // SRS mutation
+  const updateSrs = useUpdateSrs();
 
   // Fetch the selected list or show list selector
   const { data: listData, isLoading } = useQuery<ListWithWords>({
@@ -176,6 +179,15 @@ export function PlayListenType() {
         typedAnswer: answer,
       });
 
+      // Update SRS: first-try correct
+      if (isOnline) {
+        updateSrs.mutate({
+          childId: profile.id,
+          wordId: currentWord.id,
+          isCorrectFirstTry: !hasTriedOnce,
+        });
+      }
+
       // Move to next word after delay
       setTimeout(() => {
         nextWord();
@@ -190,6 +202,16 @@ export function PlayListenType() {
         correct: false,
         typedAnswer: answer,
       });
+
+      // Update SRS: not first-try correct (miss)
+      if (isOnline && !hasTriedOnce) {
+        // Only update SRS on first miss, not subsequent retries
+        updateSrs.mutate({
+          childId: profile.id,
+          wordId: currentWord.id,
+          isCorrectFirstTry: false,
+        });
+      }
 
       // Show hint progressively
       if (showHint === 0) {

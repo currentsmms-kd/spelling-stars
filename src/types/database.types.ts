@@ -179,6 +179,60 @@ export type Database = {
           },
         ];
       };
+      srs: {
+        Row: {
+          id: string;
+          child_id: string;
+          word_id: string;
+          ease: number;
+          interval_days: number;
+          due_date: string;
+          reps: number;
+          lapses: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          child_id: string;
+          word_id: string;
+          ease?: number;
+          interval_days?: number;
+          due_date?: string;
+          reps?: number;
+          lapses?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          child_id?: string;
+          word_id?: string;
+          ease?: number;
+          interval_days?: number;
+          due_date?: string;
+          reps?: number;
+          lapses?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "srs_child_id_fkey";
+            columns: ["child_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "srs_word_id_fkey";
+            columns: ["word_id"];
+            isOneToOne: false;
+            referencedRelation: "words";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       word_lists: {
         Row: {
           created_at: string | null;

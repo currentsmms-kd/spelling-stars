@@ -11,7 +11,7 @@ import { useAuth } from "@/app/hooks/useAuth";
 import { useOnline } from "@/app/hooks/useOnline";
 import { useAudioRecorder } from "@/app/hooks/useAudioRecorder";
 import { queueAttempt, queueAudio } from "@/lib/sync";
-import { addStars } from "@/app/api/supa";
+import { addStars, useUpdateSrs } from "@/app/api/supa";
 import type { Tables } from "@/types/database.types";
 
 type Word = Tables<"words">;
@@ -39,6 +39,9 @@ export function PlaySaySpell() {
   const [starsEarned, setStarsEarned] = useState(0);
   const [hasTriedOnce, setHasTriedOnce] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+
+  // SRS mutation
+  const updateSrs = useUpdateSrs();
 
   const {
     isRecording,
@@ -234,6 +237,15 @@ export function PlaySaySpell() {
         audioBlobId: audioBlobId || undefined,
       });
 
+      // Update SRS: first-try correct
+      if (isOnline) {
+        updateSrs.mutate({
+          childId: profile.id,
+          wordId: currentWord.id,
+          isCorrectFirstTry: !hasTriedOnce,
+        });
+      }
+
       // Move to next word after delay
       setTimeout(() => {
         nextWord();
@@ -249,6 +261,16 @@ export function PlaySaySpell() {
         typedAnswer: answer,
         audioBlobId: audioBlobId || undefined,
       });
+
+      // Update SRS: not first-try correct (miss)
+      if (isOnline && !hasTriedOnce) {
+        // Only update SRS on first miss, not subsequent retries
+        updateSrs.mutate({
+          childId: profile.id,
+          wordId: currentWord.id,
+          isCorrectFirstTry: false,
+        });
+      }
 
       // Show hint progressively
       if (showHint === 0) {

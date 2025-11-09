@@ -6,7 +6,10 @@ import { supabase } from "@/app/supabase";
  * Called when app comes back online
  */
 export async function syncQueuedData(): Promise<void> {
-  console.log("Starting sync of queued data...");
+  if (import.meta.env.DEV) {
+    // eslint-disable-next-line no-console
+    console.log("Starting sync of queued data...");
+  }
 
   try {
     // First, sync audio files
@@ -15,7 +18,10 @@ export async function syncQueuedData(): Promise<void> {
     // Then sync attempts (which may reference uploaded audio)
     await syncQueuedAttempts();
 
-    console.log("Sync completed successfully");
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.log("Sync completed successfully");
+    }
   } catch (error) {
     console.error("Error during sync:", error);
     throw error;
@@ -28,7 +34,10 @@ export async function syncQueuedData(): Promise<void> {
 async function syncQueuedAudio(): Promise<void> {
   const queuedAudio = await db.queuedAudio.where("synced").equals(0).toArray();
 
-  console.log(`Syncing ${queuedAudio.length} audio files...`);
+  if (import.meta.env.DEV) {
+    // eslint-disable-next-line no-console
+    console.log(`Syncing ${queuedAudio.length} audio files...`);
+  }
 
   for (const audio of queuedAudio) {
     try {
@@ -51,12 +60,17 @@ async function syncQueuedAudio(): Promise<void> {
         .getPublicUrl(data.path);
 
       // Update record as synced
-      await db.queuedAudio.update(audio.id!, {
-        synced: true,
-        storage_url: urlData.publicUrl,
-      });
+      if (audio.id !== undefined) {
+        await db.queuedAudio.update(audio.id, {
+          synced: true,
+          storage_url: urlData.publicUrl,
+        });
+      }
 
-      console.log(`Successfully uploaded: ${audio.filename}`);
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.log(`Successfully uploaded: ${audio.filename}`);
+      }
     } catch (error) {
       console.error(`Error uploading audio ${audio.filename}:`, error);
     }
@@ -72,7 +86,10 @@ async function syncQueuedAttempts(): Promise<void> {
     .equals(0)
     .toArray();
 
-  console.log(`Syncing ${queuedAttempts.length} attempts...`);
+  if (import.meta.env.DEV) {
+    // eslint-disable-next-line no-console
+    console.log(`Syncing ${queuedAttempts.length} attempts...`);
+  }
 
   for (const attempt of queuedAttempts) {
     try {
@@ -95,16 +112,21 @@ async function syncQueuedAttempts(): Promise<void> {
       });
 
       if (error) {
-        console.error(`Failed to insert attempt:`, error);
+        console.error("Failed to insert attempt:", error);
         continue;
       }
 
       // Mark as synced
-      await db.queuedAttempts.update(attempt.id!, {
-        synced: true,
-      });
+      if (attempt.id !== undefined) {
+        await db.queuedAttempts.update(attempt.id, {
+          synced: true,
+        });
+      }
 
-      console.log(`Successfully synced attempt ${attempt.id}`);
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.log(`Successfully synced attempt ${attempt.id}`);
+      }
     } catch (error) {
       console.error(`Error syncing attempt ${attempt.id}:`, error);
     }

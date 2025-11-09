@@ -6,6 +6,8 @@
 import { supabase } from "../supabase";
 import type { Database } from "../../types/database.types";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { prepareSrsUpdate } from "../../lib/srs";
+import type { SrsEntry, SrsInsert, SrsUpdate } from "../../lib/srs";
 
 // Type aliases for convenience
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
@@ -376,6 +378,225 @@ export async function getAttemptsForWord(
   }
 
   return data || [];
+}
+
+// ============================================
+// SRS Functions
+// ============================================
+
+/**
+ * Get or create an SRS entry for a word
+ */
+export async function getSrsEntry(
+  childId: string,
+  wordId: string
+): Promise<SrsEntry | null> {
+  const { data, error } = await supabase
+    .from("srs")
+    .select("*")
+    .eq("child_id", childId)
+    .eq("word_id", wordId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching SRS entry:", error);
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Upsert an SRS entry (insert or update)
+ */
+export async function upsertSrsEntry(
+  entry: SrsInsert | (SrsUpdate & { child_id: string; word_id: string })
+): Promise<SrsEntry | null> {
+  const { data, error } = await supabase
+    .from("srs")
+    .upsert(
+      {
+        ...entry,
+        updated_at: new Date().toISOString(),
+      },
+      {
+        onConflict: "child_id,word_id",
+      }
+    )
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error upserting SRS entry:", error);
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Update SRS after an attempt
+ * @param childId - The child's ID
+ * @param wordId - The word ID
+ * @param isCorrectFirstTry - Whether the attempt was correct on first try
+ */
+export async function updateSrsAfterAttempt(
+  childId: string,
+  wordId: string,
+  isCorrectFirstTry: boolean
+): Promise<SrsEntry | null> {
+  // Get current entry
+  const currentEntry = await getSrsEntry(childId, wordId);
+
+  // Calculate new values
+  const updates = prepareSrsUpdate(
+    isCorrectFirstTry,
+    currentEntry || undefined
+  );
+
+  // Upsert with new values
+  return upsertSrsEntry({
+    child_id: childId,
+    word_id: wordId,
+    ...updates,
+  });
+}
+
+/**
+ * Get all words due today for a child
+ */
+export async function getDueWords(childId: string): Promise<
+  Array<
+    SrsEntry & {
+      word: Word;
+      lists: Array<{ id: string; title: string }>;
+    }
+  >
+> {
+  const today = new Date().toISOString().split("T")[0];
+
+  const { data, error } = await supabase
+    .from("srs")
+    .select(
+      `
+      *,
+      words (*)
+    `
+    )
+    .eq("child_id", childId)
+    .lte("due_date", today)
+    .order("due_date", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching due words:", error);
+    return [];
+  }
+
+  if (!data) return [];
+
+  // For each word, get the lists it belongs to
+  const wordsWithLists = await Promise.all(
+    data.map(async (entry) => {
+      const word = entry.words as unknown as Word;
+
+      // Get lists containing this word
+      const { data: listData } = await supabase
+        .from("list_words")
+        .select(
+          `
+          word_lists (id, title)
+        `
+        )
+        .eq("word_id", word.id);
+
+      const lists =
+        listData?.map((lw) => {
+          const list = lw.word_lists as unknown as {
+            id: string;
+            title: string;
+          };
+          return list;
+        }) || [];
+
+      return {
+        ...(entry as SrsEntry),
+        word,
+        lists,
+      };
+    })
+  );
+
+  return wordsWithLists;
+}
+
+const DEFAULT_LIMIT = 10;
+
+/**
+ * Get hardest words (lowest ease) for reporting
+ */
+export async function getHardestWords(limit?: number): Promise<
+  Array<
+    SrsEntry & {
+      word: Word;
+    }
+  >
+> {
+  const resultLimit = limit ?? DEFAULT_LIMIT;
+  const { data, error } = await supabase
+    .from("srs")
+    .select(
+      `
+      *,
+      words (*)
+    `
+    )
+    .order("ease", { ascending: true })
+    .order("lapses", { ascending: false })
+    .limit(resultLimit);
+
+  if (error) {
+    console.error("Error fetching hardest words:", error);
+    return [];
+  }
+
+  return (data || []).map((entry) => ({
+    ...(entry as SrsEntry),
+    word: entry.words as unknown as Word,
+  }));
+}
+
+/**
+ * Get words with most lapses for reporting
+ */
+export async function getMostLapsedWords(limit?: number): Promise<
+  Array<
+    SrsEntry & {
+      word: Word;
+    }
+  >
+> {
+  const resultLimit = limit ?? DEFAULT_LIMIT;
+  const { data, error } = await supabase
+    .from("srs")
+    .select(
+      `
+      *,
+      words (*)
+    `
+    )
+    .order("lapses", { ascending: false })
+    .order("ease", { ascending: true })
+    .limit(resultLimit);
+
+  if (error) {
+    console.error("Error fetching most lapsed words:", error);
+    return [];
+  }
+
+  return (data || []).map((entry) => ({
+    ...(entry as SrsEntry),
+    word: entry.words as unknown as Word,
+  }));
 }
 
 // ============================================
@@ -828,6 +1049,70 @@ export function useUploadAudio() {
       queryClient.invalidateQueries({
         queryKey: ["word_list", variables.listId],
       });
+    },
+  });
+}
+
+/**
+ * Hook to get due words for a child
+ */
+export function useDueWords(childId?: string) {
+  return useQuery({
+    queryKey: ["due_words", childId],
+    queryFn: async () => {
+      if (!childId) return [];
+      return getDueWords(childId);
+    },
+    enabled: Boolean(childId),
+  });
+}
+
+/**
+ * Hook to get hardest words
+ */
+export function useHardestWords(limit?: number) {
+  return useQuery({
+    queryKey: ["hardest_words", limit],
+    queryFn: () => getHardestWords(limit),
+  });
+}
+
+/**
+ * Hook to get most lapsed words
+ */
+export function useMostLapsedWords(limit?: number) {
+  return useQuery({
+    queryKey: ["most_lapsed_words", limit],
+    queryFn: () => getMostLapsedWords(limit),
+  });
+}
+
+/**
+ * Hook to update SRS after an attempt
+ */
+export function useUpdateSrs() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      childId,
+      wordId,
+      isCorrectFirstTry,
+    }: {
+      childId: string;
+      wordId: string;
+      isCorrectFirstTry: boolean;
+    }) => {
+      return updateSrsAfterAttempt(childId, wordId, isCorrectFirstTry);
+    },
+    onSuccess: (_, variables) => {
+      // Invalidate due words for this child
+      queryClient.invalidateQueries({
+        queryKey: ["due_words", variables.childId],
+      });
+      // Invalidate hardest/lapsed words reports
+      queryClient.invalidateQueries({ queryKey: ["hardest_words"] });
+      queryClient.invalidateQueries({ queryKey: ["most_lapsed_words"] });
     },
   });
 }

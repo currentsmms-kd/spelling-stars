@@ -2,10 +2,17 @@ import { AppShell } from "@/app/components/AppShell";
 import { Card } from "@/app/components/Card";
 import { Button } from "@/app/components/Button";
 import { Link, useNavigate } from "react-router-dom";
-import { Headphones, Mic, TrendingUp, type LucideIcon } from "lucide-react";
+import {
+  Headphones,
+  Mic,
+  TrendingUp,
+  Calendar,
+  type LucideIcon,
+} from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/app/supabase";
 import { useAuth } from "@/app/hooks/useAuth";
+import { useDueWords } from "@/app/api/supa";
 
 interface ListProgress {
   id: string;
@@ -112,6 +119,9 @@ function ListProgressCard({
 export function ChildHome() {
   const { profile } = useAuth();
   const navigate = useNavigate();
+
+  // Get due words
+  const { data: dueWords } = useDueWords(profile?.id);
 
   // Get lists with progress calculation based on attempts from last 7 days
   const { data: lists } = useQuery<ListProgress[]>({
@@ -223,6 +233,60 @@ export function ChildHome() {
             bgColor="bg-secondary-100"
           />
         </div>
+
+        {/* Due Today Section */}
+        {dueWords && dueWords.length > 0 && (
+          <Card variant="child">
+            <div className="flex items-center gap-3 mb-4">
+              <Calendar className="text-primary-600" size={28} />
+              <h3 className="text-2xl font-bold">Due Today</h3>
+            </div>
+            <p className="text-lg text-gray-600 mb-4">
+              {dueWords.length} {dueWords.length === 1 ? "word" : "words"} ready
+              for review
+            </p>
+            <div className="space-y-2">
+              {dueWords
+                .slice(0, 5)
+                .map(
+                  (dueWord: {
+                    id: string;
+                    word: { text: string };
+                    lists: Array<{ title: string }>;
+                    ease: number;
+                    reps: number;
+                  }) => (
+                    <div
+                      key={dueWord.id}
+                      className="flex items-center justify-between p-3 bg-primary-50 rounded-lg"
+                    >
+                      <div>
+                        <p className="text-xl font-semibold">
+                          {dueWord.word.text}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {dueWord.lists.length > 0
+                            ? dueWord.lists
+                                .map((l: { title: string }) => l.title)
+                                .join(", ")
+                            : "No list"}
+                        </p>
+                      </div>
+                      <div className="text-right text-sm text-gray-500">
+                        <div>Ease: {dueWord.ease.toFixed(1)}</div>
+                        <div>Reps: {dueWord.reps}</div>
+                      </div>
+                    </div>
+                  )
+                )}
+            </div>
+            {dueWords.length > 5 && (
+              <p className="text-center text-gray-500 mt-3">
+                And {dueWords.length - 5} more...
+              </p>
+            )}
+          </Card>
+        )}
 
         {lists && lists.length > 0 && (
           <Card variant="child">
