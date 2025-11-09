@@ -27,10 +27,10 @@ function RoleSelection({
   error?: string;
 }) {
   return (
-    <fieldset>
-      <legend className="block text-sm font-medium text-foreground mb-2">
+    <div>
+      <p className="block text-sm font-medium text-foreground mb-2">
         I am a...
-      </legend>
+      </p>
       <div className="space-y-2">
         <label className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-muted/50">
           <input
@@ -62,7 +62,7 @@ function RoleSelection({
         </label>
       </div>
       {error && <p className="mt-1 text-sm text-destructive">{error}</p>}
-    </fieldset>
+    </div>
   );
 }
 

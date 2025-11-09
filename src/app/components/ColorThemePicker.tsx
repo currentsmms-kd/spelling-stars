@@ -17,6 +17,148 @@ interface ThemeGroup {
   darkTheme?: (typeof colorThemes)[0];
 }
 
+interface ThemeCardProps {
+  group: ThemeGroup;
+  activeMode: "light" | "dark";
+  isActive: boolean;
+  isChildMode: boolean;
+  onThemeChange: (group: ThemeGroup, mode: "light" | "dark") => void;
+}
+
+function ColorPreview({
+  theme,
+  isChildMode,
+}: {
+  theme: (typeof colorThemes)[0];
+  isChildMode: boolean;
+}) {
+  return (
+    <div className={`flex gap-2 mb-3 ${isChildMode ? "h-16" : "h-12"}`}>
+      <div
+        className="flex-1 rounded-lg"
+        style={{ backgroundColor: theme.cssVariables["--primary"] }}
+        aria-hidden="true"
+      />
+      <div
+        className="flex-1 rounded-lg"
+        style={{ backgroundColor: theme.cssVariables["--secondary"] }}
+        aria-hidden="true"
+      />
+      <div
+        className="flex-1 rounded-lg"
+        style={{ backgroundColor: theme.cssVariables["--accent"] }}
+        aria-hidden="true"
+      />
+    </div>
+  );
+}
+
+function ModeToggle({
+  group,
+  activeMode,
+  isActive,
+  isChildMode,
+  onThemeChange,
+}: {
+  group: ThemeGroup;
+  activeMode: "light" | "dark";
+  isActive: boolean;
+  isChildMode: boolean;
+  onThemeChange: (group: ThemeGroup, mode: "light" | "dark") => void;
+}) {
+  return (
+    <div className="flex gap-2">
+      <button
+        onClick={() => onThemeChange(group, "light")}
+        className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg transition-all ${
+          activeMode === "light" && isActive
+            ? "bg-primary text-primary-foreground shadow-md"
+            : "bg-muted hover:bg-muted/80"
+        }`}
+        aria-label={`Select ${group.baseName} light mode`}
+        aria-pressed={activeMode === "light" && isActive}
+      >
+        <Sun size={isChildMode ? 20 : 16} />
+        <span className={isChildMode ? "text-base" : "text-sm"}>Light</span>
+      </button>
+
+      {group.darkTheme && (
+        <button
+          onClick={() => onThemeChange(group, "dark")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg transition-all ${
+            activeMode === "dark" && isActive
+              ? "bg-primary text-primary-foreground shadow-md"
+              : "bg-muted hover:bg-muted/80"
+          }`}
+          aria-label={`Select ${group.baseName} dark mode`}
+          aria-pressed={activeMode === "dark" && isActive}
+        >
+          <Moon size={isChildMode ? 20 : 16} />
+          <span className={isChildMode ? "text-base" : "text-sm"}>Dark</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ThemeCard({
+  group,
+  activeMode,
+  isActive,
+  isChildMode,
+  onThemeChange,
+}: ThemeCardProps) {
+  const activeTheme =
+    activeMode === "dark" && group.darkTheme
+      ? group.darkTheme
+      : group.lightTheme;
+
+  return (
+    <div
+      className={`group relative overflow-hidden rounded-xl transition-all duration-200 ${
+        isActive
+          ? "ring-4 ring-primary shadow-xl scale-105"
+          : "hover:scale-102 hover:shadow-lg"
+      }`}
+    >
+      <Card
+        className={`h-full transition-all ${isChildMode ? "min-h-[200px]" : "min-h-[160px]"}`}
+      >
+        <ColorPreview theme={activeTheme} isChildMode={isChildMode} />
+
+        <div className="text-left mb-3">
+          <h3
+            className={`font-bold mb-1 ${isChildMode ? "text-xl" : "text-lg"}`}
+          >
+            {group.baseName}
+          </h3>
+          <p
+            className={`text-muted-foreground ${isChildMode ? "text-base" : "text-sm"}`}
+          >
+            {group.description}
+          </p>
+        </div>
+
+        <ModeToggle
+          group={group}
+          activeMode={activeMode}
+          isActive={isActive}
+          isChildMode={isChildMode}
+          onThemeChange={onThemeChange}
+        />
+
+        {isActive && (
+          <div
+            className={`absolute top-3 right-3 bg-primary text-primary-foreground rounded-full px-3 py-1 font-bold shadow-lg ${isChildMode ? "text-sm" : "text-xs"}`}
+          >
+            ✓ Selected
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 export function ColorThemePicker({
   showLabel = true,
   variant = "parent",
@@ -102,112 +244,17 @@ export function ColorThemePicker({
       >
         {themeGroups.map((group) => {
           const activeMode = getActiveMode(group);
-          const activeTheme =
-            activeMode === "dark" && group.darkTheme
-              ? group.darkTheme
-              : group.lightTheme;
           const isActive = isGroupActive(group);
 
           return (
-            <div
+            <ThemeCard
               key={group.baseId}
-              className={`group relative overflow-hidden rounded-xl transition-all duration-200 ${
-                isActive
-                  ? "ring-4 ring-primary shadow-xl scale-105"
-                  : "hover:scale-102 hover:shadow-lg"
-              }`}
-            >
-              <Card
-                className={`h-full transition-all ${isChildMode ? "min-h-[200px]" : "min-h-[160px]"}`}
-              >
-                {/* Theme Preview Colors */}
-                <div
-                  className={`flex gap-2 mb-3 ${isChildMode ? "h-16" : "h-12"}`}
-                >
-                  <div
-                    className="flex-1 rounded-lg"
-                    style={{
-                      backgroundColor: activeTheme.cssVariables["--primary"],
-                    }}
-                    aria-hidden="true"
-                  />
-                  <div
-                    className="flex-1 rounded-lg"
-                    style={{
-                      backgroundColor: activeTheme.cssVariables["--secondary"],
-                    }}
-                    aria-hidden="true"
-                  />
-                  <div
-                    className="flex-1 rounded-lg"
-                    style={{
-                      backgroundColor: activeTheme.cssVariables["--accent"],
-                    }}
-                    aria-hidden="true"
-                  />
-                </div>
-
-                {/* Theme Info */}
-                <div className="text-left mb-3">
-                  <h3
-                    className={`font-bold mb-1 ${isChildMode ? "text-xl" : "text-lg"}`}
-                  >
-                    {group.baseName}
-                  </h3>
-                  <p
-                    className={`text-muted-foreground ${isChildMode ? "text-base" : "text-sm"}`}
-                  >
-                    {group.description}
-                  </p>
-                </div>
-
-                {/* Light/Dark Toggle */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleThemeChange(group, "light")}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg transition-all ${
-                      activeMode === "light" && isActive
-                        ? "bg-primary text-primary-foreground shadow-md"
-                        : "bg-muted hover:bg-muted/80"
-                    }`}
-                    aria-label={`Select ${group.baseName} light mode`}
-                    aria-pressed={activeMode === "light" && isActive}
-                  >
-                    <Sun size={isChildMode ? 20 : 16} />
-                    <span className={isChildMode ? "text-base" : "text-sm"}>
-                      Light
-                    </span>
-                  </button>
-
-                  {group.darkTheme && (
-                    <button
-                      onClick={() => handleThemeChange(group, "dark")}
-                      className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg transition-all ${
-                        activeMode === "dark" && isActive
-                          ? "bg-primary text-primary-foreground shadow-md"
-                          : "bg-muted hover:bg-muted/80"
-                      }`}
-                      aria-label={`Select ${group.baseName} dark mode`}
-                      aria-pressed={activeMode === "dark" && isActive}
-                    >
-                      <Moon size={isChildMode ? 20 : 16} />
-                      <span className={isChildMode ? "text-base" : "text-sm"}>
-                        Dark
-                      </span>
-                    </button>
-                  )}
-                </div>
-
-                {/* Selected Badge */}
-                {isActive && (
-                  <div
-                    className={`absolute top-3 right-3 bg-primary text-primary-foreground rounded-full px-3 py-1 font-bold shadow-lg ${isChildMode ? "text-sm" : "text-xs"}`}
-                  >
-                    ✓ Selected
-                  </div>
-                )}
-              </Card>
-            </div>
+              group={group}
+              activeMode={activeMode}
+              isActive={isActive}
+              isChildMode={isChildMode}
+              onThemeChange={handleThemeChange}
+            />
           );
         })}
       </div>
