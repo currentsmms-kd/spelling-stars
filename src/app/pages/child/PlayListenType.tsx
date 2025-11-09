@@ -21,6 +21,104 @@ interface ListWithWords {
   words: Word[];
 }
 
+interface AnswerSectionProps {
+  answer: string;
+  feedback: "correct" | "wrong" | null;
+  showHint: number;
+  currentWord: Word | undefined;
+  showConfetti: boolean;
+  onAnswerChange: (value: string) => void;
+  onCheckAnswer: () => void;
+  onRetry: () => void;
+  onNextWord: () => void;
+}
+
+function AnswerSection({
+  answer,
+  feedback,
+  showHint,
+  currentWord,
+  showConfetti,
+  onAnswerChange,
+  onCheckAnswer,
+  onRetry,
+  onNextWord,
+}: AnswerSectionProps) {
+  return (
+    <div className="space-y-4">
+      <input
+        type="text"
+        value={answer}
+        onChange={(e) => onAnswerChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && answer.trim() && feedback === null) {
+            onCheckAnswer();
+          }
+        }}
+        className="w-full text-4xl text-center px-6 py-4 border-4 border-primary rounded-2xl focus:ring-4 focus:ring-ring focus:border-primary font-bold bg-input"
+        placeholder="Type here..."
+        disabled={feedback === "correct"}
+      />
+
+      {/* Hints */}
+      {showHint > 0 && feedback === "wrong" && (
+        <div className="text-center">
+          {showHint === 1 && (
+            <p className="text-2xl text-secondary">
+              Hint: It starts with &quot;
+              {currentWord?.text[0].toUpperCase()}&quot;
+            </p>
+          )}
+          {showHint === 2 && (
+            <p className="text-2xl text-secondary">
+              The correct spelling is: <strong>{currentWord?.text}</strong>
+            </p>
+          )}
+        </div>
+      )}
+
+      {feedback === null && (
+        <Button
+          onClick={onCheckAnswer}
+          size="child"
+          className="w-full"
+          disabled={!answer.trim()}
+        >
+          Check Answer
+        </Button>
+      )}
+
+      {feedback === "correct" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-center gap-3 text-secondary">
+            <CheckCircle size={48} />
+            <p className="text-4xl font-bold">Correct! 🎉</p>
+          </div>
+          {showConfetti && <div className="text-6xl animate-bounce">⭐</div>}
+        </div>
+      )}
+
+      {feedback === "wrong" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-center gap-3 text-accent">
+            <XCircle size={48} />
+            <p className="text-4xl font-bold">Try Again!</p>
+          </div>
+          {showHint < 2 ? (
+            <Button onClick={onRetry} size="child" className="w-full">
+              Retry
+            </Button>
+          ) : (
+            <Button onClick={onNextWord} size="child" className="w-full">
+              Next Word
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PlayListenType() {
   const [searchParams] = useSearchParams();
   const listId = searchParams.get("list");
@@ -123,7 +221,9 @@ export function PlayListenType() {
   const currentWord = listData?.words[currentWordIndex];
 
   const playAudio = useCallback(() => {
-    if (!currentWord) return;
+    if (!currentWord) {
+      return;
+    }
 
     if (currentWord.prompt_audio_url) {
       const audio = new Audio(currentWord.prompt_audio_url);
@@ -156,7 +256,29 @@ export function PlayListenType() {
       .replace(/[.,!?;:'"]/g, "");
   };
 
-  const checkAnswer = async () => {
+  const nextWord = useCallback(() => {
+    if (!listData) {
+      return;
+    }
+
+    if (currentWordIndex < listData.words.length - 1) {
+      setCurrentWordIndex((prev) => prev + 1);
+      setAnswer("");
+      setFeedback(null);
+      setShowHint(0);
+      setHasTriedOnce(false);
+    } else {
+      // Completed all words
+      navigate("/child/rewards");
+    }
+  }, [listData, currentWordIndex, navigate]);
+
+  const retry = () => {
+    setAnswer("");
+    setFeedback(null);
+  };
+
+  const checkAnswer = useCallback(async () => {
     if (!currentWord || !profile?.id) return;
 
     const normalizedAnswer = normalizeAnswer(answer);
@@ -220,27 +342,17 @@ export function PlayListenType() {
         setShowHint(2);
       }
     }
-  };
-
-  const nextWord = () => {
-    if (!listData) return;
-
-    if (currentWordIndex < listData.words.length - 1) {
-      setCurrentWordIndex((prev) => prev + 1);
-      setAnswer("");
-      setFeedback(null);
-      setShowHint(0);
-      setHasTriedOnce(false);
-    } else {
-      // Completed all words
-      navigate("/child/rewards");
-    }
-  };
-
-  const retry = () => {
-    setAnswer("");
-    setFeedback(null);
-  };
+  }, [
+    currentWord,
+    profile,
+    answer,
+    hasTriedOnce,
+    showHint,
+    saveAttemptMutation,
+    isOnline,
+    updateSrs,
+    nextWord,
+  ]);
 
   if (!listId) {
     return (
@@ -313,81 +425,17 @@ export function PlayListenType() {
               </Button>
             </div>
 
-            <div className="space-y-4">
-              <input
-                type="text"
-                value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && answer.trim() && feedback === null) {
-                    checkAnswer();
-                  }
-                }}
-                className="w-full text-4xl text-center px-6 py-4 border-4 border-primary rounded-2xl focus:ring-4 focus:ring-ring focus:border-primary font-bold bg-input"
-                placeholder="Type here..."
-                disabled={feedback === "correct"}
-                autoFocus
-              />
-
-              {/* Hints */}
-              {showHint > 0 && feedback === "wrong" && (
-                <div className="text-center">
-                  {showHint === 1 && (
-                    <p className="text-2xl text-secondary">
-                      Hint: It starts with &quot;
-                      {currentWord?.text[0].toUpperCase()}&quot;
-                    </p>
-                  )}
-                  {showHint === 2 && (
-                    <p className="text-2xl text-secondary">
-                      The correct spelling is:{" "}
-                      <strong>{currentWord?.text}</strong>
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {feedback === null && (
-                <Button
-                  onClick={checkAnswer}
-                  size="child"
-                  className="w-full"
-                  disabled={!answer.trim()}
-                >
-                  Check Answer
-                </Button>
-              )}
-
-              {feedback === "correct" && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-center gap-3 text-secondary">
-                    <CheckCircle size={48} />
-                    <p className="text-4xl font-bold">Correct! 🎉</p>
-                  </div>
-                  {showConfetti && (
-                    <div className="text-6xl animate-bounce">⭐</div>
-                  )}
-                </div>
-              )}
-
-              {feedback === "wrong" && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-center gap-3 text-accent">
-                    <XCircle size={48} />
-                    <p className="text-4xl font-bold">Try Again!</p>
-                  </div>
-                  {showHint < 2 ? (
-                    <Button onClick={retry} size="child" className="w-full">
-                      Retry
-                    </Button>
-                  ) : (
-                    <Button onClick={nextWord} size="child" className="w-full">
-                      Next Word
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
+            <AnswerSection
+              answer={answer}
+              feedback={feedback}
+              showHint={showHint}
+              currentWord={currentWord}
+              showConfetti={showConfetti}
+              onAnswerChange={setAnswer}
+              onCheckAnswer={checkAnswer}
+              onRetry={retry}
+              onNextWord={nextWord}
+            />
           </div>
         </Card>
 

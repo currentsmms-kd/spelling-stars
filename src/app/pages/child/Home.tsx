@@ -81,38 +81,34 @@ function ListProgressCard({
   list: ListProgress;
   onContinue: (listId: string, mode: string) => void;
 }) {
-  const progressContent = (
-    <>
-      <div className="flex-1">
-        <p className="text-xl font-semibold">{list.title}</p>
-        <div className="flex items-center gap-4 mt-2 text-muted-foreground">
-          <span className="text-lg">
-            {list.word_count} {list.word_count === 1 ? "word" : "words"}
-          </span>
-          <div className="flex items-center gap-2">
-            <TrendingUp size={18} />
-            <span className="text-lg font-medium">
-              {list.progress_percentage}% complete
-            </span>
-          </div>
-        </div>
-        <ProgressBar percentage={list.progress_percentage} />
-      </div>
-      {list.last_mode && list.word_count > 0 && (
-        <Button
-          size="child"
-          onClick={() => onContinue(list.id, list.last_mode as string)}
-          className="ml-4"
-        >
-          Continue
-        </Button>
-      )}
-    </>
-  );
-
   return (
     <div className="p-4 bg-muted/50 rounded-xl border border-border hover:border-primary transition-colors">
-      <div className="flex items-center justify-between">{progressContent}</div>
+      <div className="flex items-center justify-between">
+        <div className="flex-1">
+          <p className="text-xl font-semibold">{list.title}</p>
+          <div className="flex items-center gap-4 mt-2 text-muted-foreground">
+            <span className="text-lg">
+              {list.word_count} {list.word_count === 1 ? "word" : "words"}
+            </span>
+            <div className="flex items-center gap-2">
+              <TrendingUp size={18} />
+              <span className="text-lg font-medium">
+                {list.progress_percentage}% complete
+              </span>
+            </div>
+          </div>
+          <ProgressBar percentage={list.progress_percentage} />
+        </div>
+        {list.last_mode && list.word_count > 0 && (
+          <Button
+            size="child"
+            onClick={() => onContinue(list.id, list.last_mode as string)}
+            className="ml-4"
+          >
+            Continue
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

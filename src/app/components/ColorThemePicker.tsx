@@ -48,7 +48,7 @@ export function ColorThemePicker({
       baseName: theme.name,
       description: theme.description,
       lightTheme: theme,
-      darkTheme: darkTheme,
+      darkTheme,
     });
 
     processedIds.add(theme.id);

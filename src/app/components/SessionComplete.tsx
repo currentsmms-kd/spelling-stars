@@ -9,6 +9,29 @@ interface SessionCompleteProps {
   starsEarned: number;
 }
 
+// Extracted Stat Card Component
+function StatCard({
+  value,
+  label,
+  colorClass,
+  icon,
+}: {
+  value: number | React.ReactNode;
+  label: string;
+  colorClass: string;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <div className={`p-4 ${colorClass} rounded-xl`}>
+      <div className="text-3xl font-bold flex items-center justify-center gap-1">
+        {icon}
+        {value}
+      </div>
+      <div className="text-sm text-muted-foreground mt-1">{label}</div>
+    </div>
+  );
+}
+
 export function SessionComplete({
   durationMinutes,
   wordsPracticed,
@@ -31,31 +54,28 @@ export function SessionComplete({
           <div>
             <h1 className="text-4xl font-bold mb-2">Great Job!</h1>
             <p className="text-xl text-muted-foreground">
-              You've practiced enough for today
+              You&apos;ve practiced enough for today
             </p>
           </div>
 
           {/* Stats */}
           <div className="grid grid-cols-3 gap-4 py-6">
-            <div className="p-4 bg-primary/10 rounded-xl">
-              <div className="text-3xl font-bold text-primary">
-                {durationMinutes}
-              </div>
-              <div className="text-sm text-muted-foreground mt-1">Minutes</div>
-            </div>
-            <div className="p-4 bg-secondary/10 rounded-xl">
-              <div className="text-3xl font-bold text-secondary">
-                {wordsPracticed}
-              </div>
-              <div className="text-sm text-muted-foreground mt-1">Words</div>
-            </div>
-            <div className="p-4 bg-accent/10 rounded-xl">
-              <div className="text-3xl font-bold text-accent flex items-center justify-center gap-1">
-                <Star className="fill-current" size={24} />
-                {starsEarned}
-              </div>
-              <div className="text-sm text-muted-foreground mt-1">Stars</div>
-            </div>
+            <StatCard
+              value={durationMinutes}
+              label="Minutes"
+              colorClass="bg-primary/10 text-primary"
+            />
+            <StatCard
+              value={wordsPracticed}
+              label="Words"
+              colorClass="bg-secondary/10 text-secondary"
+            />
+            <StatCard
+              value={starsEarned}
+              label="Stars"
+              colorClass="bg-accent/10 text-accent"
+              icon={<Star className="fill-current" size={24} />}
+            />
           </div>
 
           {/* Message */}

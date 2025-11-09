@@ -177,6 +177,7 @@ export function PlaySaySpell() {
       const timer = setTimeout(() => playWord(), 500);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [currentWord, step, playWord]);
 
   // Handle recording completion
@@ -213,7 +214,26 @@ export function PlaySaySpell() {
       .replace(/[.,!?;:'"]/g, "");
   };
 
-  const checkAnswer = async () => {
+  const nextWord = useCallback(() => {
+    if (!listData) return;
+
+    if (currentWordIndex < listData.words.length - 1) {
+      setCurrentWordIndex((prev) => prev + 1);
+      setStep("record");
+      setAnswer("");
+      setFeedback(null);
+      setShowHint(0);
+      setHasTriedOnce(false);
+      setAudioBlob(null);
+      setAudioBlobId(null);
+      clearRecording();
+    } else {
+      // Completed all words
+      navigate("/child/rewards");
+    }
+  }, [listData, currentWordIndex, navigate, clearRecording]);
+
+  const checkAnswer = useCallback(async () => {
     if (!currentWord || !profile?.id) return;
 
     const normalizedAnswer = normalizeAnswer(answer);
@@ -279,26 +299,18 @@ export function PlaySaySpell() {
         setShowHint(2);
       }
     }
-  };
-
-  const nextWord = () => {
-    if (!listData) return;
-
-    if (currentWordIndex < listData.words.length - 1) {
-      setCurrentWordIndex((prev) => prev + 1);
-      setStep("record");
-      setAnswer("");
-      setFeedback(null);
-      setShowHint(0);
-      setHasTriedOnce(false);
-      setAudioBlob(null);
-      setAudioBlobId(null);
-      clearRecording();
-    } else {
-      // Completed all words
-      navigate("/child/rewards");
-    }
-  };
+  }, [
+    currentWord,
+    profile,
+    answer,
+    hasTriedOnce,
+    showHint,
+    audioBlobId,
+    saveAttemptMutation,
+    isOnline,
+    updateSrs,
+    nextWord,
+  ]);
 
   const retry = () => {
     setAnswer("");
@@ -452,7 +464,6 @@ export function PlaySaySpell() {
                     className="w-full text-4xl text-center px-6 py-4 border-4 border-primary rounded-2xl focus:ring-4 focus:ring-ring focus:border-primary font-bold bg-input"
                     placeholder="Type here..."
                     disabled={feedback === "correct"}
-                    autoFocus
                   />
 
                   {/* Hints */}

@@ -20,6 +20,91 @@ interface AnalyticsDashboardProps {
   childId?: string;
 }
 
+// Extracted Summary Card Component
+function SummaryCard({
+  icon,
+  iconColor,
+  value,
+  label,
+}: {
+  icon: React.ReactNode;
+  iconColor: string;
+  value: string | number;
+  label: string;
+}) {
+  return (
+    <Card>
+      <div className="flex items-start gap-3">
+        <div className={`p-2 ${iconColor} rounded-lg`}>{icon}</div>
+        <div>
+          <div className="text-2xl font-bold">{value}</div>
+          <div className="text-sm text-muted-foreground">{label}</div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// Extracted Session Entry Component
+function SessionEntry({
+  date,
+  wordsPracticed,
+  duration,
+  accuracy,
+}: {
+  date: string;
+  wordsPracticed: number;
+  duration: number;
+  accuracy: number;
+}) {
+  const accuracyColor =
+    accuracy >= 80
+      ? "text-secondary"
+      : accuracy >= 60
+        ? "text-accent"
+        : "text-destructive";
+
+  return (
+    <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+      <div>
+        <div className="font-semibold">
+          {new Date(date).toLocaleDateString()}
+        </div>
+        <div className="text-sm text-muted-foreground">
+          {wordsPracticed} words · {duration} min
+        </div>
+      </div>
+      <div className={`text-lg font-bold ${accuracyColor}`}>
+        {accuracy.toFixed(0)}%
+      </div>
+    </div>
+  );
+}
+
+// Extracted Time Range Button Component
+function TimeRangeButton({
+  isActive,
+  onClick,
+  children,
+}: {
+  isActive: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+        isActive
+          ? "bg-primary text-primary-foreground"
+          : "bg-muted text-foreground hover:bg-muted/80"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 export function AnalyticsDashboard({ childId }: AnalyticsDashboardProps) {
   const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -137,96 +222,53 @@ export function AnalyticsDashboard({ childId }: AnalyticsDashboardProps) {
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Practice Analytics</h2>
         <div className="flex gap-2">
-          <button
+          <TimeRangeButton
+            isActive={timeRange === "7d"}
             onClick={() => setTimeRange("7d")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              timeRange === "7d"
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-foreground hover:bg-muted/80"
-            }`}
           >
             7 Days
-          </button>
-          <button
+          </TimeRangeButton>
+          <TimeRangeButton
+            isActive={timeRange === "30d"}
             onClick={() => setTimeRange("30d")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              timeRange === "30d"
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-foreground hover:bg-muted/80"
-            }`}
           >
             30 Days
-          </button>
-          <button
+          </TimeRangeButton>
+          <TimeRangeButton
+            isActive={timeRange === "all"}
             onClick={() => setTimeRange("all")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              timeRange === "all"
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-foreground hover:bg-muted/80"
-            }`}
           >
             All Time
-          </button>
+          </TimeRangeButton>
         </div>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <TrendingUp className="text-primary" size={24} />
-            </div>
-            <div>
-              <div className="text-2xl font-bold">
-                {analytics.totalSessions}
-              </div>
-              <div className="text-sm text-muted-foreground">Sessions</div>
-            </div>
-          </div>
-        </Card>
-
-        <Card>
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-secondary/10 rounded-lg">
-              <Clock className="text-secondary" size={24} />
-            </div>
-            <div>
-              <div className="text-2xl font-bold">{analytics.totalMinutes}</div>
-              <div className="text-sm text-muted-foreground">Minutes</div>
-            </div>
-          </div>
-        </Card>
-
-        <Card>
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-secondary/10 rounded-lg">
-              <Award className="text-secondary" size={24} />
-            </div>
-            <div>
-              <div className="text-2xl font-bold">
-                {analytics.totalWordsPracticed}
-              </div>
-              <div className="text-sm text-muted-foreground">
-                Words Practiced
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        <Card>
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-accent/10 rounded-lg">
-              <Target className="text-accent" size={24} />
-            </div>
-            <div>
-              <div className="text-2xl font-bold">
-                {analytics.averageAccuracy.toFixed(0)}%
-              </div>
-              <div className="text-sm text-muted-foreground">Accuracy</div>
-            </div>
-          </div>
-        </Card>
+        <SummaryCard
+          icon={<TrendingUp className="text-primary" size={24} />}
+          iconColor="bg-primary/10"
+          value={analytics.totalSessions}
+          label="Sessions"
+        />
+        <SummaryCard
+          icon={<Clock className="text-secondary" size={24} />}
+          iconColor="bg-secondary/10"
+          value={analytics.totalMinutes}
+          label="Minutes"
+        />
+        <SummaryCard
+          icon={<Award className="text-secondary" size={24} />}
+          iconColor="bg-secondary/10"
+          value={analytics.totalWordsPracticed}
+          label="Words Practiced"
+        />
+        <SummaryCard
+          icon={<Target className="text-accent" size={24} />}
+          iconColor="bg-accent/10"
+          value={`${analytics.averageAccuracy.toFixed(0)}%`}
+          label="Accuracy"
+        />
       </div>
 
       {/* Recent Sessions */}
@@ -234,30 +276,13 @@ export function AnalyticsDashboard({ childId }: AnalyticsDashboardProps) {
         <h3 className="text-xl font-bold mb-4">Recent Sessions</h3>
         <div className="space-y-3">
           {analytics.recentSessions.map((session, i) => (
-            <div
+            <SessionEntry
               key={i}
-              className="flex items-center justify-between p-3 bg-muted rounded-lg"
-            >
-              <div>
-                <div className="font-semibold">
-                  {new Date(session.date).toLocaleDateString()}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {session.wordsPracticed} words · {session.duration} min
-                </div>
-              </div>
-              <div
-                className={`text-lg font-bold ${
-                  session.accuracy >= 80
-                    ? "text-secondary"
-                    : session.accuracy >= 60
-                      ? "text-accent"
-                      : "text-destructive"
-                }`}
-              >
-                {session.accuracy.toFixed(0)}%
-              </div>
-            </div>
+              date={session.date}
+              wordsPracticed={session.wordsPracticed}
+              duration={session.duration}
+              accuracy={session.accuracy}
+            />
           ))}
         </div>
       </Card>

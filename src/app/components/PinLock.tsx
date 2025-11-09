@@ -21,6 +21,18 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
     }
   }, [pinCode, onUnlock]);
 
+  const validatePin = (pinToValidate: string) => {
+    // Simple hash comparison (in production, use proper hashing like bcrypt)
+    const hashedInput = btoa(pinToValidate); // Base64 encoding as simple "hash"
+
+    if (hashedInput === pinCode) {
+      onUnlock();
+    } else {
+      setError("Incorrect PIN. Try again.");
+      setPin("");
+    }
+  };
+
   const handleNumberClick = (num: number) => {
     if (pin.length < 4) {
       const newPin = pin + num;
@@ -42,18 +54,6 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
   const handleClear = () => {
     setPin("");
     setError("");
-  };
-
-  const validatePin = (pinToValidate: string) => {
-    // Simple hash comparison (in production, use proper hashing like bcrypt)
-    const hashedInput = btoa(pinToValidate); // Base64 encoding as simple "hash"
-
-    if (hashedInput === pinCode) {
-      onUnlock();
-    } else {
-      setError("Incorrect PIN. Try again.");
-      setPin("");
-    }
   };
 
   if (!pinCode) {
