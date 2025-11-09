@@ -1,16 +1,12 @@
--- Seed data for testing
--- Note: In production, these would be created through the auth system
--- This is just for demo purposes
+-- Safe seed data - only inserts if data doesn't exist
 
 -- Create demo parent profile
--- Password: parent123 (you'll need to create this user through Supabase Auth UI)
 INSERT INTO profiles (id, role, display_name, avatar_url)
 VALUES
     ('00000000-0000-0000-0000-000000000001', 'parent', 'Demo Parent', NULL)
 ON CONFLICT (id) DO NOTHING;
 
 -- Create two demo child profiles
--- Passwords: child1 / child2 (you'll need to create these users through Supabase Auth UI)
 INSERT INTO profiles (id, role, display_name, avatar_url)
 VALUES
     ('00000000-0000-0000-0000-000000000002', 'child', 'Emma', NULL),
