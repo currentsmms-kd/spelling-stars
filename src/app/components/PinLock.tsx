@@ -3,6 +3,7 @@ import { Button } from "./Button";
 import { Card } from "./Card";
 import { Lock, X } from "lucide-react";
 import { useParentalSettingsStore } from "../store/parentalSettings";
+import { verifyPin } from "@/lib/crypto";
 
 interface PinLockProps {
   onUnlock: () => void;
@@ -134,7 +135,15 @@ function PinLockContent({
 export function PinLock({ onUnlock, onCancel }: PinLockProps) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
-  const { pinCode } = useParentalSettingsStore();
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [lockoutSecondsRemaining, setLockoutSecondsRemaining] = useState(0);
+  const {
+    pinCode,
+    recordFailedAttempt,
+    isLockedOut,
+    getLockoutTimeRemaining,
+    failedAttempts,
+  } = useParentalSettingsStore();
 
   useEffect(() => {
     // If no PIN is set, auto-unlock
@@ -143,19 +152,87 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
     }
   }, [pinCode, onUnlock]);
 
-  const validatePin = (pinToValidate: string) => {
-    // Simple hash comparison (in production, use proper hashing like bcrypt)
-    const hashedInput = btoa(pinToValidate); // Base64 encoding as simple "hash"
+  // Update lockout countdown every second
+  useEffect(() => {
+    if (!isLockedOut()) return undefined;
 
-    if (hashedInput === pinCode) {
-      onUnlock();
-    } else {
-      setError("Incorrect PIN. Try again.");
+    const interval = setInterval(() => {
+      const remaining = getLockoutTimeRemaining();
+      setLockoutSecondsRemaining(remaining);
+
+      if (remaining === 0) {
+        setError("");
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isLockedOut, getLockoutTimeRemaining, failedAttempts]);
+
+  const validatePin = async (pinToValidate: string) => {
+    // Check lockout status
+    if (isLockedOut()) {
+      const remaining = getLockoutTimeRemaining();
+      setLockoutSecondsRemaining(remaining);
+      setError(
+        `Too many failed attempts. Please wait ${remaining} second${remaining !== 1 ? "s" : ""}.`
+      );
       setPin("");
+      return;
+    }
+
+    setIsVerifying(true);
+    setError("");
+
+    try {
+      // Use constant-time verification with PBKDF2
+      if (!pinCode) {
+        setError("PIN not configured.");
+        setPin("");
+        return;
+      }
+
+      const isValid = await verifyPin(pinToValidate, pinCode);
+
+      if (isValid) {
+        onUnlock();
+      } else {
+        recordFailedAttempt();
+        const attempts = useParentalSettingsStore.getState().failedAttempts;
+
+        // Show progressively stronger warnings
+        if (attempts >= 6) {
+          setError(
+            "Multiple failed attempts detected. You will be locked out for 5 minutes after the next failure."
+          );
+        } else if (attempts >= 3) {
+          const nextLockout =
+            attempts === 3
+              ? "30 seconds"
+              : attempts === 4
+                ? "1 minute"
+                : "2 minutes";
+          setError(
+            `Incorrect PIN. ${attempts} failed attempts. Next failure will lock you out for ${nextLockout}.`
+          );
+        } else {
+          setError(
+            `Incorrect PIN. ${attempts} failed attempt${attempts !== 1 ? "s" : ""}.`
+          );
+        }
+        setPin("");
+      }
+    } catch (err) {
+      console.error("PIN verification error:", err);
+      setError("An error occurred. Please try again.");
+      setPin("");
+    } finally {
+      setIsVerifying(false);
     }
   };
 
   const handleNumberClick = (num: number) => {
+    if (isVerifying || isLockedOut()) return;
+
     if (pin.length < 4) {
       const newPin = pin + num;
       setPin(newPin);
@@ -169,11 +246,13 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
   };
 
   const handleBackspace = () => {
+    if (isVerifying || isLockedOut()) return;
     setPin(pin.slice(0, -1));
     setError("");
   };
 
   const handleClear = () => {
+    if (isVerifying || isLockedOut()) return;
     setPin("");
     setError("");
   };
@@ -187,12 +266,21 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
       <Card className="max-w-md w-full">
         <PinLockContent
           pin={pin}
-          error={error}
+          error={
+            lockoutSecondsRemaining > 0
+              ? `Too many failed attempts. Please wait ${lockoutSecondsRemaining} second${lockoutSecondsRemaining !== 1 ? "s" : ""}.`
+              : error
+          }
           onCancel={onCancel}
           onNumberClick={handleNumberClick}
           onClear={handleClear}
           onBackspace={handleBackspace}
         />
+        {isVerifying && (
+          <div className="absolute inset-0 bg-background/50 flex items-center justify-center rounded-lg">
+            <div className="text-primary font-medium">Verifying...</div>
+          </div>
+        )}
       </Card>
     </div>
   );

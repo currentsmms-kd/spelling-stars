@@ -8,6 +8,7 @@ import { useThemeStore } from "@/app/store/theme";
 import { useAuth } from "@/app/hooks/useAuth";
 import { supabase } from "@/app/supabase";
 import { Lock, Save, Settings } from "lucide-react";
+import { isValidPinFormat } from "@/lib/crypto";
 
 // Extracted PIN Settings Component
 function PinSettings({
@@ -307,8 +308,8 @@ export function ParentalSettings() {
 
     // Validate PIN if changed
     if (localPin) {
-      if (localPin.length !== 4 || !/^\d{4}$/.test(localPin)) {
-        setMessage({ type: "error", text: "PIN must be 4 digits" });
+      if (!isValidPinFormat(localPin)) {
+        setMessage({ type: "error", text: "PIN must be exactly 4 digits" });
         return;
       }
       if (localPin !== confirmPin) {
@@ -321,10 +322,16 @@ export function ParentalSettings() {
     setMessage(null);
 
     try {
-      const hashedPin = localPin ? btoa(localPin) : pinCode;
+      // Hash the PIN if changed, otherwise keep existing
+      let hashedPin = pinCode;
+      if (localPin) {
+        await setPinCode(localPin); // This hashes and stores the PIN
+        hashedPin = useParentalSettingsStore.getState().pinCode;
+      }
 
       if (!hashedPin) {
         setMessage({ type: "error", text: "PIN is required" });
+        setIsSaving(false);
         return;
       }
 
@@ -343,9 +350,6 @@ export function ParentalSettings() {
 
       // Update local store
       setSettings(localSettings);
-      if (hashedPin) {
-        setPinCode(hashedPin);
-      }
 
       setMessage({ type: "success", text: "Settings saved successfully!" });
       setLocalPin("");
