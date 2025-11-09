@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/app/hooks/useAuth";
 import { logger } from "@/lib/logger";
+import { useTtsVoices } from "@/app/hooks/useTtsVoices";
 import {
   useWordList,
   useCreateWordList,
@@ -66,6 +67,7 @@ interface WordRowProps {
   onPlayAudio: (url: string) => void;
   onDelete: (wordId: string) => void;
   isDeleting: boolean;
+  availableVoices: SpeechSynthesisVoice[];
 }
 
 function WordRow({
@@ -83,6 +85,7 @@ function WordRow({
   onPlayAudio,
   onDelete,
   isDeleting,
+  availableVoices,
 }: WordRowProps) {
   return (
     <div
@@ -135,10 +138,13 @@ function WordRow({
         title="Text-to-Speech Voice"
       >
         <option value="">Default</option>
-        <option value="en-US">US English</option>
-        <option value="en-GB">UK English</option>
-        <option value="en-AU">Australian</option>
-        <option value="en-IN">Indian</option>
+        {availableVoices
+          .filter((v) => v.lang.startsWith("en"))
+          .map((voice) => (
+            <option key={voice.name} value={voice.name}>
+              {voice.name}
+            </option>
+          ))}
       </select>
       {word.prompt_audio_url && (
         <Button
@@ -330,6 +336,7 @@ function WordsListSection({
   handlePlayAudio,
   handleDeleteWord,
   deleteWordPending,
+  availableVoices,
 }: {
   isNewList: boolean;
   words: WordWithIndex[];
@@ -351,6 +358,7 @@ function WordsListSection({
   handlePlayAudio: (url: string) => void;
   handleDeleteWord: (wordId: string) => void;
   deleteWordPending: boolean;
+  availableVoices: SpeechSynthesisVoice[];
 }) {
   return (
     <div className="lg:col-span-6">
@@ -398,6 +406,7 @@ function WordsListSection({
                 onPlayAudio={handlePlayAudio}
                 onDelete={handleDeleteWord}
                 isDeleting={deleteWordPending}
+                availableVoices={availableVoices}
               />
             ))}
           </div>
@@ -474,6 +483,7 @@ export function ListEditor() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isNewList = !id;
+  const { voices: availableVoices } = useTtsVoices();
 
   // Queries and mutations
   const { data: list, isLoading } = useWordList(id);
@@ -822,6 +832,7 @@ export function ListEditor() {
             handlePlayAudio={handlePlayAudio}
             handleDeleteWord={handleDeleteWord}
             deleteWordPending={deleteWord.isPending}
+            availableVoices={availableVoices}
           />
 
           <AudioRecorderSection

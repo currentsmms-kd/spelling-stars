@@ -7,6 +7,7 @@ import { supabase } from "@/app/supabase";
 import { useAuth } from "@/app/hooks/useAuth";
 import { Link } from "react-router-dom";
 import { Button } from "@/app/components/Button";
+import { cn } from "@/lib/utils";
 
 interface Badge {
   id: string;
@@ -16,25 +17,80 @@ interface Badge {
   earnedAt: string;
 }
 
+// Color mapping to avoid dynamic class construction (which Tailwind purges)
+type AchievementColor = "primary" | "secondary" | "accent";
+
+interface ColorClasses {
+  background: string;
+  border: string;
+  text: string;
+}
+
+const ACHIEVEMENT_COLOR_MAP: Record<AchievementColor, ColorClasses> = {
+  primary: {
+    background: "bg-primary/10",
+    border: "border-primary",
+    text: "text-primary-foreground",
+  },
+  secondary: {
+    background: "bg-secondary/10",
+    border: "border-secondary",
+    text: "text-secondary-foreground",
+  },
+  accent: {
+    background: "bg-accent/10",
+    border: "border-accent",
+    text: "text-accent-foreground",
+  },
+} as const;
+
+// Stats card color mapping
+type StatsColor = "primary" | "secondary" | "accent";
+
+interface StatsColorClasses {
+  background: string;
+  icon: string;
+}
+
+const STATS_COLOR_MAP: Record<StatsColor, StatsColorClasses> = {
+  primary: {
+    background: "bg-primary/20",
+    icon: "text-primary",
+  },
+  secondary: {
+    background: "bg-secondary/20",
+    icon: "text-secondary",
+  },
+  accent: {
+    background: "bg-accent/20",
+    icon: "text-accent",
+  },
+} as const;
+
 // Extracted Stats Card Component
 function StatsCard({
   value,
   label,
   icon: Icon,
-  iconColor,
+  color,
 }: {
   value: number;
   label: string;
   icon: LucideIcon;
-  iconColor: string;
+  color: StatsColor;
 }) {
+  const colorClasses = STATS_COLOR_MAP[color];
+
   return (
     <Card variant="child">
       <div className="text-center space-y-4">
         <div
-          className={`w-20 h-20 ${iconColor} rounded-full flex items-center justify-center mx-auto`}
+          className={cn(
+            "w-20 h-20 rounded-full flex items-center justify-center mx-auto",
+            colorClasses.background
+          )}
         >
-          <Icon className={iconColor.replace("/20", "")} size={40} />
+          <Icon className={cn(colorClasses.icon)} size={40} />
         </div>
         <div>
           <p className="text-5xl font-bold">{value}</p>
@@ -56,13 +112,23 @@ function AchievementCard({
     color: string;
   };
 }) {
+  // Get the color classes, defaulting to primary if color is not recognized
+  const colorKey = (
+    ["primary", "secondary", "accent"].includes(achievement.color)
+      ? achievement.color
+      : "primary"
+  ) as AchievementColor;
+  const colorClasses = ACHIEVEMENT_COLOR_MAP[colorKey];
+
   return (
     <div
-      className={`p-6 bg-${achievement.color}/10 rounded-2xl border-2 border-${achievement.color}`}
+      className={cn(
+        "p-6 rounded-2xl border-2",
+        colorClasses.background,
+        colorClasses.border
+      )}
     >
-      <p
-        className={`text-2xl font-semibold text-${achievement.color}-foreground`}
-      >
+      <p className={cn("text-2xl font-semibold", colorClasses.text)}>
         {achievement.title}
       </p>
       <p className="text-lg text-muted-foreground mt-1">
@@ -145,6 +211,58 @@ function BadgesSection({ badges }: { badges: Badge[] }) {
   );
 }
 
+// Extracted Header Section Component
+function RewardsHeader() {
+  return (
+    <div className="space-y-8">
+      <Link to="/child/home">
+        <Button size="child" className="flex items-center gap-2">
+          <Home size={24} />
+          <span>Home</span>
+        </Button>
+      </Link>
+
+      <div className="text-center">
+        <h2 className="text-4xl font-bold text-primary mb-4">
+          You&apos;re doing great! 🎉
+        </h2>
+        <p className="text-2xl text-muted-foreground">
+          Keep practicing to earn more stars!
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Extracted Stats Grid Component
+function StatsGrid({
+  totalStars,
+  streak,
+  perfectWords,
+}: {
+  totalStars: number;
+  streak: number;
+  perfectWords: number;
+}) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <StatsCard
+        value={totalStars}
+        label="Total Stars"
+        icon={Trophy}
+        color="secondary"
+      />
+      <StatsCard value={streak} label="Day Streak" icon={Zap} color="accent" />
+      <StatsCard
+        value={perfectWords}
+        label="Perfect Words"
+        icon={Target}
+        color="secondary"
+      />
+    </div>
+  );
+}
+
 // Extracted Rewards Content Component
 function RewardsContent({
   totalStars,
@@ -166,44 +284,13 @@ function RewardsContent({
 }) {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
-      <div className="flex items-center justify-between">
-        <Link to="/child/home">
-          <Button size="child" className="flex items-center gap-2">
-            <Home size={24} />
-            <span>Home</span>
-          </Button>
-        </Link>
-      </div>
+      <RewardsHeader />
 
-      <div className="text-center">
-        <h2 className="text-4xl font-bold text-primary mb-4">
-          You&apos;re doing great! 🎉
-        </h2>
-        <p className="text-2xl text-muted-foreground">
-          Keep practicing to earn more stars!
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <StatsCard
-          value={totalStars}
-          label="Total Stars"
-          icon={Trophy}
-          iconColor="bg-secondary/20"
-        />
-        <StatsCard
-          value={streak}
-          label="Day Streak"
-          icon={Zap}
-          iconColor="bg-accent/20"
-        />
-        <StatsCard
-          value={perfectWords}
-          label="Perfect Words"
-          icon={Target}
-          iconColor="bg-secondary/20"
-        />
-      </div>
+      <StatsGrid
+        totalStars={totalStars}
+        streak={streak}
+        perfectWords={perfectWords}
+      />
 
       <StarsGrid totalStars={totalStars} />
 

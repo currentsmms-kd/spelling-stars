@@ -14,6 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/app/supabase";
 import { useAuth } from "@/app/hooks/useAuth";
 import { useDueWords } from "@/app/api/supa";
+import { cn } from "@/lib/utils";
 
 interface ListProgress {
   id: string;
@@ -23,29 +24,50 @@ interface ListProgress {
   last_mode?: "listen-type" | "say-spell";
 }
 
+// Color mapping to avoid dynamic class construction (which Tailwind purges)
+type GameCardColor = "primary" | "secondary";
+
+interface GameCardColorClasses {
+  background: string;
+  icon: string;
+}
+
+const GAME_CARD_COLOR_MAP: Record<GameCardColor, GameCardColorClasses> = {
+  primary: {
+    background: "bg-primary/20",
+    icon: "text-primary",
+  },
+  secondary: {
+    background: "bg-secondary/20",
+    icon: "text-secondary",
+  },
+} as const;
+
 function GameCard({
   icon: Icon,
   title,
   description,
   href,
-  bgColor,
+  color,
 }: {
   icon: LucideIcon;
   title: string;
   description: string;
   href: string;
-  bgColor: string;
+  color: GameCardColor;
 }) {
+  const colorClasses = GAME_CARD_COLOR_MAP[color];
+
   return (
     <Card variant="child">
       <div className="text-center space-y-6">
         <div
-          className={`w-24 h-24 ${bgColor} rounded-full flex items-center justify-center mx-auto`}
+          className={cn(
+            "w-24 h-24 rounded-full flex items-center justify-center mx-auto",
+            colorClasses.background
+          )}
         >
-          <Icon
-            className={bgColor.replace("bg-", "text-").replace("-100", "-700")}
-            size={48}
-          />
+          <Icon className={cn(colorClasses.icon)} size={48} />
         </div>
         <div>
           <h3 className="text-3xl font-bold text-foreground mb-2">{title}</h3>
@@ -330,14 +352,14 @@ export function ChildHome() {
             title="Listen & Type"
             description="Hear the word and type it out"
             href="/child/play/listen-type"
-            bgColor="bg-primary/20"
+            color="primary"
           />
           <GameCard
             icon={Mic}
             title="Say & Spell"
             description="Say the spelling out loud"
             href="/child/play/say-spell"
-            bgColor="bg-secondary/20"
+            color="secondary"
           />
         </div>
 

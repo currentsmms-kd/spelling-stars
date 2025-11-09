@@ -2,6 +2,25 @@
 export default {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   darkMode: ["class"],
+  safelist: [
+    // Achievement color classes used in dynamic contexts
+    "bg-primary/10",
+    "bg-secondary/10",
+    "bg-accent/10",
+    "border-primary",
+    "border-secondary",
+    "border-accent",
+    "text-primary-foreground",
+    "text-secondary-foreground",
+    "text-accent-foreground",
+    // Game card and dashboard color classes
+    "bg-primary/20",
+    "bg-secondary/20",
+    "bg-accent/20",
+    "text-primary",
+    "text-secondary",
+    "text-accent",
+  ],
   theme: {
     extend: {
       colors: {

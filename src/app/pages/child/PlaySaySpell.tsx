@@ -10,6 +10,7 @@ import { supabase } from "@/app/supabase";
 import { useAuth } from "@/app/hooks/useAuth";
 import { useOnline } from "@/app/hooks/useOnline";
 import { useAudioRecorder } from "@/app/hooks/useAudioRecorder";
+import { useTtsVoices } from "@/app/hooks/useTtsVoices";
 import { queueAttempt, queueAudio } from "@/lib/sync";
 import { addStars, useUpdateSrs } from "@/app/api/supa";
 import type { Tables } from "@/types/database.types";
@@ -351,6 +352,7 @@ export function PlaySaySpell() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const isOnline = useOnline();
+  const { getVoiceByName } = useTtsVoices();
 
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [step, setStep] = useState<"record" | "type">("record");
@@ -485,13 +487,10 @@ export function PlaySaySpell() {
 
     const utterance = new SpeechSynthesisUtterance(currentWord.text);
     if (currentWord.tts_voice) {
-      utterance.voice =
-        speechSynthesis
-          .getVoices()
-          .find((v) => v.name === currentWord.tts_voice) || null;
+      utterance.voice = getVoiceByName(currentWord.tts_voice);
     }
     speechSynthesis.speak(utterance);
-  }, [currentWord]);
+  }, [currentWord, getVoiceByName]);
 
   // Auto-play on word change
   useEffect(() => {
