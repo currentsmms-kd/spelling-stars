@@ -22,6 +22,7 @@ import {
   Check,
 } from "lucide-react";
 import { useAuth } from "@/app/hooks/useAuth";
+import { logger } from "@/lib/logger";
 import {
   useWordList,
   useCreateWordList,
@@ -581,7 +582,7 @@ export function ListEditor() {
         showToast("success", "List updated successfully");
       }
     } catch (error) {
-      console.error("Error saving list:", error);
+      logger.error("Error saving list:", error);
       showToast("error", "Failed to save list");
     }
   };
@@ -601,7 +602,7 @@ export function ListEditor() {
       });
       showToast("success", "Word added");
     } catch (error) {
-      console.error("Error adding word:", error);
+      logger.error("Error adding word:", error);
       showToast("error", "Failed to add word");
     }
   };
@@ -613,7 +614,7 @@ export function ListEditor() {
       await deleteWord.mutateAsync({ listId: id, wordId });
       showToast("success", "Word deleted");
     } catch (error) {
-      console.error("Error deleting word:", error);
+      logger.error("Error deleting word:", error);
       showToast("error", "Failed to delete word");
     }
   };
@@ -629,7 +630,7 @@ export function ListEditor() {
         updates: { [field]: value },
       });
     } catch (error) {
-      console.error("Error updating word:", error);
+      logger.error("Error updating word:", error);
       showToast("error", "Failed to update word");
     }
   };
@@ -679,7 +680,7 @@ export function ListEditor() {
         })),
       });
     } catch (error) {
-      console.error("Error reordering words:", error);
+      logger.error("Error reordering words:", error);
       showToast("error", "Failed to reorder words");
     }
 
@@ -721,7 +722,7 @@ export function ListEditor() {
       showToast("success", `Added ${newWords.length} word(s)`);
       setBulkImportText("");
     } catch (error) {
-      console.error("Error bulk importing:", error);
+      logger.error("Error bulk importing:", error);
       showToast("error", "Failed to import words");
     }
   };
@@ -738,7 +739,7 @@ export function ListEditor() {
       });
       showToast("success", "Audio uploaded successfully");
     } catch (error) {
-      console.error("Error uploading audio:", error);
+      logger.error("Error uploading audio:", error);
       showToast("error", "Failed to upload audio");
     } finally {
       setUploadingAudio(false);
@@ -748,7 +749,7 @@ export function ListEditor() {
   const handlePlayAudio = (url: string) => {
     const audio = new Audio(url);
     audio.play().catch((error) => {
-      console.error("Error playing audio:", error);
+      logger.error("Error playing audio:", error);
       showToast("error", "Failed to play audio");
     });
   };

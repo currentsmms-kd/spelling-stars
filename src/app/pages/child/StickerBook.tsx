@@ -4,6 +4,7 @@ import { Card } from "@/app/components/Card";
 import { useAuth } from "@/app/hooks/useAuth";
 import { supabase } from "@/app/supabase";
 import { Award, Star, Lock } from "lucide-react";
+import { logger } from "@/lib/logger";
 import type { Tables } from "@/types/database.types";
 
 type Badge = Tables<"badges">;
@@ -295,7 +296,7 @@ export function StickerBook() {
         );
         setTotalStars(rewardsData?.stars_total || 0);
       } catch (err) {
-        console.error("Error loading sticker book data:", err);
+        logger.error("Error loading sticker book data:", err);
       } finally {
         setIsLoading(false);
       }

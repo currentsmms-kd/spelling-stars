@@ -16,4 +16,13 @@ module.exports = {
     ],
     "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
   },
+  overrides: [
+    {
+      // Allow console in the centralized logger utility
+      files: ["src/lib/logger.ts"],
+      rules: {
+        "no-console": "off",
+      },
+    },
+  ],
 };
