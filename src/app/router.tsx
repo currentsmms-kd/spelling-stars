@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from "react-router-dom";
+import { createBrowserRouter } from "react-router-dom";
 import { Login } from "./pages/auth/Login";
 import { Dashboard } from "./pages/parent/Dashboard";
 import { Lists } from "./pages/parent/Lists";
@@ -7,63 +7,8 @@ import { ChildHome } from "./pages/child/Home";
 import { PlayListenType } from "./pages/child/PlayListenType";
 import { PlaySaySpell } from "./pages/child/PlaySaySpell";
 import { Rewards } from "./pages/child/Rewards";
-import { useAuth } from "./hooks/useAuth";
-import { ReactNode } from "react";
-
-interface ProtectedRouteProps {
-  children: ReactNode;
-  requiredRole?: "parent" | "child";
-}
-
-function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading, profile } = useAuth();
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-xl text-gray-600">Loading...</p>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (requiredRole && profile?.role !== requiredRole) {
-    // Redirect to appropriate area based on role
-    if (profile?.role === "parent") {
-      return <Navigate to="/parent/dashboard" replace />;
-    } else {
-      return <Navigate to="/child/home" replace />;
-    }
-  }
-
-  return <>{children}</>;
-}
-
-function RootRedirect() {
-  const { isAuthenticated, isLoading, profile } = useAuth();
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-xl text-gray-600">Loading...</p>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
-  // Redirect based on role
-  if (profile?.role === "parent") {
-    return <Navigate to="/parent/dashboard" replace />;
-  } else {
-    return <Navigate to="/child/home" replace />;
-  }
-}
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { RootRedirect } from "./components/RootRedirect";
 
 export const router = createBrowserRouter([
   {
