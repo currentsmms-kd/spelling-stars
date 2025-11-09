@@ -147,6 +147,50 @@ function StatsCard({
   );
 }
 
+// Extracted Badge Stats Component
+function BadgeStatsGrid({
+  earnedCount,
+  totalCount,
+}: {
+  earnedCount: number;
+  totalCount: number;
+}) {
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <StatsCard value={earnedCount} label="Earned" />
+      <Card className="text-center">
+        <div className="text-3xl font-bold text-muted-foreground">
+          {totalCount - earnedCount}
+        </div>
+        <div className="text-muted-foreground mt-1">Locked</div>
+      </Card>
+      <Card className="text-center">
+        <div className="text-3xl font-bold text-secondary">
+          {Math.round((earnedCount / totalCount) * 100)}%
+        </div>
+        <div className="text-muted-foreground mt-1">Complete</div>
+      </Card>
+      <Card className="text-center">
+        <div className="text-3xl font-bold text-accent">{totalCount}</div>
+        <div className="text-muted-foreground mt-1">Total</div>
+      </Card>
+    </div>
+  );
+}
+
+// Extracted Empty State Component
+function EmptyBadgeState() {
+  return (
+    <Card className="text-center py-12">
+      <Award className="text-muted-foreground mx-auto mb-4" size={64} />
+      <h3 className="text-2xl font-bold mb-2">Start Your Collection!</h3>
+      <p className="text-muted-foreground text-lg">
+        Practice spelling to earn your first sticker
+      </p>
+    </Card>
+  );
+}
+
 // Extracted Sticker Book Content Component
 function StickerBookContent({
   totalStars,
@@ -163,45 +207,27 @@ function StickerBookContent({
 }) {
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      {/* Header with Stars */}
-      <Card className="child-card bg-gradient-to-br from-secondary-100 to-secondary-200">
-        <div className="flex items-center justify-between">
+      {/* Header with Stars - Inline to reduce nesting */}
+      <Card className="child-card bg-gradient-to-br from-secondary-100 to-secondary-200 flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-bold mb-2">My Sticker Book</h1>
+          <p className="text-xl text-muted-foreground">
+            Collect stickers by practicing!
+          </p>
+        </div>
+        <div className="flex items-center gap-3 bg-card px-6 py-4 rounded-2xl shadow-lg">
+          <Star className="text-secondary fill-current" size={48} />
           <div>
-            <h1 className="text-4xl font-bold mb-2">My Sticker Book</h1>
-            <p className="text-xl text-muted-foreground">
-              Collect stickers by practicing!
-            </p>
-          </div>
-          <div className="flex items-center gap-3 bg-card px-6 py-4 rounded-2xl shadow-lg">
-            <Star className="text-secondary fill-current" size={48} />
-            <div>
-              <div className="text-4xl font-bold">{totalStars}</div>
-              <div className="text-sm text-muted-foreground">Total Stars</div>
-            </div>
+            <div className="text-4xl font-bold">{totalStars}</div>
+            <div className="text-sm text-muted-foreground">Total Stars</div>
           </div>
         </div>
       </Card>
 
-      {/* Badge Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatsCard value={earnedBadges.size} label="Earned" />
-        <Card className="text-center">
-          <div className="text-3xl font-bold text-muted-foreground">
-            {badges.length - earnedBadges.size}
-          </div>
-          <div className="text-muted-foreground mt-1">Locked</div>
-        </Card>
-        <Card className="text-center">
-          <div className="text-3xl font-bold text-secondary">
-            {Math.round((earnedBadges.size / badges.length) * 100)}%
-          </div>
-          <div className="text-muted-foreground mt-1">Complete</div>
-        </Card>
-        <Card className="text-center">
-          <div className="text-3xl font-bold text-accent">{badges.length}</div>
-          <div className="text-muted-foreground mt-1">Total</div>
-        </Card>
-      </div>
+      <BadgeStatsGrid
+        earnedCount={earnedBadges.size}
+        totalCount={badges.length}
+      />
 
       {/* Badges Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -220,15 +246,7 @@ function StickerBookContent({
         })}
       </div>
 
-      {earnedBadges.size === 0 && (
-        <Card className="text-center py-12">
-          <Award className="text-muted-foreground mx-auto mb-4" size={64} />
-          <h3 className="text-2xl font-bold mb-2">Start Your Collection!</h3>
-          <p className="text-muted-foreground text-lg">
-            Practice spelling to earn your first sticker
-          </p>
-        </Card>
-      )}
+      {earnedBadges.size === 0 && <EmptyBadgeState />}
     </div>
   );
 }

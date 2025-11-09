@@ -82,34 +82,130 @@ function ListProgressCard({
   onContinue: (listId: string, mode: string) => void;
 }) {
   return (
-    <div className="p-4 bg-muted/50 rounded-xl border border-border hover:border-primary transition-colors">
-      <div className="flex items-center justify-between">
-        <div className="flex-1">
-          <p className="text-xl font-semibold">{list.title}</p>
-          <div className="flex items-center gap-4 mt-2 text-muted-foreground">
-            <span className="text-lg">
-              {list.word_count} {list.word_count === 1 ? "word" : "words"}
-            </span>
-            <div className="flex items-center gap-2">
-              <TrendingUp size={18} />
-              <span className="text-lg font-medium">
-                {list.progress_percentage}% complete
-              </span>
-            </div>
-          </div>
-          <ProgressBar percentage={list.progress_percentage} />
+    <div className="flex items-center justify-between">
+      <ListProgressInfo list={list} />
+      {list.last_mode && list.word_count > 0 && (
+        <Button
+          size="child"
+          onClick={() => onContinue(list.id, list.last_mode as string)}
+          className="ml-4"
+        >
+          Continue
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function ListProgressInfo({ list }: { list: ListProgress }) {
+  return (
+    <div className="flex-1">
+      <p className="text-xl font-semibold">{list.title}</p>
+      <div className="flex items-center gap-4 mt-2 text-muted-foreground">
+        <span className="text-lg">
+          {list.word_count} {list.word_count === 1 ? "word" : "words"}
+        </span>
+        <div className="flex items-center gap-2">
+          <TrendingUp size={18} />
+          <span className="text-lg font-medium">
+            {list.progress_percentage}% complete
+          </span>
         </div>
-        {list.last_mode && list.word_count > 0 && (
-          <Button
-            size="child"
-            onClick={() => onContinue(list.id, list.last_mode as string)}
-            className="ml-4"
-          >
-            Continue
-          </Button>
-        )}
+      </div>
+      <ProgressBar percentage={list.progress_percentage} />
+    </div>
+  );
+}
+
+function DueWordCard({
+  dueWord,
+}: {
+  dueWord: {
+    id: string;
+    word: { text: string };
+    lists: Array<{ title: string }>;
+    ease: number;
+    reps: number;
+  };
+}) {
+  return (
+    <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg">
+      <div>
+        <p className="text-xl font-semibold">{dueWord.word.text}</p>
+        <p className="text-sm text-muted-foreground">
+          {dueWord.lists.length > 0
+            ? dueWord.lists.map((l: { title: string }) => l.title).join(", ")
+            : "No list"}
+        </p>
+      </div>
+      <div className="text-right text-sm text-muted-foreground">
+        <div>Ease: {dueWord.ease.toFixed(1)}</div>
+        <div>Reps: {dueWord.reps}</div>
       </div>
     </div>
+  );
+}
+
+function DueWordsSection({
+  dueWords,
+}: {
+  dueWords: Array<{
+    id: string;
+    word: { text: string };
+    lists: Array<{ title: string }>;
+    ease: number;
+    reps: number;
+  }>;
+}) {
+  if (!dueWords || dueWords.length === 0) return null;
+
+  return (
+    <Card variant="child">
+      <div className="flex items-center gap-3 mb-4">
+        <Calendar className="text-primary" size={28} />
+        <h3 className="text-2xl font-bold">Due Today</h3>
+      </div>
+      <p className="text-lg text-muted-foreground mb-4">
+        {dueWords.length} {dueWords.length === 1 ? "word" : "words"} ready for
+        review
+      </p>
+      <div className="space-y-2">
+        {dueWords.slice(0, 5).map((dueWord) => (
+          <DueWordCard key={dueWord.id} dueWord={dueWord} />
+        ))}
+      </div>
+      {dueWords.length > 5 && (
+        <p className="text-center text-muted-foreground mt-3">
+          And {dueWords.length - 5} more...
+        </p>
+      )}
+    </Card>
+  );
+}
+
+function ListsSection({
+  lists,
+  onContinue,
+}: {
+  lists: ListProgress[] | undefined;
+  onContinue: (listId: string, mode: string) => void;
+}) {
+  if (!lists || lists.length === 0) return null;
+
+  return (
+    <Card variant="child">
+      <h3 className="text-2xl font-bold mb-4">Your Spelling Lists</h3>
+      <div className="space-y-3">
+        {lists.map((list) => (
+          <div
+            key={list.id}
+            className="p-4 bg-muted/50 rounded-xl border border-border hover:border-primary transition-colors"
+          >
+            <ListProgressCard list={list} onContinue={onContinue} />
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 
@@ -245,74 +341,9 @@ export function ChildHome() {
           />
         </div>
 
-        {/* Due Today Section */}
-        {dueWords && dueWords.length > 0 && (
-          <Card variant="child">
-            <div className="flex items-center gap-3 mb-4">
-              <Calendar className="text-primary" size={28} />
-              <h3 className="text-2xl font-bold">Due Today</h3>
-            </div>
-            <p className="text-lg text-muted-foreground mb-4">
-              {dueWords.length} {dueWords.length === 1 ? "word" : "words"} ready
-              for review
-            </p>
-            <div className="space-y-2">
-              {dueWords
-                .slice(0, 5)
-                .map(
-                  (dueWord: {
-                    id: string;
-                    word: { text: string };
-                    lists: Array<{ title: string }>;
-                    ease: number;
-                    reps: number;
-                  }) => (
-                    <div
-                      key={dueWord.id}
-                      className="flex items-center justify-between p-3 bg-primary/10 rounded-lg"
-                    >
-                      <div>
-                        <p className="text-xl font-semibold">
-                          {dueWord.word.text}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {dueWord.lists.length > 0
-                            ? dueWord.lists
-                                .map((l: { title: string }) => l.title)
-                                .join(", ")
-                            : "No list"}
-                        </p>
-                      </div>
-                      <div className="text-right text-sm text-muted-foreground">
-                        <div>Ease: {dueWord.ease.toFixed(1)}</div>
-                        <div>Reps: {dueWord.reps}</div>
-                      </div>
-                    </div>
-                  )
-                )}
-            </div>
-            {dueWords.length > 5 && (
-              <p className="text-center text-muted-foreground mt-3">
-                And {dueWords.length - 5} more...
-              </p>
-            )}
-          </Card>
-        )}
+        <DueWordsSection dueWords={dueWords || []} />
 
-        {lists && lists.length > 0 && (
-          <Card variant="child">
-            <h3 className="text-2xl font-bold mb-4">Your Spelling Lists</h3>
-            <div className="space-y-3">
-              {lists.map((list) => (
-                <ListProgressCard
-                  key={list.id}
-                  list={list}
-                  onContinue={handleContinueList}
-                />
-              ))}
-            </div>
-          </Card>
-        )}
+        <ListsSection lists={lists} onContinue={handleContinueList} />
       </div>
     </AppShell>
   );

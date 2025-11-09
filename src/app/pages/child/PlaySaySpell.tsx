@@ -22,6 +22,329 @@ interface ListWithWords {
   words: Word[];
 }
 
+function RecordStep({
+  playWord,
+  handleStartRecording,
+  isRecording,
+  audioBlob,
+}: {
+  playWord: () => void;
+  handleStartRecording: () => Promise<void>;
+  isRecording: boolean;
+  audioBlob: Blob | null;
+}) {
+  return (
+    <>
+      <div>
+        <p className="text-2xl text-muted-foreground mb-6">
+          Listen to the word, then say the spelling out loud
+        </p>
+        <Button
+          onClick={playWord}
+          size="child"
+          className="w-64 flex items-center justify-center gap-3 mb-6"
+        >
+          <Volume2 size={32} />
+          <span>Play Word</span>
+        </Button>
+      </div>
+
+      <div className="space-y-6">
+        <p className="text-2xl font-semibold">Record yourself spelling:</p>
+
+        {!isRecording && !audioBlob && (
+          <Button
+            onClick={handleStartRecording}
+            size="child"
+            className="w-64 mx-auto flex items-center justify-center gap-3 bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+          >
+            <Mic size={32} />
+            <span>Start Recording</span>
+          </Button>
+        )}
+
+        {isRecording && (
+          <div className="space-y-4">
+            <div className="animate-pulse text-destructive">
+              <Mic size={64} className="mx-auto" />
+            </div>
+            <p className="text-xl text-muted-foreground">
+              Recording... (3 seconds)
+            </p>
+          </div>
+        )}
+
+        {audioBlob && (
+          <div className="space-y-4">
+            <CheckCircle size={48} className="mx-auto text-secondary" />
+            <p className="text-xl text-muted-foreground">Recording saved!</p>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function TypeStep({
+  answer,
+  setAnswer,
+  checkAnswer,
+  feedback,
+  showHint,
+  currentWord,
+  redoRecording,
+  retry,
+  nextWord,
+  showConfetti,
+}: {
+  answer: string;
+  setAnswer: (value: string) => void;
+  checkAnswer: () => void;
+  feedback: "correct" | "wrong" | null;
+  showHint: number;
+  currentWord: Word | undefined;
+  redoRecording: () => void;
+  retry: () => void;
+  nextWord: () => void;
+  showConfetti: boolean;
+}) {
+  return (
+    <div className="space-y-4">
+      <p className="text-2xl text-muted-foreground">Now type the spelling:</p>
+
+      <input
+        type="text"
+        value={answer}
+        onChange={(e) => setAnswer(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && answer.trim() && feedback === null) {
+            checkAnswer();
+          }
+        }}
+        className="w-full text-4xl text-center px-6 py-4 border-4 border-primary rounded-2xl focus:ring-4 focus:ring-ring focus:border-primary font-bold bg-input"
+        placeholder="Type here..."
+        disabled={feedback === "correct"}
+      />
+
+      {showHint > 0 && feedback === "wrong" && (
+        <div className="text-center">
+          {showHint === 1 && (
+            <p className="text-2xl text-secondary">
+              Hint: It starts with &quot;{currentWord?.text[0].toUpperCase()}
+              &quot;
+            </p>
+          )}
+          {showHint === 2 && (
+            <p className="text-2xl text-secondary">
+              The correct spelling is: <strong>{currentWord?.text}</strong>
+            </p>
+          )}
+        </div>
+      )}
+
+      {feedback === null && (
+        <div className="space-y-3">
+          <Button
+            onClick={checkAnswer}
+            size="child"
+            className="w-full"
+            disabled={!answer.trim()}
+          >
+            Check Answer
+          </Button>
+          <Button
+            onClick={redoRecording}
+            size="child"
+            className="w-full bg-muted hover:bg-muted/90 text-muted-foreground"
+          >
+            Re-record
+          </Button>
+        </div>
+      )}
+
+      {feedback === "correct" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-center gap-3 text-secondary">
+            <CheckCircle size={48} />
+            <p className="text-4xl font-bold">Correct! 🎉</p>
+          </div>
+          {showConfetti && <div className="text-6xl animate-bounce">⭐</div>}
+        </div>
+      )}
+
+      {feedback === "wrong" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-center gap-3 text-accent">
+            <XCircle size={48} />
+            <p className="text-4xl font-bold">Try Again!</p>
+          </div>
+          {showHint < 2 ? (
+            <Button onClick={retry} size="child" className="w-full">
+              Retry
+            </Button>
+          ) : (
+            <Button onClick={nextWord} size="child" className="w-full">
+              Next Word
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GameHeader({ starsEarned }: { starsEarned: number }) {
+  return (
+    <div className="flex items-center justify-between">
+      <Link to="/child/home">
+        <Button size="child" className="flex items-center gap-2">
+          <Home size={24} />
+          <span>Home</span>
+        </Button>
+      </Link>
+      <div className="flex gap-2">
+        {[...Array(5)].map((_, i) => (
+          <RewardStar key={i} filled={i < starsEarned} size="lg" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function GameProgress({
+  listTitle,
+  currentIndex,
+  total,
+}: {
+  listTitle: string;
+  currentIndex: number;
+  total: number;
+}) {
+  return (
+    <div className="text-center">
+      <p className="text-2xl font-bold">{listTitle}</p>
+      <p className="text-xl text-muted-foreground mt-2">
+        Word {currentIndex + 1} of {total}
+      </p>
+    </div>
+  );
+}
+
+function GameContent({
+  listData,
+  currentWordIndex,
+  starsEarned,
+  step,
+  playWord,
+  handleStartRecording,
+  isRecording,
+  audioBlob,
+  answer,
+  setAnswer,
+  checkAnswer,
+  feedback,
+  showHint,
+  currentWord,
+  redoRecording,
+  retry,
+  nextWord,
+  showConfetti,
+  isOnline,
+}: {
+  listData: ListWithWords;
+  currentWordIndex: number;
+  starsEarned: number;
+  step: "record" | "type";
+  playWord: () => void;
+  handleStartRecording: () => Promise<void>;
+  isRecording: boolean;
+  audioBlob: Blob | null;
+  answer: string;
+  setAnswer: (value: string) => void;
+  checkAnswer: () => void;
+  feedback: "correct" | "wrong" | null;
+  showHint: number;
+  currentWord: Word | undefined;
+  redoRecording: () => void;
+  retry: () => void;
+  nextWord: () => void;
+  showConfetti: boolean;
+  isOnline: boolean;
+}) {
+  return (
+    <div className="max-w-3xl mx-auto space-y-8">
+      <GameHeader starsEarned={starsEarned} />
+
+      <GameProgress
+        listTitle={listData.title}
+        currentIndex={currentWordIndex}
+        total={listData.words.length}
+      />
+
+      <Card variant="child">
+        <div className="text-center space-y-8">
+          {step === "record" && (
+            <RecordStep
+              playWord={playWord}
+              handleStartRecording={handleStartRecording}
+              isRecording={isRecording}
+              audioBlob={audioBlob}
+            />
+          )}
+
+          {step === "type" && (
+            <TypeStep
+              answer={answer}
+              setAnswer={setAnswer}
+              checkAnswer={checkAnswer}
+              feedback={feedback}
+              showHint={showHint}
+              currentWord={currentWord}
+              redoRecording={redoRecording}
+              retry={retry}
+              nextWord={nextWord}
+              showConfetti={showConfetti}
+            />
+          )}
+        </div>
+      </Card>
+
+      {!isOnline && (
+        <div className="text-center text-accent-foreground text-lg">
+          📡 Offline mode - progress will sync when online
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NoListSelected() {
+  const navigate = useNavigate();
+  return (
+    <AppShell title="Say & Spell" variant="child">
+      <div className="max-w-3xl mx-auto bg-card text-card-foreground border border-border child-card text-center space-y-6">
+        <h3 className="text-3xl font-bold">Choose a list to practice</h3>
+        <button
+          onClick={() => navigate("/child/home")}
+          className="inline-flex items-center justify-center rounded-md font-medium transition-colors child-button bg-primary text-primary-foreground hover:bg-primary/90"
+        >
+          Go to Home
+        </button>
+      </div>
+    </AppShell>
+  );
+}
+
+function LoadingState() {
+  return (
+    <AppShell title="Say & Spell" variant="child">
+      <Card variant="child" className="max-w-3xl mx-auto">
+        <p className="text-2xl text-center">Loading...</p>
+      </Card>
+    </AppShell>
+  );
+}
+
 export function PlaySaySpell() {
   const [searchParams] = useSearchParams();
   const listId = searchParams.get("list");
@@ -325,230 +648,36 @@ export function PlaySaySpell() {
   };
 
   if (!listId) {
-    return (
-      <AppShell title="Say & Spell" variant="child">
-        <div className="max-w-3xl mx-auto space-y-8">
-          <Card variant="child">
-            <div className="text-center space-y-6">
-              <h3 className="text-3xl font-bold">Choose a list to practice</h3>
-              <Link to="/child/home">
-                <Button size="child">Go to Home</Button>
-              </Link>
-            </div>
-          </Card>
-        </div>
-      </AppShell>
-    );
+    return <NoListSelected />;
   }
 
   if (isLoading || !listData) {
-    return (
-      <AppShell title="Say & Spell" variant="child">
-        <div className="max-w-3xl mx-auto">
-          <Card variant="child">
-            <p className="text-2xl text-center">Loading...</p>
-          </Card>
-        </div>
-      </AppShell>
-    );
+    return <LoadingState />;
   }
 
   return (
     <AppShell title="Say & Spell" variant="child">
-      <div className="max-w-3xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <Link to="/child/home">
-            <Button size="child" className="flex items-center gap-2">
-              <Home size={24} />
-              <span>Home</span>
-            </Button>
-          </Link>
-          <div className="flex gap-2">
-            {[...Array(5)].map((_, i) => (
-              <RewardStar key={i} filled={i < starsEarned} size="lg" />
-            ))}
-          </div>
-        </div>
-
-        {/* Progress */}
-        <div className="text-center">
-          <p className="text-2xl font-bold">{listData.title}</p>
-          <p className="text-xl text-muted-foreground mt-2">
-            Word {currentWordIndex + 1} of {listData.words.length}
-          </p>
-        </div>
-
-        <Card variant="child">
-          <div className="text-center space-y-8">
-            {/* Step A: Record audio */}
-            {step === "record" && (
-              <>
-                <div>
-                  <p className="text-2xl text-muted-foreground mb-6">
-                    Listen to the word, then say the spelling out loud
-                  </p>
-                  <Button
-                    onClick={playWord}
-                    size="child"
-                    className="w-64 flex items-center justify-center gap-3 mb-6"
-                  >
-                    <Volume2 size={32} />
-                    <span>Play Word</span>
-                  </Button>
-                </div>
-
-                <div className="space-y-6">
-                  <p className="text-2xl font-semibold">
-                    Record yourself spelling:
-                  </p>
-
-                  {!isRecording && !audioBlob && (
-                    <Button
-                      onClick={handleStartRecording}
-                      size="child"
-                      className="w-64 mx-auto flex items-center justify-center gap-3 bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                    >
-                      <Mic size={32} />
-                      <span>Start Recording</span>
-                    </Button>
-                  )}
-
-                  {isRecording && (
-                    <div className="space-y-4">
-                      <div className="animate-pulse text-destructive">
-                        <Mic size={64} className="mx-auto" />
-                      </div>
-                      <p className="text-xl text-muted-foreground">
-                        Recording... (3 seconds)
-                      </p>
-                    </div>
-                  )}
-
-                  {audioBlob && (
-                    <div className="space-y-4">
-                      <CheckCircle
-                        size={48}
-                        className="mx-auto text-secondary"
-                      />
-                      <p className="text-xl text-muted-foreground">
-                        Recording saved!
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* Step B: Type spelling */}
-            {step === "type" && (
-              <>
-                <div className="space-y-4">
-                  <p className="text-2xl text-muted-foreground">
-                    Now type the spelling:
-                  </p>
-
-                  <input
-                    type="text"
-                    value={answer}
-                    onChange={(e) => setAnswer(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (
-                        e.key === "Enter" &&
-                        answer.trim() &&
-                        feedback === null
-                      ) {
-                        checkAnswer();
-                      }
-                    }}
-                    className="w-full text-4xl text-center px-6 py-4 border-4 border-primary rounded-2xl focus:ring-4 focus:ring-ring focus:border-primary font-bold bg-input"
-                    placeholder="Type here..."
-                    disabled={feedback === "correct"}
-                  />
-
-                  {/* Hints */}
-                  {showHint > 0 && feedback === "wrong" && (
-                    <div className="text-center">
-                      {showHint === 1 && (
-                        <p className="text-2xl text-secondary">
-                          Hint: It starts with &quot;
-                          {currentWord?.text[0].toUpperCase()}&quot;
-                        </p>
-                      )}
-                      {showHint === 2 && (
-                        <p className="text-2xl text-secondary">
-                          The correct spelling is:{" "}
-                          <strong>{currentWord?.text}</strong>
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {feedback === null && (
-                    <div className="space-y-3">
-                      <Button
-                        onClick={checkAnswer}
-                        size="child"
-                        className="w-full"
-                        disabled={!answer.trim()}
-                      >
-                        Check Answer
-                      </Button>
-                      <Button
-                        onClick={redoRecording}
-                        size="child"
-                        className="w-full bg-muted hover:bg-muted/90 text-muted-foreground"
-                      >
-                        Re-record
-                      </Button>
-                    </div>
-                  )}
-
-                  {feedback === "correct" && (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-center gap-3 text-secondary">
-                        <CheckCircle size={48} />
-                        <p className="text-4xl font-bold">Correct! 🎉</p>
-                      </div>
-                      {showConfetti && (
-                        <div className="text-6xl animate-bounce">⭐</div>
-                      )}
-                    </div>
-                  )}
-
-                  {feedback === "wrong" && (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-center gap-3 text-accent">
-                        <XCircle size={48} />
-                        <p className="text-4xl font-bold">Try Again!</p>
-                      </div>
-                      {showHint < 2 ? (
-                        <Button onClick={retry} size="child" className="w-full">
-                          Retry
-                        </Button>
-                      ) : (
-                        <Button
-                          onClick={nextWord}
-                          size="child"
-                          className="w-full"
-                        >
-                          Next Word
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        </Card>
-
-        {!isOnline && (
-          <div className="text-center text-accent-foreground text-lg">
-            📡 Offline mode - progress will sync when online
-          </div>
-        )}
-      </div>
+      <GameContent
+        listData={listData}
+        currentWordIndex={currentWordIndex}
+        starsEarned={starsEarned}
+        step={step}
+        playWord={playWord}
+        handleStartRecording={handleStartRecording}
+        isRecording={isRecording}
+        audioBlob={audioBlob}
+        answer={answer}
+        setAnswer={setAnswer}
+        checkAnswer={checkAnswer}
+        feedback={feedback}
+        showHint={showHint}
+        currentWord={currentWord}
+        redoRecording={redoRecording}
+        retry={retry}
+        nextWord={nextWord}
+        showConfetti={showConfetti}
+        isOnline={isOnline}
+      />
     </AppShell>
   );
 }

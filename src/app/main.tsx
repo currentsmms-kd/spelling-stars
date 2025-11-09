@@ -50,30 +50,17 @@ if ("serviceWorker" in navigator) {
 if ("serviceWorker" in navigator && "SyncManager" in window) {
   navigator.serviceWorker.ready.then(() => {
     // The actual sync will be triggered when network is back
-    if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
-      console.log("Service worker ready for background sync");
-    }
   });
 }
 
 // Listen for online/offline events
 window.addEventListener("online", async () => {
-  if (import.meta.env.DEV) {
-    // eslint-disable-next-line no-console
-    console.log("App is online - checking for pending sync...");
-  }
-
   // Check if there's data to sync
   const hasPending = await hasPendingSync();
 
   if (hasPending) {
     try {
       await syncQueuedData();
-      if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
-        console.log("Successfully synced queued data");
-      }
     } catch (error) {
       console.error("Failed to sync queued data:", error);
     }
@@ -89,10 +76,7 @@ window.addEventListener("online", async () => {
 });
 
 window.addEventListener("offline", () => {
-  if (import.meta.env.DEV) {
-    // eslint-disable-next-line no-console
-    console.log("App is offline - will queue operations");
-  }
+  // App is offline - operations will be queued
 });
 
 const rootElement = document.getElementById("root");
