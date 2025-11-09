@@ -33,6 +33,166 @@ interface AnswerSectionProps {
   onNextWord: () => void;
 }
 
+interface GameHeaderProps {
+  starsEarned: number;
+}
+
+interface ProgressDisplayProps {
+  listTitle: string;
+  currentWordIndex: number;
+  totalWords: number;
+}
+
+interface GameContentProps {
+  starsEarned: number;
+  listTitle: string;
+  currentWordIndex: number;
+  totalWords: number;
+  playAudio: () => void;
+  answer: string;
+  feedback: "correct" | "wrong" | null;
+  showHint: number;
+  currentWord: Word | undefined;
+  showConfetti: boolean;
+  onAnswerChange: (value: string) => void;
+  onCheckAnswer: () => void;
+  onRetry: () => void;
+  onNextWord: () => void;
+  isOnline: boolean;
+}
+
+interface PlayWordButtonProps {
+  playAudio: () => void;
+}
+
+function PlayWordButton({ playAudio }: PlayWordButtonProps) {
+  return (
+    <div>
+      <p className="text-2xl text-muted-foreground mb-6">
+        Listen to the word and type it below
+      </p>
+      <Button
+        onClick={playAudio}
+        size="child"
+        className="w-64 flex items-center justify-center gap-3"
+      >
+        <Volume2 size={32} />
+        <span>Play Word</span>
+      </Button>
+    </div>
+  );
+}
+
+function ListSelector() {
+  return (
+    <Card variant="child">
+      <div className="text-center space-y-6">
+        <h3 className="text-3xl font-bold">Choose a list to practice</h3>
+        <Link to="/child/home">
+          <Button size="child">Go to Home</Button>
+        </Link>
+      </div>
+    </Card>
+  );
+}
+
+function LoadingDisplay() {
+  return (
+    <div className="max-w-3xl mx-auto">
+      <Card variant="child">
+        <p className="text-2xl text-center">Loading...</p>
+      </Card>
+    </div>
+  );
+}
+
+function GameHeader({ starsEarned }: GameHeaderProps) {
+  return (
+    <div className="flex items-center justify-between">
+      <Link to="/child/home">
+        <Button size="child" className="flex items-center gap-2">
+          <Home size={24} />
+          <span>Home</span>
+        </Button>
+      </Link>
+      <div className="flex gap-2">
+        {[...Array(5)].map((_, i) => (
+          <RewardStar key={i} filled={i < starsEarned} size="lg" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProgressDisplay({
+  listTitle,
+  currentWordIndex,
+  totalWords,
+}: ProgressDisplayProps) {
+  return (
+    <div className="text-center">
+      <p className="text-2xl font-bold">{listTitle}</p>
+      <p className="text-xl text-muted-foreground mt-2">
+        Word {currentWordIndex + 1} of {totalWords}
+      </p>
+    </div>
+  );
+}
+
+function GameContent({
+  starsEarned,
+  listTitle,
+  currentWordIndex,
+  totalWords,
+  playAudio,
+  answer,
+  feedback,
+  showHint,
+  currentWord,
+  showConfetti,
+  onAnswerChange,
+  onCheckAnswer,
+  onRetry,
+  onNextWord,
+  isOnline,
+}: GameContentProps) {
+  return (
+    <div className="max-w-3xl mx-auto space-y-8">
+      <GameHeader starsEarned={starsEarned} />
+
+      <ProgressDisplay
+        listTitle={listTitle}
+        currentWordIndex={currentWordIndex}
+        totalWords={totalWords}
+      />
+
+      <Card variant="child">
+        <div className="text-center space-y-8">
+          <PlayWordButton playAudio={playAudio} />
+
+          <AnswerSection
+            answer={answer}
+            feedback={feedback}
+            showHint={showHint}
+            currentWord={currentWord}
+            showConfetti={showConfetti}
+            onAnswerChange={onAnswerChange}
+            onCheckAnswer={onCheckAnswer}
+            onRetry={onRetry}
+            onNextWord={onNextWord}
+          />
+        </div>
+      </Card>
+
+      {!isOnline && (
+        <div className="text-center text-accent-foreground text-lg">
+          📡 Offline mode - progress will sync when online
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AnswerSection({
   answer,
   feedback,
@@ -222,7 +382,7 @@ export function PlayListenType() {
 
   const playAudio = useCallback(() => {
     if (!currentWord) {
-      return;
+      return undefined;
     }
 
     if (currentWord.prompt_audio_url) {
@@ -239,6 +399,7 @@ export function PlayListenType() {
       }
       speechSynthesis.speak(utterance);
     }
+    return undefined;
   }, [currentWord]);
 
   // Auto-play on word change
@@ -247,6 +408,7 @@ export function PlayListenType() {
       const timer = setTimeout(() => playAudio(), 500);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [currentWord, playAudio]);
 
   const normalizeAnswer = (text: string) => {
@@ -258,7 +420,7 @@ export function PlayListenType() {
 
   const nextWord = useCallback(() => {
     if (!listData) {
-      return;
+      return undefined;
     }
 
     if (currentWordIndex < listData.words.length - 1) {
@@ -271,6 +433,7 @@ export function PlayListenType() {
       // Completed all words
       navigate("/child/rewards");
     }
+    return undefined;
   }, [listData, currentWordIndex, navigate]);
 
   const retry = () => {
@@ -358,14 +521,7 @@ export function PlayListenType() {
     return (
       <AppShell title="Listen & Type" variant="child">
         <div className="max-w-3xl mx-auto space-y-8">
-          <Card variant="child">
-            <div className="text-center space-y-6">
-              <h3 className="text-3xl font-bold">Choose a list to practice</h3>
-              <Link to="/child/home">
-                <Button size="child">Go to Home</Button>
-              </Link>
-            </div>
-          </Card>
+          <ListSelector />
         </div>
       </AppShell>
     );
@@ -375,9 +531,7 @@ export function PlayListenType() {
     return (
       <AppShell title="Listen & Type" variant="child">
         <div className="max-w-3xl mx-auto">
-          <Card variant="child">
-            <p className="text-2xl text-center">Loading...</p>
-          </Card>
+          <LoadingDisplay />
         </div>
       </AppShell>
     );
@@ -385,66 +539,23 @@ export function PlayListenType() {
 
   return (
     <AppShell title="Listen & Type" variant="child">
-      <div className="max-w-3xl mx-auto space-y-8">
-        {/* Header with stars and progress */}
-        <div className="flex items-center justify-between">
-          <Link to="/child/home">
-            <Button size="child" className="flex items-center gap-2">
-              <Home size={24} />
-              <span>Home</span>
-            </Button>
-          </Link>
-          <div className="flex gap-2">
-            {[...Array(5)].map((_, i) => (
-              <RewardStar key={i} filled={i < starsEarned} size="lg" />
-            ))}
-          </div>
-        </div>
-
-        {/* Progress */}
-        <div className="text-center">
-          <p className="text-2xl font-bold">{listData.title}</p>
-          <p className="text-xl text-muted-foreground mt-2">
-            Word {currentWordIndex + 1} of {listData.words.length}
-          </p>
-        </div>
-
-        <Card variant="child">
-          <div className="text-center space-y-8">
-            <div>
-              <p className="text-2xl text-muted-foreground mb-6">
-                Listen to the word and type it below
-              </p>
-              <Button
-                onClick={playAudio}
-                size="child"
-                className="w-64 flex items-center justify-center gap-3"
-              >
-                <Volume2 size={32} />
-                <span>Play Word</span>
-              </Button>
-            </div>
-
-            <AnswerSection
-              answer={answer}
-              feedback={feedback}
-              showHint={showHint}
-              currentWord={currentWord}
-              showConfetti={showConfetti}
-              onAnswerChange={setAnswer}
-              onCheckAnswer={checkAnswer}
-              onRetry={retry}
-              onNextWord={nextWord}
-            />
-          </div>
-        </Card>
-
-        {!isOnline && (
-          <div className="text-center text-accent-foreground text-lg">
-            📡 Offline mode - progress will sync when online
-          </div>
-        )}
-      </div>
+      <GameContent
+        starsEarned={starsEarned}
+        listTitle={listData.title}
+        currentWordIndex={currentWordIndex}
+        totalWords={listData.words.length}
+        playAudio={playAudio}
+        answer={answer}
+        feedback={feedback}
+        showHint={showHint}
+        currentWord={currentWord}
+        showConfetti={showConfetti}
+        onAnswerChange={setAnswer}
+        onCheckAnswer={checkAnswer}
+        onRetry={retry}
+        onNextWord={nextWord}
+        isOnline={isOnline}
+      />
     </AppShell>
   );
 }

@@ -2,991 +2,98 @@
 
 ## Project Overview
 
-SpellStars is a Progressive Web App (PWA) designed to help children practice spelling through interactive games. The application features a **sophisticated dual-interface architecture** where parents manage content and children engage in gameplay, with carefully designed separation of concerns and security boundaries.
+SpellStars is a Progressive Web App (PWA) for children's spelling practice with a **dual-interface architecture**: parents manage content, children play games. Built for offline-first functionality with strict accessibility standards.
 
-### Core Philosophy
+### Core Principles
 
 - **Offline-first**: IndexedDB queue ensures no data loss during network outages
-- **Accessibility-first**: WCAG 2.1 AA compliant with 88px child buttons, 44px parent buttons, 4px focus rings
-- **Performance-first**: Code splitting, optimistic updates, CacheFirst for child routes
-- **Security-first**: Row Level Security (RLS) on all tables, PIN-protected parent routes, role-based authentication
+- **Accessibility**: WCAG 2.1 AA - child buttons 88px, parent buttons 44px, 4px focus rings
+- **Security**: Row Level Security (RLS) on all tables, PIN-protected parent routes, role-based auth
+- **Performance**: Code splitting, optimistic updates, CacheFirst strategy for child routes
 
 ### Tech Stack
 
-**Frontend:**
+**Frontend:** React 18 + TypeScript 5.2+ (strict mode) | Vite 5.1+ | TanStack React Query 5.24+ | Zustand 4.5+ | React Router DOM 6.22+
 
-- React 18 (with strict mode) + TypeScript 5.2+ (strict)
-- Vite 5.1+ (build tool with HMR)
-- TanStack React Query 5.24+ (server state)
-- Zustand 4.5+ (client state with persist middleware)
-- React Router DOM 6.22+ (routing)
+**UI:** Tailwind CSS 3.4+ | class-variance-authority (CVA pattern for ALL components) | Lucide React | WaveSurfer.js 7.7+
 
-**UI & Styling:**
+**Backend:** Supabase (PostgreSQL + Auth + Storage) | Dexie 3.2+ (IndexedDB) | vite-plugin-pwa 0.19+ (Workbox)
 
-- Tailwind CSS 3.4+ (utility-first)
-- class-variance-authority (CVA) - ALL components use this pattern
-- Lucide React (icons)
-- WaveSurfer.js 7.7+ (audio visualization)
+**Environment:** Doppler (secrets) | PowerShell scripts (migrations)
 
-**Backend & Storage:**
+## Critical Architecture Patterns
 
-- Supabase (PostgreSQL + Auth + Storage)
-- Dexie 3.2+ (IndexedDB abstraction)
-- vite-plugin-pwa 0.19+ (Workbox service worker)
+### Two-Tier Security Model
 
-**Environment Management:**
-
-- Doppler (secrets management - used in all npm scripts)
-- PowerShell scripts (migration management)
-
-## Architecture & Data Flow
-
-### Two-Tier Interface Design
-
-The application has **distinct security boundaries** for parent and child areas:
-
-**Parent routes** (`/parent/*`):
-
-- Protected by `<ProtectedRoute requiredRole="parent">` (auth + role check)
-- **THEN** wrapped in `<PinProtectedRoute>` (PIN verification)
-- PIN stored hashed in `useParentalSettingsStore` (persisted to localStorage)
-- `isPinLocked` state resets on app restart (always locked by default)
-- Parents can also access child routes (for preview/testing) - see `ProtectedRoute.tsx` line 28
-
-**Child routes** (`/child/*`):
-
-- Only protected by `<ProtectedRoute requiredRole="child">`
-- No PIN requirement (children should access directly)
-- Routes are cached offline with `CacheFirst` strategy in `vite.config.ts`
-
-**Authentication Flow:**
-
-1. User signs in via Supabase Auth (`useAuth` hook)
-2. Profile auto-created via database trigger (`handle_new_user()` function)
-3. `role` field from signup metadata determines access level
-4. `supabase.auth.onAuthStateChange` keeps Zustand store synchronized
-5. `RootRedirect` component handles initial routing based on role
-
-### State Management Strategy
-
-**Why three different state solutions?**
-
-1. **Zustand stores** (ephemeral + persisted client state):
-   - `useAuthStore` (`src/app/store/auth.ts`):
-     - `user`: Supabase User object
-     - `profile`: Database profile with role
-     - `isLoading`: Auth initialization state
-     - Pattern: Set via `useAuth()` hook, never modified directly in components
-
-   - `useParentalSettingsStore` (`src/app/store/parentalSettings.ts`):
-     - Uses `persist` middleware (syncs to localStorage as `parental-settings`)
-     - Settings: `pinCode`, `showHintsOnFirstMiss`, `enforceCaseSensitivity`, etc.
-     - Lock state (`isPinLocked`) NOT persisted (security feature)
-     - Pattern: Use `setSettings()` for bulk updates, `setPinCode()` for PIN changes
-
-   - `useThemeStore` (`src/app/store/theme.ts`):
-     - Persisted theme ID (one of 30+ themes from `src/app/lib/themes.ts`)
-     - `applyTheme()` function modifies CSS custom properties on `:root`
-     - Children can switch themes from `/child/theme` page
-
-   - `useSessionStore` (`src/app/store/session.ts`):
-     - Tracks active gameplay session (start time, words practiced, accuracy)
-     - Updates `session_analytics` table on session complete
-     - Enforces `dailySessionLimitMinutes` from parental settings
-
-2. **React Query** (server state with automatic caching/invalidation):
-
-   **Location:** ALL data fetching in `src/app/api/supa.ts` (1133 lines)
-
-   **Query Pattern:**
-
-   ```tsx
-   export function useWordLists(userId: string) {
-     return useQuery({
-       queryKey: ["word-lists", userId],
-       queryFn: async () => {
-         const { data, error } = await supabase
-           .from("word_lists")
-           .select("*, list_words(count)")
-           .eq("created_by", userId)
-           .order("created_at", { ascending: false });
-         if (error) throw error;
-         return data;
-       },
-       enabled: !!userId,
-       staleTime: 1000 * 60 * 5, // 5 minutes
-     });
-   }
-   ```
-
-   **Mutation Pattern with Optimistic Updates:**
-
-   ```tsx
-   export function useReorderWords() {
-     const queryClient = useQueryClient();
-     return useMutation({
-       mutationFn: async ({
-         listId,
-         words,
-       }: {
-         listId: string;
-         words: WordWithIndex[];
-       }) => {
-         // Update sort_index for each word
-         const updates = words.map((word, index) =>
-           supabase
-             .from("list_words")
-             .update({ sort_index: index })
-             .eq("list_id", listId)
-             .eq("word_id", word.id)
-         );
-         await Promise.all(updates);
-       },
-       onMutate: async ({ listId, words }) => {
-         // Cancel outgoing refetches
-         await queryClient.cancelQueries(["word-list", listId]);
-         // Snapshot previous value
-         const previous = queryClient.getQueryData(["word-list", listId]);
-         // Optimistically update
-         queryClient.setQueryData(["word-list", listId], (old: any) => ({
-           ...old,
-           words,
-         }));
-         return { previous };
-       },
-       onError: (err, { listId }, context) => {
-         // Rollback on error
-         queryClient.setQueryData(["word-list", listId], context?.previous);
-       },
-       onSettled: (data, error, { listId }) => {
-         // Refetch after mutation
-         queryClient.invalidateQueries(["word-list", listId]);
-       },
-     });
-   }
-   ```
-
-   **Query Key Convention:**
-   - `['word-lists', userId]` - All lists for user
-   - `['word-list', listId]` - Single list with words
-   - `['due-words', childId]` - SRS words due today
-   - `['session-analytics', childId, timeRange]` - Analytics data
-
-   **Why React Query instead of more Zustand?**
-   - Automatic background refetching
-   - Built-in loading/error states
-   - Request deduplication (multiple components can call same hook)
-   - Automatic garbage collection of unused queries
-   - Optimistic updates with rollback on error
-
-3. **Dexie (IndexedDB)** for offline queue:
-
-   **Schema** (`src/data/db.ts`):
-
-   ```tsx
-   export class SpellStarsDB extends Dexie {
-     queuedAttempts!: Table<QueuedAttempt>;
-     queuedAudio!: Table<QueuedAudio>;
-
-     constructor() {
-       super("SpellStarsDB");
-       this.version(1).stores({
-         queuedAttempts:
-           "++id, child_id, word_id, list_id, mode, synced, created_at",
-         queuedAudio: "++id, filename, synced, created_at",
-       });
-     }
-   }
-   ```
-
-   **Sync Flow** (`src/lib/sync.ts`):
-   1. `syncQueuedData()` called when app detects online status via `useOnline()` hook
-   2. First syncs `queuedAudio` (uploads Blobs to Supabase Storage)
-   3. Then syncs `queuedAttempts` (inserts into `attempts` table with audio URLs)
-   4. Marks records as `synced: true` to prevent re-upload
-   5. Failed uploads remain in queue for next sync attempt
-
-   **Usage in game components:**
-
-   ```tsx
-   const isOnline = useOnline();
-
-   const handleAttemptComplete = async (correct: boolean, answer: string) => {
-     if (isOnline) {
-       // Direct insert to Supabase
-       await createAttempt.mutateAsync({
-         word_id,
-         correct,
-         typed_answer: answer,
-       });
-     } else {
-       // Queue for later sync
-       await queueAttempt(
-         childId,
-         wordId,
-         listId,
-         "listen-type",
-         correct,
-         answer
-       );
-     }
-   };
-   ```
-
-### Database Schema Deep Dive
-
-**Core Tables with RLS Policies:**
-
-1. **`profiles`** (User accounts)
-   - `id` (uuid, PK, FK to auth.users)
-   - `email` (text, unique)
-   - `role` (text, CHECK in ('parent', 'child'))
-   - RLS: Users can only view/update their own profile
-   - Created via trigger on `auth.users` insert
-
-2. **`word_lists`** (Parent-created spelling lists)
-   - `id` (uuid, PK)
-   - `title` (text, required)
-   - `week_start_date` (date, nullable - for weekly planning)
-   - `created_by` (uuid, FK to profiles)
-   - RLS: Parents can CRUD own lists; children can read any list
-   - Migration: `20241108000000_initial_schema.sql`
-
-3. **`words`** (Individual vocabulary items)
-   - `id` (uuid, PK)
-   - `text` (text, the spelling word)
-   - `phonetic` (text, nullable - IPA or simplified pronunciation)
-   - `prompt_audio_url` (text, nullable - custom recording path)
-   - `tts_voice` (text, nullable - override default TTS voice)
-   - RLS: Created by parents; readable by all authenticated users
-   - Migration: Added `tts_voice` in `20241109000005`
-
-4. **`list_words`** (Junction table for many-to-many)
-   - `list_id` (uuid, FK to word_lists)
-   - `word_id` (uuid, FK to words)
-   - `sort_index` (integer, for drag-and-drop ordering)
-   - Composite PK: (list_id, word_id)
-   - RLS: Managed by parents; readable by all
-   - **Why separate junction table?** Allows same word in multiple lists with different ordering
-
-5. **`attempts`** (Child practice history)
-   - `id` (uuid, PK)
-   - `child_id` (uuid, FK to profiles)
-   - `word_id` (uuid, FK to words)
-   - `mode` (text, 'listen-type' or 'say-spell')
-   - `correct` (boolean, first-try correctness)
-   - `typed_answer` (text, nullable - for listen-type mode)
-   - `audio_url` (text, nullable - for say-spell mode)
-   - `started_at` (timestamptz)
-   - RLS: Children insert own attempts; parents can read all
-   - Indexes: `idx_attempts_child_word`, `idx_attempts_child_date`
-
-6. **`srs`** (Spaced Repetition System state)
-   - `id` (uuid, PK)
-   - `child_id` (uuid, FK to profiles)
-   - `word_id` (uuid, FK to words)
-   - `ease` (real, default 2.5, min 1.3) - difficulty factor
-   - `interval_days` (integer, default 0) - days until next review
-   - `due_date` (date, default today) - when word should be practiced
-   - `reps` (integer, default 0) - successful repetitions count
-   - `lapses` (integer, default 0) - number of misses
-   - Unique constraint: (child_id, word_id)
-   - Indexes: `idx_srs_child_due`, `idx_srs_due_date`
-   - RLS: Children manage own SRS; parents can read all
-   - Migration: `20241109000004_add_srs_table.sql`
-
-7. **`parental_settings`** (Parent preferences)
-   - `parent_id` (uuid, FK to profiles, unique)
-   - `pin_code` (text, hashed)
-   - `show_hints_on_first_miss` (boolean, default true)
-   - `enforce_case_sensitivity` (boolean, default false)
-   - `auto_readback_spelling` (boolean, default true)
-   - `daily_session_limit_minutes` (integer, default 20)
-   - `default_tts_voice` (text, default 'en-US')
-   - RLS: Parents manage own settings; never readable by children
-   - Migration: `20241109000005`
-
-8. **`session_analytics`** (Practice session tracking)
-   - `child_id` (uuid, FK to profiles)
-   - `session_date` (date, default current_date)
-   - `session_duration_seconds` (integer)
-   - `words_practiced` (integer)
-   - `correct_on_first_try` (integer)
-   - `total_attempts` (integer)
-   - Index: `idx_session_analytics_child_date`
-   - Used by `AnalyticsDashboard` component in parent area
-
-9. **`badges`** + **`user_badges`** (Achievement system)
-   - `badges`: Defines available achievements
-   - `user_badges`: Tracks which children earned which badges
-   - Badge keys: 'first_word', 'streak_7', 'perfect_10', etc.
-   - Displayed in `/child/stickers` page
-
-**Storage Buckets:**
-
-- **`word-audio`**:
-  - Path: `lists/{listId}/words/{wordId}.webm`
-  - Public read access (children need to hear words)
-  - Parent write access (only parents upload audio)
-  - Migration: `20241109000001_add_word_audio_bucket.sql`
-  - Max file size: 10MB
-  - Allowed MIME types: audio/webm, audio/mp4, audio/wav
-
-### SRS (Spaced Repetition System) Implementation
-
-**Algorithm:** SM-2-lite (simplified SuperMemo 2)
-
-**Location:** `src/lib/srs.ts` (pure functions, no side effects)
-
-**On Correct First Try:**
-
-```typescript
-ease = max(1.3, currentEase + 0.1)
-interval = currentInterval === 0 ? 1 : round(currentInterval * ease)
-due_date = today + interval days
-reps = currentReps + 1
-lapses = currentLapses (unchanged)
-```
-
-**On Miss (not first try):**
-
-```typescript
-ease = max(1.3, currentEase - 0.2)
-interval = 0 (due immediately)
-due_date = today
-reps = currentReps (unchanged)
-lapses = currentLapses + 1
-```
-
-**Integration Points:**
-
-1. `PlayListenType.tsx` and `PlaySaySpell.tsx` call `useUpdateSrs()` mutation after each attempt
-2. Tracks `hasTriedOnce` state to determine first-try status
-3. `useUpdateSrs()` in `supa.ts` upserts SRS entry (creates if missing)
-4. Child home page (`Home.tsx`) displays "Due Today" words where `due_date <= today`
-5. Parent dashboard shows "Hardest Words" (lowest ease) and "Most Lapsed Words"
-
-**Why SM-2-lite instead of full SM-2?**
-
-- Simpler to implement and understand
-- No "hard/good/easy" buttons (just correct/incorrect)
-- Sufficient for elementary spelling practice
-- Ease factor prevents words from getting stuck
-
-## Development Workflows
-
-### Running the App
-
-```powershell
-# With Doppler (RECOMMENDED - production-like environment)
-npm run dev  # Executes: doppler run -- vite
-
-# Without Doppler (requires manual .env file)
-npm run dev:local
-
-# Build for production
-npm run build  # Executes: doppler run -- tsc && vite build
-
-# Preview production build
-npm run preview  # Executes: doppler run -- vite preview
-```
-
-**Why Doppler?**
-
-- Secrets never stored in .env files (avoided in .gitignore)
-- `SUPABASE_ACCESS_TOKEN` needed for migration scripts
-- `doppler run --` prefix injects env vars before command execution
-- Config stored in Doppler cloud at `spelling-stars/dev/dev`
-
-**Required Environment Variables:**
-
-- `VITE_SUPABASE_URL` - Project URL from Supabase dashboard
-- `VITE_SUPABASE_ANON_KEY` - Public anon key (safe for client-side)
-- `SUPABASE_ACCESS_TOKEN` - Management API token (for migrations only)
-
-**Setting up Doppler locally:**
-
-```powershell
-# Install Doppler CLI
-scoop install doppler  # or download from doppler.com
-
-# Login and setup project
-doppler login
-doppler setup
-
-# Verify environment
-doppler secrets
-```
-
-### Database Migrations
-
-**PowerShell Scripts** (all fetch `SUPABASE_ACCESS_TOKEN` from Doppler):
-
-1. **`push-migration.ps1`** - Main migration script:
-
-   ```powershell
-   # Applies ALL .sql files in supabase/migrations/ in alphabetical order
-   # Uses Supabase Management API (not local CLI)
-   # Safe to run multiple times (idempotent SQL recommended)
-   .\push-migration.ps1
-   ```
-
-   Implementation details:
-   - Reads all `*.sql` files from `supabase/migrations/`
-   - Sorts by filename (hence timestamp prefix importance)
-   - POSTs each file to `/v1/projects/{projectRef}/database/query`
-   - Shows ✓ or ✗ for each migration with error details
-
-2. **`check-migrations.ps1`** - List applied migrations:
-
-   ```powershell
-   # Queries `supabase_migrations.schema_migrations` table
-   .\check-migrations.ps1
-   ```
-
-3. **`check-schema.ps1`** - Show current schema:
-
-   ```powershell
-   # Introspects database schema via Management API
-   .\check-schema.ps1
-   ```
-
-4. **`check-tables.ps1`** - List all tables:
-
-   ```powershell
-   # Quick table listing for verification
-   .\check-tables.ps1
-   ```
-
-5. **`record-migration.ps1`** - Helper for documentation:
-   ```powershell
-   # Documents what each migration does
-   # Usage: .\record-migration.ps1 -MigrationName "add_srs_table"
-   ```
-
-**Migration File Naming Convention:**
-
-- Format: `YYYYMMDDHHMMSS_description.sql`
-- Example: `20241109000001_add_word_audio_bucket.sql`
-- Timestamp ensures chronological ordering
-- Description should be snake_case and descriptive
-
-**Current Migrations (in order):**
-
-1. `20241108000000_initial_schema.sql` - Core tables (profiles, word_lists, words, attempts)
-2. `20241108000003_safe_schema_update.sql` - Schema adjustments
-3. `20241108000004_safe_seed_data.sql` - Initial data
-4. `20241109000001_add_word_audio_bucket.sql` - Storage bucket creation
-5. `20241109000002_fix_profile_rls.sql` - RLS policy fixes
-6. `20241109000003_simplify_profile_rls.sql` - RLS simplification
-7. `20241109000004_add_srs_table.sql` - Spaced repetition system
-8. `20241109000005_add_parental_controls_analytics_badges.sql` - New feature tables
-9. `20241109000006_add_color_theme.sql` - Theme preferences
-
-**Creating a New Migration:**
-
-1. Create file: `supabase/migrations/$(Get-Date -Format 'yyyyMMddHHmmss')_your_description.sql`
-2. Write idempotent SQL (use `IF NOT EXISTS`, `IF EXISTS`, etc.)
-3. Include RLS policies for new tables
-4. Test locally first (if using local Supabase)
-5. Run `.\push-migration.ps1` to apply
-6. Verify with `.\check-tables.ps1`
-
-### PWA & Offline Support
-
-**Service Worker Configuration** (`vite.config.ts`):
-
-```typescript
-VitePWA({
-  registerType: "autoUpdate",
-  workbox: {
-    globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
-    runtimeCaching: [
-      {
-        // Supabase API: Try network first, fallback to cache
-        urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-        handler: "NetworkFirst",
-        options: {
-          cacheName: "supabase-cache",
-          expiration: {
-            maxEntries: 50,
-            maxAgeSeconds: 60 * 60 * 24, // 24 hours
-          },
-          cacheableResponse: { statuses: [0, 200] },
-        },
-      },
-      {
-        // Child routes: Cache first for offline play
-        urlPattern: /\/child\/.*/,
-        handler: "CacheFirst",
-        options: {
-          cacheName: "child-routes-cache",
-          expiration: {
-            maxEntries: 20,
-            maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days
-          },
-        },
-      },
-    ],
-  },
-});
-```
-
-**Offline Data Flow:**
-
-1. **Detection:** `useOnline()` hook listens to `window.online/offline` events
-2. **Queue Attempt:**
-   ```typescript
-   if (!isOnline) {
-     await db.queuedAttempts.add({
-       child_id,
-       word_id,
-       list_id,
-       mode,
-       is_correct,
-       typed_answer,
-       audio_blob_id,
-       created_at: new Date().toISOString(),
-       synced: false,
-     });
-   }
-   ```
-3. **Queue Audio:**
-   ```typescript
-   const blobId = await db.queuedAudio.add({
-     blob: audioBlob,
-     filename: `${wordId}-${Date.now()}.webm`,
-     created_at: new Date().toISOString(),
-     synced: false,
-   });
-   ```
-4. **Background Sync** (triggered on connection restore):
-   - Service worker detects online event
-   - Calls `syncQueuedData()` from `src/lib/sync.ts`
-   - Uploads audio files first (generates storage URLs)
-   - Inserts attempts with audio URLs
-   - Marks records as `synced: true`
-
-**Testing Offline Functionality:**
-
-1. Open DevTools > Network tab
-2. Select "Offline" from throttling dropdown
-3. Play a game, record audio
-4. Check Application tab > IndexedDB > SpellStarsDB
-5. Verify `queuedAttempts` and `queuedAudio` have unsync records
-6. Re-enable network
-7. Watch for automatic sync in console logs
-8. Verify data appears in Supabase dashboard
-
-### TypeScript Configuration
-
-**Strict Mode Enabled** (`tsconfig.json`):
-
-- `strict: true`
-- `noUncheckedIndexedAccess: true` (prevents undefined array access bugs)
-- `noUnusedLocals: true`
-- `noUnusedParameters: true`
-- `noImplicitReturns: true`
-
-**Generated Types:** `src/types/database.types.ts`
-
-- Auto-generated from Supabase schema
-- Regenerate after migrations: `npx supabase gen types typescript --local > src/types/database.types.ts`
-- Provides type safety for all database operations
-
-## Component & Styling Patterns
-
-### Component Structure
-
-**ALL components use class-variance-authority (CVA)** for variant styling:
+**Parent routes** (`/parent/*`) have double protection:
 
 ```tsx
-// Example from Button.tsx
-const buttonVariants = cva(
-  // Base classes (always applied)
-  "inline-flex items-center justify-center rounded-md font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none",
-  {
-    variants: {
-      variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/90",
-        outline:
-          "border-2 border-border bg-background text-foreground hover:bg-accent hover:text-accent-foreground",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
-        danger:
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-      },
-      size: {
-        default: "parent-button", // CSS class defined in styles/index.css
-        child: "child-button", // 88px min height for children
-        sm: "h-9 px-3 text-sm",
-        lg: "h-12 px-8 text-lg",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-    },
-  }
-);
-
-export interface ButtonProps
-  extends ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {}
-
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, ...props }, ref) => {
-    return (
-      <button
-        className={cn(buttonVariants({ variant, size, className }))}
-        ref={ref}
-        {...props}
-      />
-    );
-  }
-);
+<ProtectedRoute requiredRole="parent">
+  {" "}
+  {/* Auth + role check */}
+  <PinProtectedRoute>
+    {" "}
+    {/* PIN verification */}
+    <Dashboard />
+  </PinProtectedRoute>
+</ProtectedRoute>
 ```
 
-**Shared Components:**
+- PIN stored hashed in `useParentalSettingsStore` (localStorage)
+- `isPinLocked` resets to `true` on app restart (security feature - NOT persisted)
+- Parents can access child routes (line 28 in `ProtectedRoute.tsx`)
 
-1. **`Button`** - 5 variants, 4 sizes, forwardRef pattern
-2. **`Card`** - Container with optional hover states
-3. **`AudioRecorder`** - Complex component with WaveSurfer.js integration:
-   - Manages MediaRecorder API via `useAudioRecorder()` hook
-   - Visual waveform with play/pause/record/delete controls
-   - Returns Blob and URL via `onRecordingComplete` callback
-   - Shows duration timer during recording
-   - Properly cleans up MediaRecorder and stream tracks
-4. **`Navigation`** - Responsive nav with role-based menu items
-5. **`PinLock`** - 4-digit PIN entry screen with numeric keypad
-6. **`ProtectedRoute`** - Auth + role checking wrapper
-7. **`PinProtectedRoute`** - Additional PIN verification layer
-8. **`RootRedirect`** - Initial routing logic based on auth state
-9. **`SessionComplete`** - End-of-session stats modal
-10. **`AnalyticsDashboard`** - Charts and graphs for parent area
-11. **`ThemeToggle`** - Dark/light mode switcher (now theme picker)
-12. **`ColorThemePicker`** - Grid of 30+ theme options
-13. **`RewardStar`** - Animated star icon for celebrations
-
-### Tailwind CSS Custom Design System
-
-**CSS Variables Architecture** (`src/styles/index.css`):
-
-The app uses **CSS custom properties** for theming, defined in `:root` for light mode and `.dark` class for dark mode. This allows runtime theme switching without CSS recompilation.
-
-**Color Variables:**
-
-```scss
-:root {
-  /* Kawaii Pink Theme (default) */
-  --background: hsl(325.78 58.18% 93.73%);
-  --foreground: hsl(0 0% 35.69%);
-  --card: hsl(42.86 88.64% 90.78%);
-  --card-foreground: hsl(0 0% 35.69%);
-  --primary: hsl(325.78 58.18% 56.86%);
-  --primary-foreground: hsl(300 33.33% 97.45%);
-  --secondary: hsl(183.4 37.14% 67.65%);
-  --muted: hsl(186.67 62.16% 79.61%);
-  --accent: hsl(44.19 93.02% 82.75%);
-  --destructive: hsl(359.13 92.52% 71.18%);
-  --border: hsl(325.78 58.18% 56.86%);
-  --ring: hsl(318.95 62.35% 66.47%);
-  /* ... more colors */
-}
-```
-
-**Custom Utility Classes:**
-
-```css
-.parent-button {
-  @apply min-h-[44px] px-6 text-base;
-  /* WCAG 2.1 AA minimum touch target */
-}
-
-.child-button {
-  @apply min-h-[88px] px-8 text-2xl font-bold;
-  /* Extra-large for children - exceeds WCAG 2.1 AAA */
-}
-```
-
-**Flat Shadow System:**
-The app uses a **flat shadow design** (inspired by neo-brutalism) instead of standard drop shadows:
-
-```css
-:root {
-  --shadow-x: 3px;
-  --shadow-y: 3px;
-  --shadow-blur: 0px; /* No blur for flat look */
-  --shadow-color: hsl(325.78 58.18% 56.86% / 0.5);
-
-  /* Composed shadows */
-  --shadow:
-    3px 3px 0px 0px var(--shadow-color), 3px 1px 2px -1px var(--shadow-color);
-}
-```
-
-Usage in Tailwind config:
-
-```javascript
-theme: {
-  extend: {
-    boxShadow: {
-      '2xs': 'var(--shadow-2xs)',
-      xs: 'var(--shadow-xs)',
-      sm: 'var(--shadow-sm)',
-      DEFAULT: 'var(--shadow)',
-      md: 'var(--shadow-md)',
-      lg: 'var(--shadow-lg)',
-      xl: 'var(--shadow-xl)',
-      '2xl': 'var(--shadow-2xl)'
-    }
-  }
-}
-```
-
-**Typography Variables:**
-
-```css
-:root {
-  --font-sans: Pangolin, cursive; /* Playful handwriting font */
-  --font-serif: Merriweather, ui-serif, serif;
-  --font-mono: Cousine, ui-monospace, monospace;
-  --tracking-normal: 0em; /* Letter spacing */
-  --spacing: 0.25rem; /* Base spacing unit */
-}
-```
-
-**30+ Predefined Themes** (`src/app/lib/themes.ts`):
-
-Themes are objects with `id`, `name`, `description`, and `cssVariables` properties:
-
-```typescript
-export interface ColorTheme {
-  id: string;
-  name: string;
-  description: string;
-  cssVariables: Record<string, string>;
-}
-
-export const colorThemes: ColorTheme[] = [
-  {
-    id: "kawaii-pink",
-    name: "Kawaii Pink",
-    description: "Playful pink theme perfect for kids",
-    cssVariables: {
-      /* all CSS custom properties */
-    },
-  },
-  {
-    id: "midnight-dark",
-    name: "Midnight Dark",
-    description: "Easy on the eyes dark theme",
-    cssVariables: {
-      /* dark mode colors */
-    },
-  },
-  // ... 28 more themes
-];
-```
-
-**Theme Application:**
-
-```typescript
-export function applyTheme(themeId: string): void {
-  const theme = getThemeById(themeId);
-  const root = document.documentElement;
-
-  // Apply CSS variables
-  Object.entries(theme.cssVariables).forEach(([key, value]) => {
-    root.style.setProperty(key, value);
-  });
-
-  // Add theme class
-  root.classList.add(themeId);
-
-  // Add 'dark' class for compatibility
-  if (themeId.endsWith("-dark")) {
-    root.classList.add("dark");
-  }
-}
-```
-
-Children can switch themes from `/child/theme` page, selection persisted in `useThemeStore`.
-
-### Utility Function Pattern
-
-**The `cn()` function** (`src/lib/utils.ts`):
-
-```typescript
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
-```
-
-**Why both clsx and tailwind-merge?**
-
-- `clsx`: Efficiently handles conditional classes
-- `twMerge`: Intelligently merges Tailwind classes (prevents conflicts)
-
-**Usage patterns:**
+**Child routes** (`/child/*`) only need auth:
 
 ```tsx
-// Conditional classes
-<div className={cn(
-  "base-classes",
-  isActive && "active-classes",
-  isError && "error-classes"
-)} />
-
-// Merging prop classes
-<div className={cn("default-classes", className)} />
-
-// Complex conditions
-<div className={cn(
-  "base",
-  {
-    "variant-a": variant === 'a',
-    "variant-b": variant === 'b',
-  },
-  size === 'large' && "large-size"
-)} />
+<ProtectedRoute requiredRole="child">
+  <Home />
+</ProtectedRoute>
 ```
 
-### Accessibility Features
+- Cached offline via `CacheFirst` in `vite.config.ts`
 
-**Focus Ring System:**
+**Auth Flow:** Sign in → `handle_new_user()` trigger creates profile → `role` from metadata → `supabase.auth.onAuthStateChange` updates Zustand → `RootRedirect` routes based on role
 
-```scss
-:root {
-  --ring: hsl(318.95 62.35% 66.47%);
-}
+### State Management: Three Tools, Three Purposes
 
-/* Applied via Tailwind utilities */
-.focus-visible:focus-visible {
-  outline: 4px solid var(--ring);
-  outline-offset: 2px;
-}
-```
+**1. Zustand** - Client state (ephemeral + persisted):
 
-**ARIA Labels:**
+- `useAuthStore`: `{user, profile, isLoading}` - Set by `useAuth()`, NEVER directly
+- `useParentalSettingsStore`: Settings with `persist` middleware → localStorage as `'parental-settings'`. Lock state NOT persisted
+- `useThemeStore`: Theme ID → modifies CSS custom properties via `applyTheme()`
+- `useSessionStore`: Active gameplay session → writes to `session_analytics` on complete
 
-- All audio controls have `aria-label`
-- Buttons have descriptive labels
-- Form inputs have associated labels
-- Icons have `aria-hidden="true"` when decorative
-
-**Reduced Motion:**
+**2. React Query** - Server state (ALL in `src/app/api/supa.ts`, 1133 lines):
 
 ```tsx
-// Respect prefers-reduced-motion
-<div
-  className={cn(
-    "transition-transform",
-    !prefersReducedMotion && "animate-bounce"
-  )}
-/>
-```
-
-**Keyboard Navigation:**
-
-- All interactive elements are keyboard accessible
-- Logical tab order
-- Focus trapping in modals
-- Escape key closes modals
-
-## Code Conventions
-
-### React Query Hook Pattern
-
-**Location:** ALL data fetching in `src/app/api/supa.ts` (1133 lines)
-
-**File Structure:**
-
-1. Type imports and aliases (lines 1-25)
-2. Raw async functions for direct calls (lines 27-400)
-3. React Query hooks (lines 400-1133)
-
-**Query Hook Example:**
-
-```tsx
+// Query pattern
 export function useWordLists(userId: string) {
   return useQuery({
-    queryKey: ["word-lists", userId],
+    queryKey: ["word-lists", userId], // CRITICAL: Keys must match for invalidation
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("word_lists")
-        .select("*, list_words(count)") // Joined query with count
-        .eq("created_by", userId)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
+      /* Supabase query */
     },
-    enabled: !!userId, // Don't run if no userId
-    staleTime: 1000 * 60 * 5, // Consider data fresh for 5 mins
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 5,
   });
 }
-```
 
-**Mutation Hook with Optimistic Updates:**
-
-```tsx
+// Mutation with optimistic updates
 export function useReorderWords() {
-  const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: async ({
-      listId,
-      words,
-    }: {
-      listId: string;
-      words: WordWithIndex[];
-    }) => {
-      // Batch update all word sort indices
-      const updates = words.map((word, index) =>
-        supabase
-          .from("list_words")
-          .update({ sort_index: index })
-          .eq("list_id", listId)
-          .eq("word_id", word.id)
-      );
-      const results = await Promise.all(updates);
-
-      // Check for errors
-      const firstError = results.find((r) => r.error)?.error;
-      if (firstError) throw firstError;
+    mutationFn: async ({ listId, words }) => {
+      /* Update DB */
     },
-
-    // Optimistic update: Update cache before server response
     onMutate: async ({ listId, words }) => {
-      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
       await queryClient.cancelQueries(["word-list", listId]);
-
-      // Snapshot the previous value
-      const previousList = queryClient.getQueryData(["word-list", listId]);
-
-      // Optimistically update to the new value
-      queryClient.setQueryData(["word-list", listId], (old: any) => ({
-        ...old,
-        words, // Replace words array with new order
-      }));
-
-      // Return context with snapshot
-      return { previousList };
+      const previous = queryClient.getQueryData(["word-list", listId]);
+      queryClient.setQueryData(["word-list", listId], optimisticData);
+      return { previous }; // Snapshot for rollback
     },
-
-    // On error, roll back to the snapshot
-    onError: (err, { listId }, context) => {
-      if (context?.previousList) {
-        queryClient.setQueryData(["word-list", listId], context.previousList);
-      }
-      console.error("Failed to reorder words:", err);
+    onError: (err, vars, context) => {
+      queryClient.setQueryData(["word-list", vars.listId], context?.previous);
     },
-
-    // Always refetch after error or success
     onSettled: (data, error, { listId }) => {
       queryClient.invalidateQueries(["word-list", listId]);
     },
@@ -994,669 +101,296 @@ export function useReorderWords() {
 }
 ```
 
-**Available Hooks by Category:**
+Query key convention: `['word-lists', userId]` | `['word-list', listId]` | `['due-words', childId]`
 
-_Word Lists:_
+**3. Dexie (IndexedDB)** - Offline queue (`src/data/db.ts` + `src/lib/sync.ts`):
 
-- `useWordLists(userId)` - Get all lists for user
-- `useWordList(listId)` - Get single list with all words
-- `useCreateWordList()` - Create new list
-- `useUpdateWordList()` - Update list metadata
-- `useDeleteWordList()` - Delete list (cascades to list_words)
-- `useDuplicateWordList()` - Clone existing list
+```tsx
+// Queue attempt when offline
+if (!isOnline) {
+  await db.queuedAttempts.add({ child_id, word_id, synced: false, ... });
+}
 
-_Words:_
+// Auto-sync on reconnect (triggered by useOnline() hook)
+syncQueuedData() → uploads audio to Storage → inserts attempts → marks synced: true
+```
 
-- `useCreateWord()` - Create word and add to list
-- `useUpdateWord()` - Update word properties
-- `useDeleteWordFromList()` - Remove word from list
-- `useReorderWords()` - Update sort indices
-- `useUploadAudio()` - Upload to Storage and update word
+### Database Schema (Key Tables)
 
-_Attempts & SRS:_
+**Core tables with RLS:**
 
-- `useCreateAttempt()` - Log spelling attempt
-- `useDueWords(childId)` - Get words due today
-- `useUpdateSrs()` - Update SRS after attempt
-- `useHardestWords(limit)` - Lowest ease words
-- `useMostLapsedWords(limit)` - Most missed words
+1. `profiles` - User accounts (`id`, `email`, `role: 'parent'|'child'`)
+2. `word_lists` - Spelling lists (`title`, `week_start_date`, `created_by`)
+3. `words` - Vocabulary (`text`, `phonetic`, `prompt_audio_url`, `tts_voice`)
+4. `list_words` - Junction table (`list_id`, `word_id`, `sort_index`) - **Why separate?** Same word in multiple lists with different order
+5. `attempts` - Practice history (`child_id`, `word_id`, `mode: 'listen-type'|'say-spell'`, `correct`, `typed_answer`, `audio_url`)
+6. `srs` - Spaced repetition state (`ease`, `interval_days`, `due_date`, `reps`, `lapses`) - Unique per (child_id, word_id)
+7. `parental_settings` - Parent prefs (`pin_code`, `show_hints_on_first_miss`, `daily_session_limit_minutes`, etc.)
+8. `session_analytics` - Session tracking (`session_date`, `words_practiced`, `correct_on_first_try`)
 
-_Analytics & Rewards:_
+**Storage bucket:** `word-audio` - Path: `lists/{listId}/words/{wordId}.webm` - Public read, parent write
 
-- `useSessionAnalytics(childId, timeRange)` - Get practice stats
-- `useUserBadges(childId)` - Get earned badges
-- `useAwardBadge()` - Award new badge
+**RLS Pattern:** Parents CRUD own content; children read-only + insert own attempts
 
-### Authentication Flow
+### SRS (Spaced Repetition) Implementation
 
-**Complete Flow with Code References:**
+**Algorithm:** SM-2-lite (`src/lib/srs.ts` - pure functions)
 
-1. **App Initialization** (`src/app/main.tsx`):
+**On correct first try:**
 
-   ```tsx
-   // useAuth hook called in root component
-   function App() {
-     const { isLoading } = useAuth();
-     if (isLoading) return <LoadingScreen />;
-     return <RouterProvider router={router} />;
-   }
-   ```
+```typescript
+ease = max(1.3, currentEase + 0.1)
+interval = currentInterval === 0 ? 1 : round(currentInterval * ease)
+due_date = today + interval days
+```
 
-2. **Auth Hook Setup** (`src/app/hooks/useAuth.ts`):
+**On miss:** `ease -= 0.2`, `interval = 0`, `due_date = today`, `lapses++`
 
-   ```tsx
-   export function useAuth() {
-     const { user, profile, isLoading, setUser, setProfile, setIsLoading } =
-       useAuthStore();
+**Integration:** `PlayListenType.tsx`/`PlaySaySpell.tsx` call `useUpdateSrs()` → upserts SRS entry → Child home shows "Due Today" where `due_date <= today`
 
-     useEffect(() => {
-       // Get initial session
-       supabase.auth.getSession().then(({ data: { session } }) => {
-         setUser(session?.user ?? null);
-         if (session?.user) {
-           fetchProfile(session.user.id);
-         }
-       });
+## Development Workflows
 
-       // Listen for changes (sign in, sign out, token refresh)
-       const {
-         data: { subscription },
-       } = supabase.auth.onAuthStateChange((_event, session) => {
-         setUser(session?.user ?? null);
-         if (session?.user) {
-           fetchProfile(session.user.id);
-         } else {
-           setProfile(null);
-           setIsLoading(false);
-         }
-       });
+### Running the App
 
-       return () => subscription.unsubscribe();
-     }, []);
+```powershell
+npm run dev         # With Doppler (RECOMMENDED): doppler run -- vite
+npm run dev:local   # Without Doppler (requires .env file)
+npm run build       # Production: doppler run -- tsc && vite build
+npm run preview     # Preview: doppler run -- vite preview
+```
 
-     return { user, profile, isLoading, signIn, signUp, signOut };
-   }
-   ```
+**Required env vars:** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_ACCESS_TOKEN` (migrations only)
 
-3. **Profile Fetching:**
+**Doppler setup:**
 
-   ```tsx
-   const fetchProfile = async (userId: string) => {
-     const { data, error } = await supabase
-       .from("profiles")
-       .select("*")
-       .eq("id", userId)
-       .single();
+```powershell
+scoop install doppler
+doppler login
+doppler setup
+doppler secrets  # Verify
+```
 
-     if (error) console.error("Error fetching profile:", error);
-     else setProfile(data);
-     setIsLoading(false);
-   };
-   ```
+### Database Migrations
 
-4. **Route Protection** (`src/app/components/ProtectedRoute.tsx`):
+**PowerShell scripts** (fetch `SUPABASE_ACCESS_TOKEN` from Doppler):
 
-   ```tsx
-   export function ProtectedRoute({
-     children,
-     requiredRole,
-   }: ProtectedRouteProps) {
-     const { isAuthenticated, isLoading, profile } = useAuth();
+```powershell
+.\push-migration.ps1        # Apply ALL .sql files in supabase/migrations/ (alphabetical order)
+.\check-migrations.ps1      # List applied migrations
+.\check-schema.ps1          # Show current schema
+.\check-tables.ps1          # List all tables
+```
 
-     if (isLoading) return <LoadingScreen />;
-     if (!isAuthenticated) return <Navigate to="/login" />;
+**Migration naming:** `YYYYMMDDHHMMSS_description.sql` (e.g., `20241109000001_add_word_audio_bucket.sql`)
 
-     // Special case: Parents can access child routes
-     if (requiredRole && profile?.role !== requiredRole) {
-       if (profile?.role === "parent" && requiredRole === "child") {
-         return <>{children}</>;
-       }
-       // Redirect to appropriate area
-       return (
-         <Navigate
-           to={profile?.role === "parent" ? "/parent/dashboard" : "/child/home"}
-         />
-       );
-     }
+**Creating new migration:**
 
-     return <>{children}</>;
-   }
-   ```
+1. Create file: `supabase/migrations/$(Get-Date -Format 'yyyyMMddHHmmss')_your_description.sql`
+2. Write idempotent SQL (use `IF NOT EXISTS`, `IF EXISTS`)
+3. Include RLS policies for new tables
+4. Run `.\push-migration.ps1`
+5. Verify with `.\check-tables.ps1`
 
-5. **PIN Protection** (`src/app/components/PinProtectedRoute.tsx`):
+**Existing migrations (chronological):**
 
-   ```tsx
-   export function PinProtectedRoute({ children }: PinProtectedRouteProps) {
-     const { isPinLocked, unlock, pinCode } = useParentalSettingsStore();
+1. `20241108000000_initial_schema.sql` - Core tables
+2. `20241108000003_safe_schema_update.sql` - Schema adjustments
+3. `20241108000004_safe_seed_data.sql` - Initial data
+4. `20241109000001_add_word_audio_bucket.sql` - Storage bucket
+5. `20241109000002_fix_profile_rls.sql` - RLS fixes
+6. `20241109000003_simplify_profile_rls.sql` - RLS simplification
+7. `20241109000004_add_srs_table.sql` - Spaced repetition
+8. `20241109000005_add_parental_controls_analytics_badges.sql` - Settings/analytics
+9. `20241109000006_add_color_theme.sql` - Theme preferences
 
-     // Only show lock if PIN is set and currently locked
-     if (isPinLocked && pinCode) {
-       return (
-         <PinLock onUnlock={unlock} onCancel={() => navigate("/child/home")} />
-       );
-     }
+### PWA & Offline Support
 
-     return <>{children}</>;
-   }
-   ```
+**Service Worker** (`vite.config.ts`):
 
-6. **Database Trigger** (creates profile on signup):
-   ```sql
-   CREATE FUNCTION handle_new_user()
-   RETURNS TRIGGER AS $$
-   BEGIN
-     INSERT INTO profiles (id, email, role)
-     VALUES (
-       NEW.id,
-       NEW.email,
-       COALESCE(NEW.raw_user_meta_data->>'role', 'parent')
-     );
-     RETURN NEW;
-   END;
-   $$ LANGUAGE plpgsql SECURITY DEFINER;
-   ```
+```typescript
+VitePWA({
+  workbox: {
+    runtimeCaching: [
+      {
+        urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
+        handler: "NetworkFirst", // Supabase API: network first, cache fallback
+      },
+      {
+        urlPattern: /\/child\/.*/,
+        handler: "CacheFirst", // Child routes: cache first for offline play
+      },
+    ],
+  },
+});
+```
+
+**Offline flow:**
+
+1. `useOnline()` hook detects offline
+2. Queue to IndexedDB: `db.queuedAttempts.add({ synced: false, ... })`
+3. Queue audio: `db.queuedAudio.add({ blob, synced: false })`
+4. On reconnect: `syncQueuedData()` → upload audio → insert attempts → mark `synced: true`
+
+**Testing offline:**
+
+1. DevTools > Network > "Offline"
+2. Play game, check IndexedDB for unsync records
+3. Re-enable network, verify Supabase sync
+
+## Component & Styling Patterns
+
+### CVA (class-variance-authority) Pattern
+
+**ALL components use CVA** for variants. Example from `Button.tsx`:
+
+```tsx
+const buttonVariants = cva(
+  "inline-flex items-center justify-center rounded-md...", // Base
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        secondary: "bg-secondary...",
+        outline: "border-2 border-border...",
+      },
+      size: {
+        default: "parent-button", // 44px min height (WCAG AA)
+        child: "child-button", // 88px min height (exceeds AAA)
+        sm: "h-9 px-3 text-sm",
+      },
+    },
+    defaultVariants: { variant: "default", size: "default" },
+  }
+);
+
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, ...props }, ref) => (
+    <button
+      className={cn(buttonVariants({ variant, size, className }))}
+      ref={ref}
+      {...props}
+    />
+  )
+);
+```
+
+**Key shared components:**
+
+- `Button` - 5 variants, 4 sizes, forwardRef
+- `AudioRecorder` - WaveSurfer.js + MediaRecorder, returns Blob via callback
+- `ProtectedRoute` / `PinProtectedRoute` - Nested auth layers
+- `Card`, `Navigation`, `PinLock`, `SessionComplete`, `AnalyticsDashboard`
+
+### Tailwind Design System
+
+**CSS custom properties** (`src/styles/index.css`) allow runtime theme switching:
+
+```css
+:root {
+  --background: hsl(325.78 58.18% 93.73%);
+  --primary: hsl(325.78 58.18% 56.86%);
+  --ring: hsl(318.95 62.35% 66.47%); /* 4px focus rings */
+  /* ... 15+ more color vars */
+}
+
+.parent-button {
+  @apply min-h-[44px] px-6 text-base;
+} /* WCAG AA */
+.child-button {
+  @apply min-h-[88px] px-8 text-2xl;
+} /* Exceeds AAA */
+```
+
+**Flat shadow system** (neo-brutalism):
+
+```css
+--shadow-x: 3px;
+--shadow-y: 3px;
+--shadow-blur: 0px; /* No blur */
+--shadow:
+  3px 3px 0px 0px var(--shadow-color), 3px 1px 2px -1px var(--shadow-color);
+```
+
+**30+ themes** in `src/app/lib/themes.ts`:
+
+```typescript
+export const colorThemes: ColorTheme[] = [
+  { id: "kawaii-pink", name: "Kawaii Pink", cssVariables: {...} },
+  { id: "midnight-dark", name: "Midnight Dark", cssVariables: {...} },
+  // ... 28 more themes
+];
+
+export function applyTheme(themeId: string): void {
+  const theme = getThemeById(themeId);
+  Object.entries(theme.cssVariables).forEach(([key, value]) => {
+    document.documentElement.style.setProperty(key, value);
+  });
+}
+```
+
+**The `cn()` utility** (`src/lib/utils.ts`):
+
+```typescript
+import { clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));  // Merges classes, resolves conflicts
+}
+
+// Usage:
+<div className={cn("base-class", isActive && "active", className)} />
+```
+
+## Code Conventions
+
+### React Query Pattern
+
+**Location:** ALL data fetching in `src/app/api/supa.ts` (1133 lines)
+
+**Key hooks by category:**
+
+- _Lists:_ `useWordLists(userId)`, `useWordList(listId)`, `useCreateWordList()`, `useUpdateWordList()`, `useDeleteWordList()`
+- _Words:_ `useCreateWord()`, `useUpdateWord()`, `useDeleteWordFromList()`, `useReorderWords()`, `useUploadAudio()`
+- _SRS:_ `useCreateAttempt()`, `useDueWords(childId)`, `useUpdateSrs()`, `useHardestWords(limit)`
+- _Analytics:_ `useSessionAnalytics(childId, timeRange)`, `useUserBadges(childId)`, `useAwardBadge()`
+
+**Query pattern:** See state management section above for full examples
+**Mutation pattern:** Always use optimistic updates with `onMutate`, `onError`, `onSettled`
 
 ### Audio Recording Pattern
 
-**Hook Implementation** (`src/app/hooks/useAudioRecorder.ts`):
-
-```tsx
-export function useAudioRecorder() {
-  const [isRecording, setIsRecording] = useState(false);
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-
-  const startRecording = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const mediaRecorder = new MediaRecorder(stream);
-
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        chunksRef.current.push(event.data);
-      }
-    };
-
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-      setAudioBlob(blob);
-      stream.getTracks().forEach((track) => track.stop()); // Stop microphone
-    };
-
-    mediaRecorder.start();
-    setIsRecording(true);
-  };
-
-  return {
-    isRecording,
-    audioBlob,
-    startRecording,
-    stopRecording,
-    clearRecording,
-  };
-}
-```
-
-**Component Usage** (`src/app/components/AudioRecorder.tsx`):
-
-```tsx
-export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
-  const recorder = useAudioRecorder();
-  const wavesurferRef = useRef<WaveSurfer | null>(null);
-
-  // Initialize WaveSurfer when audio is available
-  useEffect(() => {
-    if (recorder.audioUrl && waveformRef.current) {
-      wavesurferRef.current = WaveSurfer.create({
-        container: waveformRef.current,
-        waveColor: "hsl(271 91% 65%)",
-        progressColor: "hsl(271 81% 56%)",
-        height: 80,
-      });
-      wavesurferRef.current.load(recorder.audioUrl);
-    }
-
-    return () => wavesurferRef.current?.destroy();
-  }, [recorder.audioUrl]);
-
-  const handleStopRecording = () => {
-    recorder.stopRecording();
-    if (recorder.audioBlob && onRecordingComplete) {
-      onRecordingComplete(recorder.audioBlob, recorder.audioUrl!);
-    }
-  };
-
-  return (
-    <div>
-      <div ref={waveformRef} />
-      <Button
-        onClick={
-          recorder.isRecording ? handleStopRecording : recorder.startRecording
-        }
-      >
-        {recorder.isRecording ? <Square /> : <Mic />}
-      </Button>
-    </div>
-  );
-}
-```
-
-**Usage in Game Components:**
-
-```tsx
-// In ListEditor.tsx or game components
-<AudioRecorder
-  onRecordingComplete={async (blob, url) => {
-    const isOnline = useOnline();
-
-    if (isOnline) {
-      // Upload directly to Supabase Storage
-      const filename = `lists/${listId}/words/${wordId}.webm`;
-      const { data, error } = await supabase.storage
-        .from("word-audio")
-        .upload(filename, blob);
-
-      if (!error) {
-        // Update word with audio URL
-        await updateWord.mutateAsync({
-          id: wordId,
-          prompt_audio_url: data.path,
-        });
-      }
-    } else {
-      // Queue for later upload
-      const blobId = await queueAudio(blob, `${wordId}-${Date.now()}.webm`);
-      await queueAttempt(
-        childId,
-        wordId,
-        listId,
-        "say-spell",
-        true,
-        undefined,
-        blobId
-      );
-    }
-  }}
-/>
-```
+See `src/app/hooks/useAudioRecorder.ts` for hook implementation and `src/app/components/AudioRecorder.tsx` for WaveSurfer.js integration. Returns Blob via `onRecordingComplete` callback.
 
 ## Testing & Debugging
 
-### Offline Testing Procedures
+### Offline Testing
 
-**DevTools Method:**
+1. DevTools > Network > "Offline"
+2. Play game, record attempt
+3. Check Application > IndexedDB > SpellStarsDB for `queuedAttempts` (synced: false)
+4. Re-enable network, verify sync in console + Supabase dashboard
 
-1. **Enable Offline Mode:**
-   - Open Chrome/Edge DevTools (F12)
-   - Navigate to Network tab
-   - Select "Offline" from throttling dropdown (top of Network tab)
+### Common Issues
 
-2. **Test Gameplay:**
-
-   ```tsx
-   // In PlayListenType.tsx or PlaySaySpell.tsx
-   const isOnline = useOnline(); // Should return false
-
-   // Verify attempts are queued
-   await db.queuedAttempts.add({
-     child_id: profile.id,
-     word_id: currentWord.id,
-     list_id: listId,
-     mode: "listen-type",
-     is_correct: correct,
-     typed_answer: answer,
-     created_at: new Date().toISOString(),
-     synced: false,
-   });
-   ```
-
-3. **Verify IndexedDB Queue:**
-   - Open DevTools > Application tab
-   - Navigate to Storage > IndexedDB > SpellStarsDB
-   - Check `queuedAttempts` table for unsync records
-   - Check `queuedAudio` table for Blob entries
-
-4. **Test Sync:**
-   - Re-enable network (select "Online" in Network tab)
-   - Watch console logs for sync activity
-   - Verify in Supabase dashboard:
-     - Storage > word-audio bucket for uploaded audio files
-     - Database > attempts table for attempt records
-   - Refresh IndexedDB view to confirm `synced: true`
-
-**Service Worker Testing:**
-
-```javascript
-// In DevTools Console
-navigator.serviceWorker.getRegistration().then((reg) => {
-  console.log("Service Worker:", reg);
-  console.log("Active:", reg.active);
-  console.log("Waiting:", reg.waiting);
-});
-
-// Check cache contents
-caches.keys().then((names) => {
-  console.log("Cache names:", names);
-  names.forEach((name) => {
-    caches.open(name).then((cache) => {
-      cache.keys().then((keys) => {
-        console.log(
-          `Cache ${name}:`,
-          keys.map((r) => r.url)
-        );
-      });
-    });
-  });
-});
-```
-
-**PWA Validation:**
-
-1. Run Lighthouse audit (DevTools > Lighthouse tab)
-2. Check "Progressive Web App" category
-3. Target score: 100
-4. Common issues:
-   - Manifest not valid (check `index.html` has `<link rel="manifest">`)
-   - Service worker not registered (check `src/app/main.tsx` imports `registerSW`)
-   - Icons missing (verify `public/` has all required sizes)
-
-### RLS Policy Testing
-
-**Strategy:** Test with different user roles to verify access control
-
-1. **Create Test Users:**
-
-   ```sql
-   -- In Supabase SQL Editor
-   -- Parent user
-   INSERT INTO profiles (id, email, role)
-   VALUES ('test-parent-id', 'parent@test.com', 'parent');
-
-   -- Child user
-   INSERT INTO profiles (id, email, role)
-   VALUES ('test-child-id', 'child@test.com', 'child');
-   ```
-
-2. **Test Parent Access:**
-
-   ```tsx
-   // Sign in as parent
-   await supabase.auth.signIn({ email: "parent@test.com", password: "test" });
-
-   // Should succeed: Create word list
-   const { data, error } = await supabase
-     .from("word_lists")
-     .insert({ title: "Test List", created_by: "test-parent-id" });
-
-   // Should succeed: Read own lists
-   const { data: lists } = await supabase
-     .from("word_lists")
-     .select("*")
-     .eq("created_by", "test-parent-id");
-
-   // Should succeed: Read child attempts
-   const { data: attempts } = await supabase
-     .from("attempts")
-     .select("*")
-     .eq("child_id", "test-child-id");
-   ```
-
-3. **Test Child Access:**
-
-   ```tsx
-   // Sign in as child
-   await supabase.auth.signIn({ email: 'child@test.com', password: 'test' });
-
-   // Should succeed: Read word lists (read-only)
-   const { data: lists } = await supabase
-     .from('word_lists')
-     .select('*');
-
-   // Should succeed: Insert own attempt
-   const { data, error } = await supabase
-     .from('attempts')
-     .insert({ child_id: 'test-child-id', word_id: 'some-word-id', ... });
-
-   // Should FAIL: Update word list (permission denied)
-   const { error: updateError } = await supabase
-     .from('word_lists')
-     .update({ title: 'Hacked!' })
-     .eq('id', 'some-list-id');
-   // Expected: updateError.code === 'PGRST301' (permission denied)
-
-   // Should FAIL: Read parental settings
-   const { error: settingsError } = await supabase
-     .from('parental_settings')
-     .select('*');
-   // Expected: No rows returned (RLS blocks access)
-   ```
-
-4. **Check RLS Policies in Dashboard:**
-   - Navigate to Supabase Dashboard > Authentication > Policies
-   - Verify each table has policies for both roles
-   - Common issue: Missing `USING` clause (defines who can access)
-   - Common issue: Missing `WITH CHECK` clause (defines what can be inserted)
-
-### Debugging Common Issues
-
-**Issue: "Failed to fetch" errors**
-
-Cause: Supabase client not configured correctly or offline
-
-Solution:
-
-```tsx
-// Check environment variables
-console.log("Supabase URL:", import.meta.env.VITE_SUPABASE_URL);
-console.log(
-  "Supabase Key:",
-  import.meta.env.VITE_SUPABASE_ANON_KEY?.slice(0, 20) + "..."
-);
-
-// Verify client initialization
-import { supabase } from "@/app/supabase";
-console.log("Supabase client:", supabase);
-
-// Test connection
-const { data, error } = await supabase.from("profiles").select("count");
-console.log("Connection test:", { data, error });
-```
-
-**Issue: React Query not refetching after mutation**
-
-Cause: Query key mismatch or missing `invalidateQueries`
-
-Solution:
-
-```tsx
-// Ensure query keys match
-const listQuery = useQuery(['word-list', listId], ...);  // ✓ Correct
-const updateMutation = useMutation({
-  onSuccess: () => {
-    queryClient.invalidateQueries(['word-list', listId]);  // ✓ Must match
-  }
-});
-
-// Common mistake: Using different keys
-const listQuery = useQuery(['list', listId], ...);  // ✗ "list"
-const updateMutation = useMutation({
-  onSuccess: () => {
-    queryClient.invalidateQueries(['word-list', listId]);  // ✗ "word-list" (won't match)
-  }
-});
-```
-
-**Issue: SRS due dates not updating**
-
-Cause: Timezone mismatch or incorrect date comparison
-
-Debug:
-
-```tsx
-// Check current date vs due_date
-const { data: srsEntries } = await supabase
-  .from("srs")
-  .select("*, words(text)")
-  .eq("child_id", childId)
-  .lte("due_date", new Date().toISOString().split("T")[0]); // Format: YYYY-MM-DD
-
-console.log("Due words:", srsEntries);
-console.log("Today:", new Date().toISOString().split("T")[0]);
-
-// Verify SRS calculation
-import { calculateSrsOnSuccess, calculateSrsOnMiss } from "@/lib/srs";
-const result = calculateSrsOnSuccess({ ease: 2.5, interval_days: 1, reps: 1 });
-console.log("SRS result:", result); // Should show new ease, interval, due_date
-```
-
-**Issue: Audio not recording or uploading**
-
-Cause: Microphone permissions or HTTPS requirement
-
-Debug:
-
-```tsx
-// Check microphone permissions
-navigator.permissions.query({ name: "microphone" }).then((result) => {
-  console.log("Microphone permission:", result.state);
-  // 'granted', 'prompt', or 'denied'
-});
-
-// Test MediaRecorder support
-console.log("MediaRecorder supported:", "MediaRecorder" in window);
-console.log(
-  "Supported MIME types:",
-  ["audio/webm", "audio/webm;codecs=opus", "audio/mp4"].filter(
-    MediaRecorder.isTypeSupported
-  )
-);
-
-// Test Supabase Storage upload
-const testBlob = new Blob(["test"], { type: "text/plain" });
-const { data, error } = await supabase.storage
-  .from("word-audio")
-  .upload("test.txt", testBlob);
-console.log("Storage test:", { data, error });
-```
-
-**Issue: Theme not applying**
-
-Cause: CSS custom property not being set or theme ID mismatch
-
-Debug:
-
-```tsx
-// Check current theme
-import { useThemeStore } from "@/app/store/theme";
-const { themeId } = useThemeStore();
-console.log("Active theme ID:", themeId);
-
-// Verify CSS variables
-const root = document.documentElement;
-console.log("--primary:", getComputedStyle(root).getPropertyValue("--primary"));
-console.log(
-  "--background:",
-  getComputedStyle(root).getPropertyValue("--background")
-);
-
-// Manually apply theme
-import { applyTheme } from "@/app/lib/themes";
-applyTheme("kawaii-pink");
-```
+**React Query not refetching:** Ensure query keys match in `invalidateQueries()`
+**SRS not updating:** Check date format: `new Date().toISOString().split("T")[0]`
+**Audio not uploading:** Test microphone permissions + MediaRecorder support
+**Theme not applying:** Verify CSS variables set on `document.documentElement`
 
 ### Migration Debugging
 
-**Check Migration Status:**
-
 ```powershell
-# List all applied migrations
-.\check-migrations.ps1
-
-# Expected output:
-# Applied migrations:
-# - 20241108000000_initial_schema.sql
-# - 20241108000003_safe_schema_update.sql
-# ...
+.\check-migrations.ps1  # List applied
+.\check-schema.ps1      # Show schema
+.\check-tables.ps1      # List tables
 ```
 
-**Verify Schema Changes:**
+**Common errors:**
 
-```powershell
-# Show current schema
-.\check-schema.ps1
-
-# List all tables
-.\check-tables.ps1
-```
-
-**Common Migration Errors:**
-
-1. **"relation already exists"**
-   - Cause: Migration ran twice or table already created
-   - Solution: Use `CREATE TABLE IF NOT EXISTS` in migrations
-
-2. **"column does not exist"**
-   - Cause: Missing prior migration or incorrect order
-   - Solution: Check migration timestamps, ensure chronological order
-
-3. **"permission denied for schema public"**
-   - Cause: RLS policy blocks access
-   - Solution: Add appropriate policy or use `SECURITY DEFINER` in function
-
-**Rollback Strategy:**
-
-Supabase doesn't support automatic rollbacks. Manual approach:
-
-```sql
--- In Supabase SQL Editor
--- Drop problematic table
-DROP TABLE IF EXISTS problematic_table CASCADE;
-
--- Re-run earlier migration
--- (copy SQL from migration file)
-
--- Or: Manually revert changes
-ALTER TABLE my_table DROP COLUMN new_column;
-```
-
-### Performance Debugging
-
-**React Query DevTools:**
-
-```tsx
-// Add to src/app/main.tsx in development
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-
-<QueryClientProvider client={queryClient}>
-  <App />
-  <ReactQueryDevtools initialIsOpen={false} />
-</QueryClientProvider>;
-```
-
-**Vite Bundle Analysis:**
-
-```powershell
-# Build with bundle analysis
-npm run build -- --mode analyze
-
-# Generates dist/stats.html
-```
-
-**Lighthouse Performance Audit:**
-
-Target scores:
-
-- Performance: 90+
-- Accessibility: 100
-- Best Practices: 95+
-- SEO: 90+
-- PWA: 100
-
-Common issues:
-
-- Large bundle size → Code splitting needed
-- Slow Time to Interactive → Reduce JavaScript execution time
-- Poor Largest Contentful Paint → Optimize images and fonts
+- "relation already exists" → Use `IF NOT EXISTS`
+- "column does not exist" → Check migration order
+- "permission denied" → Add RLS policy or use `SECURITY DEFINER`
 
 ## Common Tasks
 
