@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/app/hooks/useAuth";
 import { Button } from "@/app/components/Button";
 import { Card } from "@/app/components/Card";
@@ -107,7 +108,15 @@ export function Login() {
         </form>
 
         <div className="mt-6 text-center text-sm text-gray-600">
-          <p>Demo: Use your Supabase account credentials</p>
+          <p>
+            Don't have an account?{" "}
+            <Link
+              to="/signup"
+              className="text-primary-600 hover:text-primary-700 font-medium"
+            >
+              Sign up
+            </Link>
+          </p>
         </div>
       </Card>
     </div>
