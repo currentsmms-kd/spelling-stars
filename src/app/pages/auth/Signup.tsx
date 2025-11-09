@@ -28,40 +28,40 @@ function RoleSelection({
 }) {
   return (
     <fieldset>
-      <legend className="block text-sm font-medium text-gray-700 mb-2">
+      <legend className="block text-sm font-medium text-foreground mb-2">
         I am a...
       </legend>
       <div className="space-y-2">
-        <label className="flex items-center gap-2 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+        <label className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-muted/50">
           <input
             {...register("role")}
             type="radio"
             value="parent"
-            className="w-4 h-4 text-primary-600"
+            className="w-4 h-4 text-primary"
           />
           <div>
             <div className="font-medium">Parent</div>
-            <div className="text-sm text-gray-500">
+            <div className="text-sm text-muted-foreground">
               Manage word lists and track progress
             </div>
           </div>
         </label>
-        <label className="flex items-center gap-2 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+        <label className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-muted/50">
           <input
             {...register("role")}
             type="radio"
             value="child"
-            className="w-4 h-4 text-primary-600"
+            className="w-4 h-4 text-primary"
           />
           <div>
             <div className="font-medium">Child</div>
-            <div className="text-sm text-gray-500">
+            <div className="text-sm text-muted-foreground">
               Practice spelling and earn rewards
             </div>
           </div>
         </label>
       </div>
-      {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-1 text-sm text-destructive">{error}</p>}
     </fieldset>
   );
 }
@@ -146,15 +146,13 @@ function SignupForm() {
   return (
     <>
       <div className="text-center mb-8">
-        <h1 className="text-4xl font-bold text-primary-700 mb-2">
-          ⭐ SpellStars
-        </h1>
-        <p className="text-gray-600">Create your account</p>
+        <h1 className="text-4xl font-bold text-primary mb-2">⭐ SpellStars</h1>
+        <p className="text-muted-foreground">Create your account</p>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+          <div className="p-3 bg-destructive/10 border border-destructive rounded-lg text-destructive text-sm">
             {error}
           </div>
         )}
@@ -162,7 +160,7 @@ function SignupForm() {
         <div>
           <label
             htmlFor="email"
-            className="block text-sm font-medium text-gray-700 mb-1"
+            className="block text-sm font-medium text-foreground mb-1"
           >
             Email
           </label>
@@ -170,18 +168,20 @@ function SignupForm() {
             {...register("email")}
             type="email"
             id="email"
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
             placeholder="you@example.com"
           />
           {errors.email && (
-            <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+            <p className="mt-1 text-sm text-destructive">
+              {errors.email.message}
+            </p>
           )}
         </div>
 
         <div>
           <label
             htmlFor="password"
-            className="block text-sm font-medium text-gray-700 mb-1"
+            className="block text-sm font-medium text-foreground mb-1"
           >
             Password
           </label>
@@ -189,11 +189,11 @@ function SignupForm() {
             {...register("password")}
             type="password"
             id="password"
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
             placeholder="••••••••"
           />
           {errors.password && (
-            <p className="mt-1 text-sm text-red-600">
+            <p className="mt-1 text-sm text-destructive">
               {errors.password.message}
             </p>
           )}
@@ -202,7 +202,7 @@ function SignupForm() {
         <div>
           <label
             htmlFor="displayName"
-            className="block text-sm font-medium text-gray-700 mb-1"
+            className="block text-sm font-medium text-foreground mb-1"
           >
             Name
           </label>
@@ -210,11 +210,11 @@ function SignupForm() {
             {...register("displayName")}
             type="text"
             id="displayName"
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
             placeholder="Your name"
           />
           {errors.displayName && (
-            <p className="mt-1 text-sm text-red-600">
+            <p className="mt-1 text-sm text-destructive">
               {errors.displayName.message}
             </p>
           )}
@@ -227,12 +227,12 @@ function SignupForm() {
         </Button>
       </form>
 
-      <div className="mt-6 text-center text-sm text-gray-600">
+      <div className="mt-6 text-center text-sm text-muted-foreground">
         <p>
           Already have an account?{" "}
           <Link
             to="/login"
-            className="text-primary-600 hover:text-primary-700 font-medium"
+            className="text-primary hover:text-primary/80 font-medium"
           >
             Sign in
           </Link>

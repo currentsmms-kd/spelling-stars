@@ -10,6 +10,7 @@ import { PlayListenType } from "./pages/child/PlayListenType";
 import { PlaySaySpell } from "./pages/child/PlaySaySpell";
 import { Rewards } from "./pages/child/Rewards";
 import { StickerBook } from "./pages/child/StickerBook";
+import { ChildThemeSettings } from "./pages/child/ThemeSettings";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { RootRedirect } from "./components/RootRedirect";
 import { PinProtectedRoute } from "./components/PinProtectedRoute";
@@ -122,6 +123,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute requiredRole="child">
             <StickerBook />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "theme",
+        element: (
+          <ProtectedRoute requiredRole="child">
+            <ChildThemeSettings />
           </ProtectedRoute>
         ),
       },

@@ -25,8 +25,8 @@ export function RewardStar({
       className={cn(
         "transition-all",
         filled
-          ? "fill-secondary-400 text-secondary-500 drop-shadow-md"
-          : "fill-none text-gray-300",
+          ? "fill-accent text-accent drop-shadow-md"
+          : "fill-none text-muted",
         className
       )}
     />

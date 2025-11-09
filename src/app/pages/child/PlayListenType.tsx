@@ -248,9 +248,7 @@ export function PlayListenType() {
         <div className="max-w-3xl mx-auto space-y-8">
           <Card variant="child">
             <div className="text-center space-y-6">
-              <h3 className="text-3xl font-bold text-gray-900">
-                Choose a list to practice
-              </h3>
+              <h3 className="text-3xl font-bold">Choose a list to practice</h3>
               <Link to="/child/home">
                 <Button size="child">Go to Home</Button>
               </Link>
@@ -293,8 +291,8 @@ export function PlayListenType() {
 
         {/* Progress */}
         <div className="text-center">
-          <p className="text-2xl font-bold text-gray-700">{listData.title}</p>
-          <p className="text-xl text-gray-600 mt-2">
+          <p className="text-2xl font-bold">{listData.title}</p>
+          <p className="text-xl text-muted-foreground mt-2">
             Word {currentWordIndex + 1} of {listData.words.length}
           </p>
         </div>
@@ -302,7 +300,7 @@ export function PlayListenType() {
         <Card variant="child">
           <div className="text-center space-y-8">
             <div>
-              <p className="text-2xl text-gray-600 mb-6">
+              <p className="text-2xl text-muted-foreground mb-6">
                 Listen to the word and type it below
               </p>
               <Button
@@ -325,7 +323,7 @@ export function PlayListenType() {
                     checkAnswer();
                   }
                 }}
-                className="w-full text-4xl text-center px-6 py-4 border-4 border-primary-300 rounded-2xl focus:ring-4 focus:ring-primary-500 focus:border-primary-500 font-bold"
+                className="w-full text-4xl text-center px-6 py-4 border-4 border-primary rounded-2xl focus:ring-4 focus:ring-ring focus:border-primary font-bold bg-input"
                 placeholder="Type here..."
                 disabled={feedback === "correct"}
                 autoFocus
@@ -335,13 +333,13 @@ export function PlayListenType() {
               {showHint > 0 && feedback === "wrong" && (
                 <div className="text-center">
                   {showHint === 1 && (
-                    <p className="text-2xl text-blue-600">
+                    <p className="text-2xl text-secondary">
                       Hint: It starts with &quot;
                       {currentWord?.text[0].toUpperCase()}&quot;
                     </p>
                   )}
                   {showHint === 2 && (
-                    <p className="text-2xl text-blue-600">
+                    <p className="text-2xl text-secondary">
                       The correct spelling is:{" "}
                       <strong>{currentWord?.text}</strong>
                     </p>
@@ -362,7 +360,7 @@ export function PlayListenType() {
 
               {feedback === "correct" && (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-center gap-3 text-green-600">
+                  <div className="flex items-center justify-center gap-3 text-secondary">
                     <CheckCircle size={48} />
                     <p className="text-4xl font-bold">Correct! 🎉</p>
                   </div>
@@ -374,7 +372,7 @@ export function PlayListenType() {
 
               {feedback === "wrong" && (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-center gap-3 text-orange-600">
+                  <div className="flex items-center justify-center gap-3 text-accent">
                     <XCircle size={48} />
                     <p className="text-4xl font-bold">Try Again!</p>
                   </div>
@@ -394,7 +392,7 @@ export function PlayListenType() {
         </Card>
 
         {!isOnline && (
-          <div className="text-center text-orange-600 text-lg">
+          <div className="text-center text-accent-foreground text-lg">
             📡 Offline mode - progress will sync when online
           </div>
         )}

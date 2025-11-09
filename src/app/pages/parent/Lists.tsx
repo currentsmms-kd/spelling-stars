@@ -87,8 +87,8 @@ export function Lists() {
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Word Lists</h2>
-            <p className="text-gray-600">
+            <h2 className="text-2xl font-bold">Word Lists</h2>
+            <p className="text-muted-foreground">
               Create and manage spelling word lists
             </p>
           </div>
@@ -105,7 +105,7 @@ export function Lists() {
           <div className="flex items-center gap-3">
             <div className="relative flex-1">
               <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                 size={20}
               />
               <input
@@ -113,7 +113,7 @@ export function Lists() {
                 placeholder="Search lists..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
               />
             </div>
           </div>
@@ -121,16 +121,16 @@ export function Lists() {
 
         {isLoading ? (
           <div className="text-center py-12">
-            <p className="text-gray-600">Loading lists...</p>
+            <p className="text-muted-foreground">Loading lists...</p>
           </div>
         ) : filteredLists && filteredLists.length > 0 ? (
           <Card className="overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead className="bg-muted/50 border-b">
                   <tr>
                     <th
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-muted"
                       onClick={() => handleSort("title")}
                     >
                       <div className="flex items-center gap-2">
@@ -141,7 +141,7 @@ export function Lists() {
                       </div>
                     </th>
                     <th
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-muted"
                       onClick={() => handleSort("week_start_date")}
                     >
                       <div className="flex items-center gap-2">
@@ -152,7 +152,7 @@ export function Lists() {
                       </div>
                     </th>
                     <th
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-muted"
                       onClick={() => handleSort("word_count")}
                     >
                       <div className="flex items-center gap-2">
@@ -163,7 +163,7 @@ export function Lists() {
                       </div>
                     </th>
                     <th
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-muted"
                       onClick={() => handleSort("created_at")}
                     >
                       <div className="flex items-center gap-2">
@@ -173,31 +173,29 @@ export function Lists() {
                         )}
                       </div>
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-card divide-y">
                   {filteredLists.map((list) => (
-                    <tr key={list.id} className="hover:bg-gray-50">
+                    <tr key={list.id} className="hover:bg-muted/50">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {list.title}
-                        </div>
+                        <div className="text-sm font-medium">{list.title}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-500">
+                        <div className="text-sm text-muted-foreground">
                           {formatDate(list.week_start_date)}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-500">
+                        <div className="text-sm text-muted-foreground">
                           {list.word_count || 0}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-500">
+                        <div className="text-sm text-muted-foreground">
                           {formatDate(list.created_at)}
                         </div>
                       </td>
@@ -222,7 +220,7 @@ export function Lists() {
                                 size="sm"
                                 onClick={() => handleDelete(list.id)}
                                 disabled={deleteList.isPending}
-                                className="bg-red-600 hover:bg-red-700"
+                                className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
                               >
                                 Confirm
                               </Button>
@@ -253,7 +251,7 @@ export function Lists() {
         ) : (
           <Card>
             <div className="text-center py-12">
-              <p className="text-gray-600 mb-4">
+              <p className="text-muted-foreground mb-4">
                 {searchTerm ? "No lists found" : "No spelling lists yet"}
               </p>
               {!searchTerm && (

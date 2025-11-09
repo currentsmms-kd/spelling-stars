@@ -7,6 +7,27 @@ import { queryClient } from "./queryClient";
 import { syncQueuedData, hasPendingSync } from "@/lib/sync";
 import "../styles/index.css";
 
+// Initialize theme before rendering
+const initializeTheme = () => {
+  const storedTheme = localStorage.getItem("color-theme-storage");
+  if (storedTheme) {
+    try {
+      const { state } = JSON.parse(storedTheme);
+      if (state?.currentTheme) {
+        // Import and apply theme dynamically
+        import("@/app/lib/themes").then(({ applyTheme }) => {
+          applyTheme(state.currentTheme);
+        });
+      }
+    } catch (error) {
+      console.error("Failed to parse stored theme:", error);
+    }
+  }
+};
+
+// Initialize theme immediately
+initializeTheme();
+
 // Register service worker for PWA
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

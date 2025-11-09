@@ -2,6 +2,7 @@ import { LogOut } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { NavItem } from "./navItems";
+import { ThemeToggle } from "./ThemeToggle";
 
 interface TopBarProps {
   title: string;
@@ -13,27 +14,30 @@ export function TopBar({ title, isChild = false, onLogout }: TopBarProps) {
   return (
     <header
       className={cn(
-        "bg-white border-b px-4 flex items-center justify-between",
+        "bg-card border-b border-border px-4 flex items-center justify-between",
         isChild ? "h-20" : "h-16"
       )}
     >
       <h1
         className={cn(
-          "font-bold text-primary-700",
+          "font-bold text-primary",
           isChild ? "text-3xl" : "text-xl"
         )}
       >
         ⭐ {title}
       </h1>
-      {onLogout && (
-        <button
-          onClick={onLogout}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          aria-label="Logout"
-        >
-          <LogOut size={isChild ? 28 : 20} />
-        </button>
-      )}
+      <div className="flex items-center gap-3">
+        {!isChild && <ThemeToggle />}
+        {onLogout && (
+          <button
+            onClick={onLogout}
+            className="p-2 hover:bg-muted rounded-lg transition-colors"
+            aria-label="Logout"
+          >
+            <LogOut size={isChild ? 28 : 20} />
+          </button>
+        )}
+      </div>
     </header>
   );
 }
@@ -49,7 +53,7 @@ export function NavRail({ items, isChild = false }: NavRailProps) {
   return (
     <nav
       className={cn(
-        "bg-white border-r flex flex-col",
+        "bg-card border-r border-border flex flex-col",
         isChild ? "w-24" : "w-20"
       )}
     >
@@ -64,8 +68,8 @@ export function NavRail({ items, isChild = false }: NavRailProps) {
                 "flex flex-col items-center justify-center gap-1 rounded-lg transition-colors",
                 isChild ? "p-4 h-20" : "p-3 h-16",
                 isActive
-                  ? "bg-primary-100 text-primary-700"
-                  : "hover:bg-gray-100 text-gray-600"
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted text-muted-foreground"
               )}
             >
               {item.icon}

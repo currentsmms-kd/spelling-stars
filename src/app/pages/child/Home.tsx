@@ -7,6 +7,7 @@ import {
   Mic,
   TrendingUp,
   Calendar,
+  ArrowLeft,
   type LucideIcon,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -47,8 +48,8 @@ function GameCard({
           />
         </div>
         <div>
-          <h3 className="text-3xl font-bold text-gray-900 mb-2">{title}</h3>
-          <p className="text-xl text-gray-600">{description}</p>
+          <h3 className="text-3xl font-bold text-foreground mb-2">{title}</h3>
+          <p className="text-xl text-muted-foreground">{description}</p>
         </div>
         <Link to={href} className="block">
           <Button size="child" className="w-full">
@@ -64,9 +65,9 @@ function ProgressBar({ percentage }: { percentage: number }) {
   if (percentage === 0) return null;
 
   return (
-    <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+    <div className="mt-2 w-full bg-muted rounded-full h-2">
       <div
-        className="bg-primary-500 h-2 rounded-full transition-all"
+        className="bg-primary h-2 rounded-full transition-all"
         style={{ width: `${percentage}%` }}
       />
     </div>
@@ -84,7 +85,7 @@ function ListProgressCard({
     <>
       <div className="flex-1">
         <p className="text-xl font-semibold">{list.title}</p>
-        <div className="flex items-center gap-4 mt-2 text-gray-600">
+        <div className="flex items-center gap-4 mt-2 text-muted-foreground">
           <span className="text-lg">
             {list.word_count} {list.word_count === 1 ? "word" : "words"}
           </span>
@@ -110,7 +111,7 @@ function ListProgressCard({
   );
 
   return (
-    <div className="p-4 bg-gray-50 rounded-xl border hover:border-primary-300 transition-colors">
+    <div className="p-4 bg-muted/50 rounded-xl border border-border hover:border-primary transition-colors">
       <div className="flex items-center justify-between">{progressContent}</div>
     </div>
   );
@@ -210,11 +211,25 @@ export function ChildHome() {
   return (
     <AppShell title="SpellStars" variant="child">
       <div className="max-w-4xl mx-auto space-y-8">
+        {/* Back to Parent Button */}
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            onClick={() => navigate("/parent/dashboard")}
+            className="bg-muted hover:bg-muted/90 text-muted-foreground"
+          >
+            <ArrowLeft size={16} className="mr-2" />
+            Back to Parent Dashboard
+          </Button>
+        </div>
+
         <div className="text-center">
-          <h2 className="text-4xl font-bold text-primary-700 mb-4">
+          <h2 className="text-4xl font-bold text-primary mb-4">
             Ready to practice spelling?
           </h2>
-          <p className="text-2xl text-gray-600">Choose a game to play!</p>
+          <p className="text-2xl text-muted-foreground">
+            Choose a game to play!
+          </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -223,14 +238,14 @@ export function ChildHome() {
             title="Listen & Type"
             description="Hear the word and type it out"
             href="/child/play/listen-type"
-            bgColor="bg-primary-100"
+            bgColor="bg-primary/20"
           />
           <GameCard
             icon={Mic}
             title="Say & Spell"
             description="Say the spelling out loud"
             href="/child/play/say-spell"
-            bgColor="bg-secondary-100"
+            bgColor="bg-secondary/20"
           />
         </div>
 
@@ -238,10 +253,10 @@ export function ChildHome() {
         {dueWords && dueWords.length > 0 && (
           <Card variant="child">
             <div className="flex items-center gap-3 mb-4">
-              <Calendar className="text-primary-600" size={28} />
+              <Calendar className="text-primary" size={28} />
               <h3 className="text-2xl font-bold">Due Today</h3>
             </div>
-            <p className="text-lg text-gray-600 mb-4">
+            <p className="text-lg text-muted-foreground mb-4">
               {dueWords.length} {dueWords.length === 1 ? "word" : "words"} ready
               for review
             </p>
@@ -258,13 +273,13 @@ export function ChildHome() {
                   }) => (
                     <div
                       key={dueWord.id}
-                      className="flex items-center justify-between p-3 bg-primary-50 rounded-lg"
+                      className="flex items-center justify-between p-3 bg-primary/10 rounded-lg"
                     >
                       <div>
                         <p className="text-xl font-semibold">
                           {dueWord.word.text}
                         </p>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-muted-foreground">
                           {dueWord.lists.length > 0
                             ? dueWord.lists
                                 .map((l: { title: string }) => l.title)
@@ -272,7 +287,7 @@ export function ChildHome() {
                             : "No list"}
                         </p>
                       </div>
-                      <div className="text-right text-sm text-gray-500">
+                      <div className="text-right text-sm text-muted-foreground">
                         <div>Ease: {dueWord.ease.toFixed(1)}</div>
                         <div>Reps: {dueWord.reps}</div>
                       </div>
@@ -281,7 +296,7 @@ export function ChildHome() {
                 )}
             </div>
             {dueWords.length > 5 && (
-              <p className="text-center text-gray-500 mt-3">
+              <p className="text-center text-muted-foreground mt-3">
                 And {dueWords.length - 5} more...
               </p>
             )}

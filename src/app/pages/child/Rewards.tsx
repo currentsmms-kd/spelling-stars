@@ -151,10 +151,10 @@ export function Rewards() {
         </div>
 
         <div className="text-center">
-          <h2 className="text-4xl font-bold text-primary-700 mb-4">
+          <h2 className="text-4xl font-bold text-primary mb-4">
             You&apos;re doing great! 🎉
           </h2>
-          <p className="text-2xl text-gray-600">
+          <p className="text-2xl text-muted-foreground">
             Keep practicing to earn more stars!
           </p>
         </div>
@@ -162,38 +162,36 @@ export function Rewards() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card variant="child">
             <div className="text-center space-y-4">
-              <div className="w-20 h-20 bg-secondary-100 rounded-full flex items-center justify-center mx-auto">
-                <Trophy className="text-secondary-700" size={40} />
+              <div className="w-20 h-20 bg-secondary/20 rounded-full flex items-center justify-center mx-auto">
+                <Trophy className="text-secondary" size={40} />
               </div>
               <div>
-                <p className="text-5xl font-bold text-gray-900">{totalStars}</p>
-                <p className="text-xl text-gray-600">Total Stars</p>
+                <p className="text-5xl font-bold">{totalStars}</p>
+                <p className="text-xl text-muted-foreground">Total Stars</p>
               </div>
             </div>
           </Card>
 
           <Card variant="child">
             <div className="text-center space-y-4">
-              <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto">
-                <Zap className="text-orange-600" size={40} />
+              <div className="w-20 h-20 bg-accent/20 rounded-full flex items-center justify-center mx-auto">
+                <Zap className="text-accent-foreground" size={40} />
               </div>
               <div>
-                <p className="text-5xl font-bold text-gray-900">{streak}</p>
-                <p className="text-xl text-gray-600">Day Streak</p>
+                <p className="text-5xl font-bold">{streak}</p>
+                <p className="text-xl text-muted-foreground">Day Streak</p>
               </div>
             </div>
           </Card>
 
           <Card variant="child">
             <div className="text-center space-y-4">
-              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-                <Target className="text-green-600" size={40} />
+              <div className="w-20 h-20 bg-secondary/20 rounded-full flex items-center justify-center mx-auto">
+                <Target className="text-secondary" size={40} />
               </div>
               <div>
-                <p className="text-5xl font-bold text-gray-900">
-                  {perfectWords}
-                </p>
-                <p className="text-xl text-gray-600">Perfect Words</p>
+                <p className="text-5xl font-bold">{perfectWords}</p>
+                <p className="text-xl text-muted-foreground">Perfect Words</p>
               </div>
             </div>
           </Card>
@@ -207,7 +205,7 @@ export function Rewards() {
             ))}
           </div>
           {totalStars < 50 && (
-            <p className="text-center text-xl text-gray-600 mt-6">
+            <p className="text-center text-xl text-muted-foreground mt-6">
               {50 - totalStars} more stars to reach 50!
             </p>
           )}
@@ -222,14 +220,14 @@ export function Rewards() {
               {achievements.map((achievement, idx) => (
                 <div
                   key={idx}
-                  className={`p-6 bg-${achievement.color}-50 rounded-2xl border-2 border-${achievement.color}-200`}
+                  className={`p-6 bg-${achievement.color}/10 rounded-2xl border-2 border-${achievement.color}`}
                 >
                   <p
-                    className={`text-2xl font-semibold text-${achievement.color}-700`}
+                    className={`text-2xl font-semibold text-${achievement.color}-foreground`}
                   >
                     {achievement.title}
                   </p>
-                  <p className="text-lg text-gray-600 mt-1">
+                  <p className="text-lg text-muted-foreground mt-1">
                     {achievement.description}
                   </p>
                 </div>
@@ -247,11 +245,13 @@ export function Rewards() {
               {badges.map((badge) => (
                 <div
                   key={badge.id}
-                  className="text-center p-4 bg-gray-50 rounded-xl border"
+                  className="text-center p-4 bg-muted/50 rounded-xl border"
                 >
                   <div className="text-4xl mb-2">{badge.icon}</div>
                   <p className="text-lg font-semibold">{badge.name}</p>
-                  <p className="text-sm text-gray-600">{badge.description}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {badge.description}
+                  </p>
                 </div>
               ))}
             </div>

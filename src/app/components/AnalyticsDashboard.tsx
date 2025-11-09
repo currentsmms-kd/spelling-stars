@@ -104,7 +104,7 @@ export function AnalyticsDashboard({ childId }: AnalyticsDashboardProps) {
   if (isLoading) {
     return (
       <Card>
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-muted-foreground">
           Loading analytics...
         </div>
       </Card>
@@ -114,7 +114,7 @@ export function AnalyticsDashboard({ childId }: AnalyticsDashboardProps) {
   if (!childId) {
     return (
       <Card>
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-muted-foreground">
           Select a child to view analytics
         </div>
       </Card>
@@ -124,7 +124,7 @@ export function AnalyticsDashboard({ childId }: AnalyticsDashboardProps) {
   if (!analytics) {
     return (
       <Card>
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-muted-foreground">
           No analytics data available yet
         </div>
       </Card>
@@ -141,8 +141,8 @@ export function AnalyticsDashboard({ childId }: AnalyticsDashboardProps) {
             onClick={() => setTimeRange("7d")}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               timeRange === "7d"
-                ? "bg-primary-600 text-white"
-                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-foreground hover:bg-muted/80"
             }`}
           >
             7 Days
@@ -151,8 +151,8 @@ export function AnalyticsDashboard({ childId }: AnalyticsDashboardProps) {
             onClick={() => setTimeRange("30d")}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               timeRange === "30d"
-                ? "bg-primary-600 text-white"
-                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-foreground hover:bg-muted/80"
             }`}
           >
             30 Days
@@ -161,8 +161,8 @@ export function AnalyticsDashboard({ childId }: AnalyticsDashboardProps) {
             onClick={() => setTimeRange("all")}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               timeRange === "all"
-                ? "bg-primary-600 text-white"
-                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-foreground hover:bg-muted/80"
             }`}
           >
             All Time
@@ -174,54 +174,56 @@ export function AnalyticsDashboard({ childId }: AnalyticsDashboardProps) {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <div className="flex items-start gap-3">
-            <div className="p-2 bg-primary-100 rounded-lg">
-              <TrendingUp className="text-primary-700" size={24} />
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <TrendingUp className="text-primary" size={24} />
             </div>
             <div>
               <div className="text-2xl font-bold">
                 {analytics.totalSessions}
               </div>
-              <div className="text-sm text-gray-600">Sessions</div>
+              <div className="text-sm text-muted-foreground">Sessions</div>
             </div>
           </div>
         </Card>
 
         <Card>
           <div className="flex items-start gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Clock className="text-blue-700" size={24} />
+            <div className="p-2 bg-secondary/10 rounded-lg">
+              <Clock className="text-secondary" size={24} />
             </div>
             <div>
               <div className="text-2xl font-bold">{analytics.totalMinutes}</div>
-              <div className="text-sm text-gray-600">Minutes</div>
+              <div className="text-sm text-muted-foreground">Minutes</div>
             </div>
           </div>
         </Card>
 
         <Card>
           <div className="flex items-start gap-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <Award className="text-green-700" size={24} />
+            <div className="p-2 bg-secondary/10 rounded-lg">
+              <Award className="text-secondary" size={24} />
             </div>
             <div>
               <div className="text-2xl font-bold">
                 {analytics.totalWordsPracticed}
               </div>
-              <div className="text-sm text-gray-600">Words Practiced</div>
+              <div className="text-sm text-muted-foreground">
+                Words Practiced
+              </div>
             </div>
           </div>
         </Card>
 
         <Card>
           <div className="flex items-start gap-3">
-            <div className="p-2 bg-secondary-100 rounded-lg">
-              <Target className="text-secondary-700" size={24} />
+            <div className="p-2 bg-accent/10 rounded-lg">
+              <Target className="text-accent" size={24} />
             </div>
             <div>
               <div className="text-2xl font-bold">
                 {analytics.averageAccuracy.toFixed(0)}%
               </div>
-              <div className="text-sm text-gray-600">Accuracy</div>
+              <div className="text-sm text-muted-foreground">Accuracy</div>
             </div>
           </div>
         </Card>
@@ -234,23 +236,23 @@ export function AnalyticsDashboard({ childId }: AnalyticsDashboardProps) {
           {analytics.recentSessions.map((session, i) => (
             <div
               key={i}
-              className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+              className="flex items-center justify-between p-3 bg-muted rounded-lg"
             >
               <div>
                 <div className="font-semibold">
                   {new Date(session.date).toLocaleDateString()}
                 </div>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-muted-foreground">
                   {session.wordsPracticed} words · {session.duration} min
                 </div>
               </div>
               <div
                 className={`text-lg font-bold ${
                   session.accuracy >= 80
-                    ? "text-green-600"
+                    ? "text-secondary"
                     : session.accuracy >= 60
-                      ? "text-yellow-600"
-                      : "text-red-600"
+                      ? "text-accent"
+                      : "text-destructive"
                 }`}
               >
                 {session.accuracy.toFixed(0)}%

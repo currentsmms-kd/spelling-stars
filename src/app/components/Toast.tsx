@@ -8,9 +8,9 @@ interface ToastProps {
 
 export function Toast({ type, message, onClose }: ToastProps) {
   const styles = {
-    success: "bg-green-500 text-white",
-    error: "bg-red-500 text-white",
-    info: "bg-blue-500 text-white",
+    success: "bg-secondary text-secondary-foreground",
+    error: "bg-destructive text-destructive-foreground",
+    info: "bg-primary text-primary-foreground",
   };
 
   const icons = {

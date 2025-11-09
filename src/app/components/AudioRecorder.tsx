@@ -103,7 +103,7 @@ export function AudioRecorder({
   return (
     <div className={cn("space-y-4", className)}>
       {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+        <div className="p-3 bg-destructive/10 border border-destructive rounded-lg text-destructive text-sm">
           {error}
         </div>
       )}
@@ -195,8 +195,8 @@ export function AudioRecorder({
           className={cn(
             "w-full rounded-lg border",
             isRecording
-              ? "bg-red-50 border-red-200"
-              : "bg-gray-50 border-gray-200"
+              ? "bg-destructive/10 border-destructive"
+              : "bg-muted border-border"
           )}
           role="region"
           aria-label="Audio waveform visualization"
@@ -205,12 +205,12 @@ export function AudioRecorder({
 
       {isRecording && (
         <div
-          className="flex items-center gap-2 text-red-600"
+          className="flex items-center gap-2 text-destructive"
           role="status"
           aria-live="polite"
         >
           <div
-            className="w-3 h-3 bg-red-600 rounded-full animate-pulse"
+            className="w-3 h-3 bg-destructive rounded-full animate-pulse"
             aria-hidden="true"
           />
           <span className="text-sm font-medium">Recording...</span>

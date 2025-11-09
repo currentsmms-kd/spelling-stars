@@ -23,7 +23,7 @@ export function AppShell({
       <TopBar title={title} isChild={isChild} onLogout={signOut} />
       <div className="flex-1 flex overflow-hidden">
         <NavRail items={navItems} isChild={isChild} />
-        <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8 bg-gray-50">
+        <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8 bg-background">
           {children}
         </main>
       </div>

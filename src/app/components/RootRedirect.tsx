@@ -7,7 +7,7 @@ export function RootRedirect() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-xl text-gray-600">Loading...</p>
+        <p className="text-xl text-muted-foreground">Loading...</p>
       </div>
     );
   }

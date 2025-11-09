@@ -49,6 +49,7 @@ export type Database = {
           auto_readback_spelling: boolean;
           daily_session_limit_minutes: number;
           default_tts_voice: string;
+          color_theme: string;
           created_at: string;
           updated_at: string;
         };
@@ -61,6 +62,7 @@ export type Database = {
           auto_readback_spelling?: boolean;
           daily_session_limit_minutes?: number;
           default_tts_voice?: string;
+          color_theme?: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -73,6 +75,7 @@ export type Database = {
           auto_readback_spelling?: boolean;
           daily_session_limit_minutes?: number;
           default_tts_voice?: string;
+          color_theme?: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -287,6 +290,7 @@ export type Database = {
           display_name: string | null;
           id: string;
           role: string;
+          color_theme: string;
           updated_at: string | null;
         };
         Insert: {
@@ -295,6 +299,7 @@ export type Database = {
           display_name?: string | null;
           id: string;
           role: string;
+          color_theme?: string;
           updated_at?: string | null;
         };
         Update: {
@@ -303,6 +308,7 @@ export type Database = {
           display_name?: string | null;
           id?: string;
           role?: string;
+          color_theme?: string;
           updated_at?: string | null;
         };
         Relationships: [];

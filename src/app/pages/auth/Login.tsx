@@ -46,15 +46,13 @@ function LoginForm() {
   return (
     <>
       <div className="text-center mb-8">
-        <h1 className="text-4xl font-bold text-primary-700 mb-2">
-          ⭐ SpellStars
-        </h1>
-        <p className="text-gray-600">Sign in to continue</p>
+        <h1 className="text-4xl font-bold text-primary mb-2">⭐ SpellStars</h1>
+        <p className="text-muted-foreground">Sign in to continue</p>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+          <div className="p-3 bg-destructive/10 border border-destructive rounded-lg text-destructive text-sm">
             {error}
           </div>
         )}
@@ -62,7 +60,7 @@ function LoginForm() {
         <div>
           <label
             htmlFor="email"
-            className="block text-sm font-medium text-gray-700 mb-1"
+            className="block text-sm font-medium text-foreground mb-1"
           >
             Email
           </label>
@@ -70,18 +68,20 @@ function LoginForm() {
             {...register("email")}
             type="email"
             id="email"
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
             placeholder="you@example.com"
           />
           {errors.email && (
-            <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+            <p className="mt-1 text-sm text-destructive">
+              {errors.email.message}
+            </p>
           )}
         </div>
 
         <div>
           <label
             htmlFor="password"
-            className="block text-sm font-medium text-gray-700 mb-1"
+            className="block text-sm font-medium text-foreground mb-1"
           >
             Password
           </label>
@@ -89,11 +89,11 @@ function LoginForm() {
             {...register("password")}
             type="password"
             id="password"
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
             placeholder="••••••••"
           />
           {errors.password && (
-            <p className="mt-1 text-sm text-red-600">
+            <p className="mt-1 text-sm text-destructive">
               {errors.password.message}
             </p>
           )}
@@ -104,12 +104,12 @@ function LoginForm() {
         </Button>
       </form>
 
-      <div className="mt-6 text-center text-sm text-gray-600">
+      <div className="mt-6 text-center text-sm text-muted-foreground">
         <p>
           Don&apos;t have an account?{" "}
           <Link
             to="/signup"
-            className="text-primary-600 hover:text-primary-700 font-medium"
+            className="text-primary hover:text-primary/80 font-medium"
           >
             Sign up
           </Link>

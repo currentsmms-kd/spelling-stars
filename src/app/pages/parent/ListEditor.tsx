@@ -100,13 +100,13 @@ function WordRow({
       }}
       className={`flex items-center gap-3 p-3 border rounded-lg transition-colors ${
         isSelected
-          ? "border-primary-500 bg-primary-50"
-          : "border-gray-300 hover:border-gray-400"
-      } ${isDragOver ? "border-primary-500 border-dashed" : ""} cursor-move`}
+          ? "border-primary bg-primary/10"
+          : "border-border hover:border-primary/50"
+      } ${isDragOver ? "border-primary border-dashed" : ""} cursor-move`}
       onClick={onSelect}
     >
-      <GripVertical size={20} className="text-gray-400 flex-shrink-0" />
-      <div className="w-12 text-gray-500 text-sm flex-shrink-0">
+      <GripVertical size={20} className="text-muted-foreground flex-shrink-0" />
+      <div className="w-12 text-muted-foreground text-sm flex-shrink-0">
         #{index + 1}
       </div>
       <input
@@ -115,7 +115,7 @@ function WordRow({
         onChange={(e) => onUpdateWord(word.id, "text", e.target.value)}
         onKeyDown={onKeyDown}
         placeholder="Word"
-        className="flex-1 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        className="flex-1 px-2 py-1 border rounded focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
         onClick={(e) => e.stopPropagation()}
       />
       <input
@@ -123,13 +123,13 @@ function WordRow({
         value={word.phonetic || ""}
         onChange={(e) => onUpdateWord(word.id, "phonetic", e.target.value)}
         placeholder="Phonetic (optional)"
-        className="flex-1 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        className="flex-1 px-2 py-1 border rounded focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
         onClick={(e) => e.stopPropagation()}
       />
       <select
         value={word.tts_voice || ""}
         onChange={(e) => onUpdateWord(word.id, "tts_voice", e.target.value)}
-        className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        className="px-2 py-1 border rounded text-sm focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
         onClick={(e) => e.stopPropagation()}
         title="Text-to-Speech Voice"
       >
@@ -194,7 +194,7 @@ function ListMetaForm({
       <div>
         <label
           htmlFor="title"
-          className="block text-sm font-medium text-gray-700 mb-1"
+          className="block text-sm font-medium text-foreground mb-1"
         >
           Title *
         </label>
@@ -202,18 +202,20 @@ function ListMetaForm({
           {...register("title")}
           type="text"
           id="title"
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
           placeholder="Week 1"
         />
         {errors.title && (
-          <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
+          <p className="mt-1 text-sm text-destructive">
+            {errors.title.message}
+          </p>
         )}
       </div>
 
       <div>
         <label
           htmlFor="week_start_date"
-          className="block text-sm font-medium text-gray-700 mb-1"
+          className="block text-sm font-medium text-foreground mb-1"
         >
           Week Start Date
         </label>
@@ -221,7 +223,7 @@ function ListMetaForm({
           {...register("week_start_date")}
           type="date"
           id="week_start_date"
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
         />
       </div>
 
@@ -235,7 +237,9 @@ function ListMetaForm({
       </Button>
 
       {hasUnsavedChanges && (
-        <p className="text-sm text-amber-600">You have unsaved changes</p>
+        <p className="text-sm text-accent-foreground">
+          You have unsaved changes
+        </p>
       )}
     </form>
   );
@@ -292,7 +296,7 @@ function ListDetailsSection({
             onChange={(e) => setBulkImportText(e.target.value)}
             placeholder="Paste words (one per line)"
             rows={6}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent mb-3"
+            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent mb-3 bg-input"
           />
           <Button
             onClick={handleBulkImport}
@@ -364,11 +368,11 @@ function WordsListSection({
         </div>
 
         {isNewList ? (
-          <p className="text-gray-600 text-center py-8">
+          <p className="text-muted-foreground text-center py-8">
             Save the list first to add words
           </p>
         ) : words.length === 0 ? (
-          <p className="text-gray-600 text-center py-8">
+          <p className="text-muted-foreground text-center py-8">
             No words yet. Add your first word or use bulk import.
           </p>
         ) : (
@@ -419,22 +423,26 @@ function AudioRecorderSection({
         <h3 className="text-lg font-semibold mb-4">Audio Recorder</h3>
         {selectedWord ? (
           <div className="space-y-4">
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-600 mb-1">Selected word:</p>
+            <div className="p-3 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground mb-1">
+                Selected word:
+              </p>
               <p className="font-semibold text-lg">{selectedWord.text}</p>
               {selectedWord.phonetic && (
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-muted-foreground mt-1">
                   {selectedWord.phonetic}
                 </p>
               )}
             </div>
             <AudioRecorder onRecordingComplete={handleAudioRecorded} />
             {uploadingAudio && (
-              <p className="text-sm text-gray-600">Uploading...</p>
+              <p className="text-sm text-muted-foreground">Uploading...</p>
             )}
             {selectedWord.prompt_audio_url && (
-              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                <p className="text-sm text-green-800 mb-2">✓ Audio saved</p>
+              <div className="p-3 bg-secondary/10 border border-secondary rounded-lg">
+                <p className="text-sm text-secondary-foreground mb-2">
+                  ✓ Audio saved
+                </p>
                 <Button
                   size="sm"
                   onClick={() => {
@@ -451,7 +459,7 @@ function AudioRecorderSection({
             )}
           </div>
         ) : (
-          <p className="text-gray-600 text-center py-8">
+          <p className="text-muted-foreground text-center py-8">
             Select a word to record audio
           </p>
         )}
@@ -751,7 +759,7 @@ export function ListEditor() {
     return (
       <AppShell title="Loading..." variant="parent">
         <div className="text-center py-12">
-          <p className="text-gray-600">Loading list...</p>
+          <p className="text-muted-foreground">Loading list...</p>
         </div>
       </AppShell>
     );
@@ -761,8 +769,8 @@ export function ListEditor() {
     <div
       className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg ${
         toastMessage.type === "success"
-          ? "bg-green-500 text-white"
-          : "bg-red-500 text-white"
+          ? "bg-secondary text-secondary-foreground"
+          : "bg-destructive text-destructive-foreground"
       }`}
     >
       <div className="flex items-center gap-2">

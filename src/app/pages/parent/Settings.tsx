@@ -2,7 +2,9 @@ import { useState, useEffect } from "react";
 import { AppShell } from "@/app/components/AppShell";
 import { Card } from "@/app/components/Card";
 import { Button } from "@/app/components/Button";
+import { ColorThemePicker } from "@/app/components/ColorThemePicker";
 import { useParentalSettingsStore } from "@/app/store/parentalSettings";
+import { useThemeStore } from "@/app/store/theme";
 import { useAuth } from "@/app/hooks/useAuth";
 import { supabase } from "@/app/supabase";
 import { Lock, Save, Settings } from "lucide-react";
@@ -19,6 +21,7 @@ export function ParentalSettings() {
     setSettings,
     setPinCode,
   } = useParentalSettingsStore();
+  const { currentTheme, setTheme } = useThemeStore();
 
   const [localPin, setLocalPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
@@ -62,6 +65,11 @@ export function ParentalSettings() {
           setLocalSettings(newSettings);
           setSettings(newSettings);
           setPinCode(data.pin_code);
+
+          // Load and apply theme
+          if (data.color_theme) {
+            setTheme(data.color_theme);
+          }
         }
       } catch (err) {
         console.error("Error loading settings:", err);
@@ -69,7 +77,7 @@ export function ParentalSettings() {
     };
 
     load();
-  }, [profile, setSettings, setPinCode]);
+  }, [profile, setSettings, setPinCode, setTheme]);
 
   const handleSave = async () => {
     if (!profile?.id) return;
@@ -105,6 +113,7 @@ export function ParentalSettings() {
         auto_readback_spelling: localSettings.autoReadbackSpelling,
         daily_session_limit_minutes: localSettings.dailySessionLimitMinutes,
         default_tts_voice: localSettings.defaultTtsVoice,
+        color_theme: currentTheme,
       });
 
       if (error) throw error;
@@ -130,16 +139,16 @@ export function ParentalSettings() {
     <AppShell title="Parental Settings" variant="parent">
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="flex items-center gap-3 mb-6">
-          <Settings className="text-primary-600" size={32} />
+          <Settings className="text-primary" size={32} />
           <h1 className="text-3xl font-bold">Parental Settings</h1>
         </div>
 
         {message && (
           <div
-            className={`p-4 rounded-lg ${
+            className={`p-4 rounded-lg border ${
               message.type === "success"
-                ? "bg-green-50 border border-green-200 text-green-700"
-                : "bg-red-50 border border-red-200 text-red-700"
+                ? "bg-secondary/10 border-secondary text-secondary-foreground"
+                : "bg-destructive/10 border-destructive text-destructive-foreground"
             }`}
           >
             {message.text}
@@ -149,16 +158,16 @@ export function ParentalSettings() {
         {/* PIN Settings */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
-            <Lock className="text-primary-600" size={24} />
+            <Lock className="text-primary" size={24} />
             <h2 className="text-xl font-bold">PIN Lock</h2>
           </div>
-          <p className="text-gray-600 mb-4">
+          <p className="text-muted-foreground mb-4">
             Set a 4-digit PIN to lock the parent area. Leave blank to keep
             current PIN.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 New PIN (4 digits)
               </label>
               <input
@@ -167,12 +176,12 @@ export function ParentalSettings() {
                 maxLength={4}
                 value={localPin}
                 onChange={(e) => setLocalPin(e.target.value.replace(/\D/g, ""))}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
                 placeholder="Enter 4 digits"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 Confirm PIN
               </label>
               <input
@@ -183,7 +192,7 @@ export function ParentalSettings() {
                 onChange={(e) =>
                   setConfirmPin(e.target.value.replace(/\D/g, ""))
                 }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
                 placeholder="Confirm PIN"
               />
             </div>
@@ -204,11 +213,11 @@ export function ParentalSettings() {
                     showHintsOnFirstMiss: e.target.checked,
                   })
                 }
-                className="mt-1 w-5 h-5 text-primary-600 rounded focus:ring-2 focus:ring-primary-500"
+                className="mt-1 w-5 h-5 text-primary rounded focus:ring-2 focus:ring-ring"
               />
               <div>
                 <div className="font-medium">Show hints on first miss</div>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-muted-foreground">
                   Display hints after the child misses a word once
                 </div>
               </div>
@@ -224,11 +233,11 @@ export function ParentalSettings() {
                     enforceCaseSensitivity: e.target.checked,
                   })
                 }
-                className="mt-1 w-5 h-5 text-primary-600 rounded focus:ring-2 focus:ring-primary-500"
+                className="mt-1 w-5 h-5 text-primary rounded focus:ring-2 focus:ring-ring"
               />
               <div>
                 <div className="font-medium">Enforce case sensitivity</div>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-muted-foreground">
                   Require correct capitalization for answers
                 </div>
               </div>
@@ -244,13 +253,13 @@ export function ParentalSettings() {
                     autoReadbackSpelling: e.target.checked,
                   })
                 }
-                className="mt-1 w-5 h-5 text-primary-600 rounded focus:ring-2 focus:ring-primary-500"
+                className="mt-1 w-5 h-5 text-primary rounded focus:ring-2 focus:ring-ring"
               />
               <div>
                 <div className="font-medium">
                   Auto read-back correct spelling
                 </div>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-muted-foreground">
                   Automatically read the correct spelling after each answer
                 </div>
               </div>
@@ -262,7 +271,7 @@ export function ParentalSettings() {
         <Card>
           <h2 className="text-xl font-bold mb-4">Session Limits</h2>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-foreground mb-2">
               Daily session limit (minutes)
             </label>
             <input
@@ -276,9 +285,9 @@ export function ParentalSettings() {
                   dailySessionLimitMinutes: parseInt(e.target.value) || 20,
                 })
               }
-              className="w-full md:w-48 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full md:w-48 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
             />
-            <p className="text-sm text-gray-600 mt-2">
+            <p className="text-sm text-muted-foreground mt-2">
               Child will be gently prompted to take a break after this time
             </p>
           </div>
@@ -288,7 +297,7 @@ export function ParentalSettings() {
         <Card>
           <h2 className="text-xl font-bold mb-4">Text-to-Speech</h2>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-foreground mb-2">
               Default voice
             </label>
             <select
@@ -299,17 +308,22 @@ export function ParentalSettings() {
                   defaultTtsVoice: e.target.value,
                 })
               }
-              className="w-full md:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full md:w-64 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
             >
               <option value="en-US">English (US)</option>
               <option value="en-GB">English (UK)</option>
               <option value="en-AU">English (Australia)</option>
               <option value="en-IN">English (India)</option>
             </select>
-            <p className="text-sm text-gray-600 mt-2">
+            <p className="text-sm text-muted-foreground mt-2">
               You can override this for individual words in the List Editor
             </p>
           </div>
+        </Card>
+
+        {/* Color Theme Picker */}
+        <Card>
+          <ColorThemePicker showLabel={true} variant="parent" />
         </Card>
 
         {/* Save Button */}

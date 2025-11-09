@@ -1,4 +1,4 @@
-import { Home, List, Trophy, Settings, Award } from "lucide-react";
+import { Home, List, Trophy, Settings, Award, Palette } from "lucide-react";
 
 export interface NavItem {
   to: string;
@@ -39,5 +39,10 @@ export const childNavItems: NavItem[] = [
     to: "/child/stickers",
     icon: <Award size={32} />,
     label: "Stickers",
+  },
+  {
+    to: "/child/theme",
+    icon: <Palette size={32} />,
+    label: "Colors",
   },
 ];

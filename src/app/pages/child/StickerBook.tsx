@@ -74,7 +74,7 @@ export function StickerBook() {
     return (
       <AppShell title="Sticker Book" variant="child">
         <div className="text-center py-12">
-          <div className="text-2xl">Loading...</div>
+          <div className="text-2xl text-foreground">Loading...</div>
         </div>
       </AppShell>
     );
@@ -87,20 +87,16 @@ export function StickerBook() {
         <Card className="child-card bg-gradient-to-br from-secondary-100 to-secondary-200">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2">
-                My Sticker Book
-              </h1>
-              <p className="text-xl text-gray-700">
+              <h1 className="text-4xl font-bold mb-2">My Sticker Book</h1>
+              <p className="text-xl text-muted-foreground">
                 Collect stickers by practicing!
               </p>
             </div>
-            <div className="flex items-center gap-3 bg-white px-6 py-4 rounded-2xl shadow-lg">
-              <Star className="text-secondary-500 fill-current" size={48} />
+            <div className="flex items-center gap-3 bg-card px-6 py-4 rounded-2xl shadow-lg">
+              <Star className="text-secondary fill-current" size={48} />
               <div>
-                <div className="text-4xl font-bold text-gray-900">
-                  {totalStars}
-                </div>
-                <div className="text-sm text-gray-600">Total Stars</div>
+                <div className="text-4xl font-bold">{totalStars}</div>
+                <div className="text-sm text-muted-foreground">Total Stars</div>
               </div>
             </div>
           </div>
@@ -109,28 +105,28 @@ export function StickerBook() {
         {/* Badge Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="text-center">
-            <div className="text-3xl font-bold text-primary-600">
+            <div className="text-3xl font-bold text-primary">
               {earnedBadges.size}
             </div>
-            <div className="text-gray-600 mt-1">Earned</div>
+            <div className="text-muted-foreground mt-1">Earned</div>
           </Card>
           <Card className="text-center">
-            <div className="text-3xl font-bold text-gray-400">
+            <div className="text-3xl font-bold text-muted-foreground">
               {badges.length - earnedBadges.size}
             </div>
-            <div className="text-gray-600 mt-1">Locked</div>
+            <div className="text-muted-foreground mt-1">Locked</div>
           </Card>
           <Card className="text-center">
-            <div className="text-3xl font-bold text-green-600">
+            <div className="text-3xl font-bold text-secondary">
               {Math.round((earnedBadges.size / badges.length) * 100)}%
             </div>
-            <div className="text-gray-600 mt-1">Complete</div>
+            <div className="text-muted-foreground mt-1">Complete</div>
           </Card>
           <Card className="text-center">
-            <div className="text-3xl font-bold text-secondary-600">
+            <div className="text-3xl font-bold text-accent">
               {badges.length}
             </div>
-            <div className="text-gray-600 mt-1">Total</div>
+            <div className="text-muted-foreground mt-1">Total</div>
           </Card>
         </div>
 
@@ -145,10 +141,10 @@ export function StickerBook() {
                 key={badge.id}
                 className={`text-center transition-all hover:scale-105 ${
                   earned
-                    ? "bg-gradient-to-br from-primary-50 to-secondary-50 border-2 border-primary-300"
+                    ? "bg-primary/10 border-2 border-primary"
                     : canEarn
-                      ? "bg-blue-50 border-2 border-blue-300"
-                      : "bg-gray-100 opacity-60"
+                      ? "bg-secondary/10 border-2 border-secondary"
+                      : "bg-muted/50 opacity-60"
                 }`}
               >
                 <div className="relative">
@@ -156,16 +152,16 @@ export function StickerBook() {
                   <div
                     className={`w-24 h-24 mx-auto mb-4 rounded-full flex items-center justify-center text-5xl ${
                       earned
-                        ? "bg-gradient-to-br from-primary-400 to-secondary-400 shadow-lg"
+                        ? "bg-primary/20 shadow-lg"
                         : canEarn
-                          ? "bg-blue-200"
-                          : "bg-gray-300"
+                          ? "bg-secondary/20"
+                          : "bg-muted"
                     }`}
                   >
                     {earned || canEarn ? (
                       badge.icon
                     ) : (
-                      <Lock className="text-gray-600" size={32} />
+                      <Lock className="text-muted-foreground" size={32} />
                     )}
                   </div>
 
@@ -173,7 +169,7 @@ export function StickerBook() {
                   {earned && (
                     <div className="absolute -top-2 -right-2">
                       <Award
-                        className="text-green-600 fill-green-100"
+                        className="text-secondary fill-secondary/20"
                         size={32}
                       />
                     </div>
@@ -183,14 +179,14 @@ export function StickerBook() {
                 {/* Badge Info */}
                 <h3
                   className={`font-bold text-lg mb-1 ${
-                    earned ? "text-gray-900" : "text-gray-600"
+                    earned ? "text-foreground" : "text-muted-foreground"
                   }`}
                 >
                   {badge.name}
                 </h3>
                 <p
                   className={`text-sm mb-3 ${
-                    earned ? "text-gray-700" : "text-gray-500"
+                    earned ? "text-foreground" : "text-muted-foreground"
                   }`}
                 >
                   {badge.description}
@@ -199,15 +195,12 @@ export function StickerBook() {
                 {/* Requirements */}
                 {!earned && badge.required_stars > 0 && (
                   <div className="flex items-center justify-center gap-1 text-sm">
-                    <Star
-                      className="text-secondary-500 fill-current"
-                      size={16}
-                    />
+                    <Star className="text-secondary fill-current" size={16} />
                     <span
                       className={
                         canEarn
-                          ? "text-blue-700 font-semibold"
-                          : "text-gray-500"
+                          ? "text-secondary-foreground font-semibold"
+                          : "text-muted-foreground"
                       }
                     >
                       {badge.required_stars} stars
@@ -217,7 +210,7 @@ export function StickerBook() {
                 )}
 
                 {earned && (
-                  <div className="text-sm text-green-600 font-semibold flex items-center justify-center gap-1">
+                  <div className="text-sm text-secondary-foreground font-semibold flex items-center justify-center gap-1">
                     <Award size={16} />
                     Earned!
                   </div>
@@ -229,11 +222,9 @@ export function StickerBook() {
 
         {earnedBadges.size === 0 && (
           <Card className="text-center py-12">
-            <Award className="text-gray-400 mx-auto mb-4" size={64} />
-            <h3 className="text-2xl font-bold text-gray-700 mb-2">
-              Start Your Collection!
-            </h3>
-            <p className="text-gray-600 text-lg">
+            <Award className="text-muted-foreground mx-auto mb-4" size={64} />
+            <h3 className="text-2xl font-bold mb-2">Start Your Collection!</h3>
+            <p className="text-muted-foreground text-lg">
               Practice spelling to earn your first sticker
             </p>
           </Card>

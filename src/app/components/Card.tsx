@@ -11,7 +11,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
       <div
         ref={ref}
         className={cn(
-          "bg-white border",
+          "bg-card text-card-foreground border border-border",
           variant === "child" ? "child-card" : "parent-card",
           className
         )}

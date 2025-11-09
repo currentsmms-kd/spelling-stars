@@ -65,13 +65,13 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
       <Card className="max-w-md w-full">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <Lock className="text-primary-600" size={24} />
+            <Lock className="text-primary" size={24} />
             <h2 className="text-2xl font-bold">Enter PIN</h2>
           </div>
           {onCancel && (
             <button
               onClick={onCancel}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              className="p-2 hover:bg-muted rounded-full transition-colors"
               aria-label="Cancel and go back"
             >
               <X size={20} />
@@ -87,8 +87,8 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
                 key={i}
                 className={`w-16 h-16 rounded-lg border-2 flex items-center justify-center text-2xl font-bold transition-colors ${
                   pin.length > i
-                    ? "bg-primary-600 border-primary-600 text-white"
-                    : "bg-gray-100 border-gray-300"
+                    ? "bg-primary border-primary text-primary-foreground"
+                    : "bg-muted border-border"
                 }`}
                 aria-label={`PIN digit ${i + 1}${pin.length > i ? " entered" : " empty"}`}
               >
@@ -98,7 +98,7 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
           </div>
 
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-center">
+            <div className="p-3 bg-destructive/10 border border-destructive rounded-lg text-destructive text-center">
               {error}
             </div>
           )}

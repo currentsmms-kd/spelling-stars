@@ -534,13 +534,18 @@ const DEFAULT_LIMIT = 10;
 /**
  * Get hardest words (lowest ease) for reporting
  */
-export async function getHardestWords(limit?: number): Promise<
+export async function getHardestWords(
+  childId?: string,
+  limit?: number
+): Promise<
   Array<
     SrsEntry & {
       word: Word;
     }
   >
 > {
+  if (!childId) return [];
+
   const resultLimit = limit ?? DEFAULT_LIMIT;
   const { data, error } = await supabase
     .from("srs")
@@ -550,6 +555,7 @@ export async function getHardestWords(limit?: number): Promise<
       words (*)
     `
     )
+    .eq("child_id", childId)
     .order("ease", { ascending: true })
     .order("lapses", { ascending: false })
     .limit(resultLimit);
@@ -568,13 +574,18 @@ export async function getHardestWords(limit?: number): Promise<
 /**
  * Get words with most lapses for reporting
  */
-export async function getMostLapsedWords(limit?: number): Promise<
+export async function getMostLapsedWords(
+  childId?: string,
+  limit?: number
+): Promise<
   Array<
     SrsEntry & {
       word: Word;
     }
   >
 > {
+  if (!childId) return [];
+
   const resultLimit = limit ?? DEFAULT_LIMIT;
   const { data, error } = await supabase
     .from("srs")
@@ -584,6 +595,7 @@ export async function getMostLapsedWords(limit?: number): Promise<
       words (*)
     `
     )
+    .eq("child_id", childId)
     .order("lapses", { ascending: false })
     .order("ease", { ascending: true })
     .limit(resultLimit);
@@ -1070,20 +1082,22 @@ export function useDueWords(childId?: string) {
 /**
  * Hook to get hardest words
  */
-export function useHardestWords(limit?: number) {
+export function useHardestWords(childId?: string, limit?: number) {
   return useQuery({
-    queryKey: ["hardest_words", limit],
-    queryFn: () => getHardestWords(limit),
+    queryKey: ["hardest_words", childId, limit],
+    queryFn: () => getHardestWords(childId, limit),
+    enabled: Boolean(childId),
   });
 }
 
 /**
  * Hook to get most lapsed words
  */
-export function useMostLapsedWords(limit?: number) {
+export function useMostLapsedWords(childId?: string, limit?: number) {
   return useQuery({
-    queryKey: ["most_lapsed_words", limit],
-    queryFn: () => getMostLapsedWords(limit),
+    queryKey: ["most_lapsed_words", childId, limit],
+    queryFn: () => getMostLapsedWords(childId, limit),
+    enabled: Boolean(childId),
   });
 }
 
