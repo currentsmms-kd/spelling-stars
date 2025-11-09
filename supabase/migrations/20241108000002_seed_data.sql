@@ -1,0 +1,61 @@
+-- Seed data for testing
+-- Note: In production, these would be created through the auth system
+-- This is just for demo purposes
+
+-- Create demo parent profile
+-- Password: parent123 (you'll need to create this user through Supabase Auth UI)
+INSERT INTO profiles (id, role, display_name, avatar_url)
+VALUES
+    ('00000000-0000-0000-0000-000000000001', 'parent', 'Demo Parent', NULL)
+ON CONFLICT (id) DO NOTHING;
+
+-- Create two demo child profiles
+-- Passwords: child1 / child2 (you'll need to create these users through Supabase Auth UI)
+INSERT INTO profiles (id, role, display_name, avatar_url)
+VALUES
+    ('00000000-0000-0000-0000-000000000002', 'child', 'Emma', NULL),
+    ('00000000-0000-0000-0000-000000000003', 'child', 'Noah', NULL)
+ON CONFLICT (id) DO NOTHING;
+
+-- Create rewards entries for children
+INSERT INTO rewards (child_id, stars_total, streak_current, badges)
+VALUES
+    ('00000000-0000-0000-0000-000000000002', 0, 0, '[]'::jsonb),
+    ('00000000-0000-0000-0000-000000000003', 0, 0, '[]'::jsonb)
+ON CONFLICT (child_id) DO NOTHING;
+
+-- Create demo word list
+INSERT INTO word_lists (id, title, week_start_date, created_by)
+VALUES
+    ('00000000-0000-0000-0000-000000000010', 'Week 1 - Short Vowels', '2025-11-08', '00000000-0000-0000-0000-000000000001')
+ON CONFLICT (id) DO NOTHING;
+
+-- Create 10 demo words
+INSERT INTO words (id, text, phonetic, tts_voice, prompt_audio_url)
+VALUES
+    ('00000000-0000-0000-0000-000000000101', 'cat', 'kæt', NULL, NULL),
+    ('00000000-0000-0000-0000-000000000102', 'dog', 'dɔg', NULL, NULL),
+    ('00000000-0000-0000-0000-000000000103', 'sun', 'sʌn', NULL, NULL),
+    ('00000000-0000-0000-0000-000000000104', 'hat', 'hæt', NULL, NULL),
+    ('00000000-0000-0000-0000-000000000105', 'bed', 'bɛd', NULL, NULL),
+    ('00000000-0000-0000-0000-000000000106', 'pen', 'pɛn', NULL, NULL),
+    ('00000000-0000-0000-0000-000000000107', 'top', 'tɑp', NULL, NULL),
+    ('00000000-0000-0000-0000-000000000108', 'big', 'bɪg', NULL, NULL),
+    ('00000000-0000-0000-0000-000000000109', 'run', 'rʌn', NULL, NULL),
+    ('00000000-0000-0000-0000-000000000110', 'sit', 'sɪt', NULL, NULL)
+ON CONFLICT (id) DO NOTHING;
+
+-- Create list_words mappings
+INSERT INTO list_words (list_id, word_id, sort_index)
+VALUES
+    ('00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000101', 1),
+    ('00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000102', 2),
+    ('00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000103', 3),
+    ('00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000104', 4),
+    ('00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000105', 5),
+    ('00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000106', 6),
+    ('00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000107', 7),
+    ('00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000108', 8),
+    ('00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000109', 9),
+    ('00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000110', 10)
+ON CONFLICT (list_id, word_id) DO NOTHING;
