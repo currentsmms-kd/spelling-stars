@@ -1,0 +1,244 @@
+import { useEffect, useState } from "react";
+import { AppShell } from "@/app/components/AppShell";
+import { Card } from "@/app/components/Card";
+import { useAuth } from "@/app/hooks/useAuth";
+import { supabase } from "@/app/supabase";
+import { Award, Star, Lock } from "lucide-react";
+import type { Tables } from "@/types/database.types";
+
+type Badge = Tables<"badges">;
+
+export function StickerBook() {
+  const { profile } = useAuth();
+  const [badges, setBadges] = useState<Badge[]>([]);
+  const [earnedBadges, setEarnedBadges] = useState<Set<string>>(new Set());
+  const [totalStars, setTotalStars] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      if (!profile?.id) return;
+
+      try {
+        // Load all badges
+        const { data: badgesData, error: badgesError } = await supabase
+          .from("badges")
+          .select("*")
+          .order("required_stars", { ascending: true });
+
+        if (badgesError) throw badgesError;
+
+        // Load user's earned badges
+        const { data: userBadgesData, error: userBadgesError } = await supabase
+          .from("user_badges")
+          .select("badge_id")
+          .eq("child_id", profile.id);
+
+        if (userBadgesError) throw userBadgesError;
+
+        // Load total stars
+        const { data: rewardsData, error: rewardsError } = await supabase
+          .from("rewards")
+          .select("stars_total")
+          .eq("child_id", profile.id)
+          .single();
+
+        if (rewardsError && rewardsError.code !== "PGRST116")
+          throw rewardsError;
+
+        setBadges(badgesData || []);
+        setEarnedBadges(
+          new Set(userBadgesData?.map((ub) => ub.badge_id) || [])
+        );
+        setTotalStars(rewardsData?.stars_total || 0);
+      } catch (err) {
+        console.error("Error loading sticker book data:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [profile]);
+
+  const isBadgeEarned = (badge: Badge) => {
+    return earnedBadges.has(badge.id);
+  };
+
+  const canEarnBadge = (badge: Badge) => {
+    if (badge.required_stars === 0) return false; // Criteria-based, not star-based
+    return totalStars >= badge.required_stars;
+  };
+
+  if (isLoading) {
+    return (
+      <AppShell title="Sticker Book" variant="child">
+        <div className="text-center py-12">
+          <div className="text-2xl">Loading...</div>
+        </div>
+      </AppShell>
+    );
+  }
+
+  return (
+    <AppShell title="Sticker Book" variant="child">
+      <div className="max-w-6xl mx-auto space-y-8">
+        {/* Header with Stars */}
+        <Card className="child-card bg-gradient-to-br from-secondary-100 to-secondary-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">
+                My Sticker Book
+              </h1>
+              <p className="text-xl text-gray-700">
+                Collect stickers by practicing!
+              </p>
+            </div>
+            <div className="flex items-center gap-3 bg-white px-6 py-4 rounded-2xl shadow-lg">
+              <Star className="text-secondary-500 fill-current" size={48} />
+              <div>
+                <div className="text-4xl font-bold text-gray-900">
+                  {totalStars}
+                </div>
+                <div className="text-sm text-gray-600">Total Stars</div>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Badge Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="text-center">
+            <div className="text-3xl font-bold text-primary-600">
+              {earnedBadges.size}
+            </div>
+            <div className="text-gray-600 mt-1">Earned</div>
+          </Card>
+          <Card className="text-center">
+            <div className="text-3xl font-bold text-gray-400">
+              {badges.length - earnedBadges.size}
+            </div>
+            <div className="text-gray-600 mt-1">Locked</div>
+          </Card>
+          <Card className="text-center">
+            <div className="text-3xl font-bold text-green-600">
+              {Math.round((earnedBadges.size / badges.length) * 100)}%
+            </div>
+            <div className="text-gray-600 mt-1">Complete</div>
+          </Card>
+          <Card className="text-center">
+            <div className="text-3xl font-bold text-secondary-600">
+              {badges.length}
+            </div>
+            <div className="text-gray-600 mt-1">Total</div>
+          </Card>
+        </div>
+
+        {/* Badges Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {badges.map((badge) => {
+            const earned = isBadgeEarned(badge);
+            const canEarn = canEarnBadge(badge);
+
+            return (
+              <Card
+                key={badge.id}
+                className={`text-center transition-all hover:scale-105 ${
+                  earned
+                    ? "bg-gradient-to-br from-primary-50 to-secondary-50 border-2 border-primary-300"
+                    : canEarn
+                      ? "bg-blue-50 border-2 border-blue-300"
+                      : "bg-gray-100 opacity-60"
+                }`}
+              >
+                <div className="relative">
+                  {/* Badge Icon */}
+                  <div
+                    className={`w-24 h-24 mx-auto mb-4 rounded-full flex items-center justify-center text-5xl ${
+                      earned
+                        ? "bg-gradient-to-br from-primary-400 to-secondary-400 shadow-lg"
+                        : canEarn
+                          ? "bg-blue-200"
+                          : "bg-gray-300"
+                    }`}
+                  >
+                    {earned || canEarn ? (
+                      badge.icon
+                    ) : (
+                      <Lock className="text-gray-600" size={32} />
+                    )}
+                  </div>
+
+                  {/* Earned Badge */}
+                  {earned && (
+                    <div className="absolute -top-2 -right-2">
+                      <Award
+                        className="text-green-600 fill-green-100"
+                        size={32}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Badge Info */}
+                <h3
+                  className={`font-bold text-lg mb-1 ${
+                    earned ? "text-gray-900" : "text-gray-600"
+                  }`}
+                >
+                  {badge.name}
+                </h3>
+                <p
+                  className={`text-sm mb-3 ${
+                    earned ? "text-gray-700" : "text-gray-500"
+                  }`}
+                >
+                  {badge.description}
+                </p>
+
+                {/* Requirements */}
+                {!earned && badge.required_stars > 0 && (
+                  <div className="flex items-center justify-center gap-1 text-sm">
+                    <Star
+                      className="text-secondary-500 fill-current"
+                      size={16}
+                    />
+                    <span
+                      className={
+                        canEarn
+                          ? "text-blue-700 font-semibold"
+                          : "text-gray-500"
+                      }
+                    >
+                      {badge.required_stars} stars
+                      {canEarn && " - Ready!"}
+                    </span>
+                  </div>
+                )}
+
+                {earned && (
+                  <div className="text-sm text-green-600 font-semibold flex items-center justify-center gap-1">
+                    <Award size={16} />
+                    Earned!
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+
+        {earnedBadges.size === 0 && (
+          <Card className="text-center py-12">
+            <Award className="text-gray-400 mx-auto mb-4" size={64} />
+            <h3 className="text-2xl font-bold text-gray-700 mb-2">
+              Start Your Collection!
+            </h3>
+            <p className="text-gray-600 text-lg">
+              Practice spelling to earn your first sticker
+            </p>
+          </Card>
+        )}
+      </div>
+    </AppShell>
+  );
+}

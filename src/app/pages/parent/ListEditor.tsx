@@ -58,7 +58,7 @@ interface WordRowProps {
   onSelect: () => void;
   onUpdateWord: (
     wordId: string,
-    field: "text" | "phonetic",
+    field: "text" | "phonetic" | "tts_voice",
     value: string
   ) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
@@ -126,6 +126,19 @@ function WordRow({
         className="flex-1 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
         onClick={(e) => e.stopPropagation()}
       />
+      <select
+        value={word.tts_voice || ""}
+        onChange={(e) => onUpdateWord(word.id, "tts_voice", e.target.value)}
+        className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        onClick={(e) => e.stopPropagation()}
+        title="Text-to-Speech Voice"
+      >
+        <option value="">Default</option>
+        <option value="en-US">US English</option>
+        <option value="en-GB">UK English</option>
+        <option value="en-AU">Australian</option>
+        <option value="en-IN">Indian</option>
+      </select>
       {word.prompt_audio_url && (
         <Button
           size="sm"
@@ -136,8 +149,9 @@ function WordRow({
             }
           }}
           title="Play audio"
+          aria-label="Play audio pronunciation"
         >
-          <Play size={16} />
+          <Play size={16} aria-hidden="true" />
         </Button>
       )}
       <Button
@@ -147,9 +161,10 @@ function WordRow({
           onDelete(word.id);
         }}
         disabled={isDeleting}
-        title="Delete"
+        title="Delete word"
+        aria-label="Delete word"
       >
-        <Trash2 size={16} />
+        <Trash2 size={16} aria-hidden="true" />
       </Button>
     </div>
   );
@@ -324,7 +339,7 @@ function WordsListSection({
   setSelectedWordId: (id: string) => void;
   handleUpdateWord: (
     wordId: string,
-    field: "text" | "phonetic",
+    field: "text" | "phonetic" | "tts_voice",
     value: string
   ) => void;
   handleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
@@ -597,7 +612,7 @@ export function ListEditor() {
 
   const handleUpdateWord = async (
     wordId: string,
-    field: "text" | "phonetic",
+    field: "text" | "phonetic" | "tts_voice",
     value: string
   ) => {
     try {

@@ -39,6 +39,163 @@ export type Database = {
   };
   public: {
     Tables: {
+      parental_settings: {
+        Row: {
+          id: string;
+          parent_id: string;
+          pin_code: string;
+          show_hints_on_first_miss: boolean;
+          enforce_case_sensitivity: boolean;
+          auto_readback_spelling: boolean;
+          daily_session_limit_minutes: number;
+          default_tts_voice: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          parent_id: string;
+          pin_code: string;
+          show_hints_on_first_miss?: boolean;
+          enforce_case_sensitivity?: boolean;
+          auto_readback_spelling?: boolean;
+          daily_session_limit_minutes?: number;
+          default_tts_voice?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          parent_id?: string;
+          pin_code?: string;
+          show_hints_on_first_miss?: boolean;
+          enforce_case_sensitivity?: boolean;
+          auto_readback_spelling?: boolean;
+          daily_session_limit_minutes?: number;
+          default_tts_voice?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "parental_settings_parent_id_fkey";
+            columns: ["parent_id"];
+            isOneToOne: true;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      session_analytics: {
+        Row: {
+          id: string;
+          child_id: string;
+          session_date: string;
+          session_duration_seconds: number;
+          words_practiced: number;
+          correct_on_first_try: number;
+          total_attempts: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          child_id: string;
+          session_date?: string;
+          session_duration_seconds?: number;
+          words_practiced?: number;
+          correct_on_first_try?: number;
+          total_attempts?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          child_id?: string;
+          session_date?: string;
+          session_duration_seconds?: number;
+          words_practiced?: number;
+          correct_on_first_try?: number;
+          total_attempts?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "session_analytics_child_id_fkey";
+            columns: ["child_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      badges: {
+        Row: {
+          id: string;
+          badge_key: string;
+          name: string;
+          description: string;
+          icon: string;
+          required_stars: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          badge_key: string;
+          name: string;
+          description: string;
+          icon: string;
+          required_stars?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          badge_key?: string;
+          name?: string;
+          description?: string;
+          icon?: string;
+          required_stars?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      user_badges: {
+        Row: {
+          id: string;
+          child_id: string;
+          badge_id: string;
+          earned_at: string;
+        };
+        Insert: {
+          id?: string;
+          child_id: string;
+          badge_id: string;
+          earned_at?: string;
+        };
+        Update: {
+          id?: string;
+          child_id?: string;
+          badge_id?: string;
+          earned_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "user_badges_child_id_fkey";
+            columns: ["child_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "user_badges_badge_id_fkey";
+            columns: ["badge_id"];
+            isOneToOne: false;
+            referencedRelation: "badges";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       attempts: {
         Row: {
           audio_url: string | null;

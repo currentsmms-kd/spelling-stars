@@ -1,6 +1,7 @@
 import { AppShell } from "@/app/components/AppShell";
 import { Card } from "@/app/components/Card";
 import { Button } from "@/app/components/Button";
+import { AnalyticsDashboard } from "@/app/components/AnalyticsDashboard";
 import { useAuth } from "@/app/hooks/useAuth";
 import { Link } from "react-router-dom";
 import { Plus, List, TrendingUp, AlertTriangle } from "lucide-react";
@@ -164,12 +165,7 @@ export function Dashboard() {
 
         <Card>
           <h3 className="text-xl font-bold mb-4">Recent Activity</h3>
-          <div className="text-center py-8 text-gray-500">
-            <p>No recent activity yet</p>
-            <p className="text-sm mt-2">
-              Activity will appear here once your child starts practicing
-            </p>
-          </div>
+          <AnalyticsDashboard childId={profile?.id} />
         </Card>
       </div>
     </AppShell>

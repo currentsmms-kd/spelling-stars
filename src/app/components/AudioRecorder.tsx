@@ -114,8 +114,9 @@ export function AudioRecorder({
             onClick={handleStartRecording}
             variant="default"
             className="flex items-center gap-2"
+            aria-label="Start recording audio"
           >
-            <Mic size={20} />
+            <Mic size={20} aria-hidden="true" />
             Start Recording
           </Button>
         )}
@@ -123,18 +124,34 @@ export function AudioRecorder({
         {isRecording && (
           <>
             {isPaused ? (
-              <Button onClick={resumeRecording} variant="secondary">
-                <Play size={20} />
+              <Button
+                onClick={resumeRecording}
+                variant="secondary"
+                aria-label="Resume recording"
+              >
+                <Play size={20} aria-hidden="true" />
               </Button>
             ) : (
-              <Button onClick={pauseRecording} variant="secondary">
-                <Pause size={20} />
+              <Button
+                onClick={pauseRecording}
+                variant="secondary"
+                aria-label="Pause recording"
+              >
+                <Pause size={20} aria-hidden="true" />
               </Button>
             )}
-            <Button onClick={handleStopRecording} variant="danger">
-              <Square size={20} />
+            <Button
+              onClick={handleStopRecording}
+              variant="danger"
+              aria-label="Stop recording"
+            >
+              <Square size={20} aria-hidden="true" />
             </Button>
-            <span className="text-lg font-mono">
+            <span
+              className="text-lg font-mono"
+              aria-live="polite"
+              aria-label={`Recording duration: ${formatDuration(duration)}`}
+            >
               {formatDuration(duration)}
             </span>
           </>
@@ -142,13 +159,30 @@ export function AudioRecorder({
 
         {audioUrl && !isRecording && (
           <>
-            <Button onClick={handlePlayPause} variant="secondary">
-              {isPlaying ? <Pause size={20} /> : <Play size={20} />}
+            <Button
+              onClick={handlePlayPause}
+              variant="secondary"
+              aria-label={
+                isPlaying ? "Pause audio playback" : "Play audio recording"
+              }
+            >
+              {isPlaying ? (
+                <Pause size={20} aria-hidden="true" />
+              ) : (
+                <Play size={20} aria-hidden="true" />
+              )}
             </Button>
-            <Button onClick={handleClear} variant="ghost">
-              <Trash2 size={20} />
+            <Button
+              onClick={handleClear}
+              variant="ghost"
+              aria-label="Delete recording"
+            >
+              <Trash2 size={20} aria-hidden="true" />
             </Button>
-            <span className="text-lg font-mono">
+            <span
+              className="text-lg font-mono"
+              aria-label={`Recording duration: ${formatDuration(duration)}`}
+            >
               {formatDuration(duration)}
             </span>
           </>
@@ -164,12 +198,21 @@ export function AudioRecorder({
               ? "bg-red-50 border-red-200"
               : "bg-gray-50 border-gray-200"
           )}
+          role="region"
+          aria-label="Audio waveform visualization"
         />
       )}
 
       {isRecording && (
-        <div className="flex items-center gap-2 text-red-600">
-          <div className="w-3 h-3 bg-red-600 rounded-full animate-pulse" />
+        <div
+          className="flex items-center gap-2 text-red-600"
+          role="status"
+          aria-live="polite"
+        >
+          <div
+            className="w-3 h-3 bg-red-600 rounded-full animate-pulse"
+            aria-hidden="true"
+          />
           <span className="text-sm font-medium">Recording...</span>
         </div>
       )}

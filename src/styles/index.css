@@ -43,32 +43,47 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Focus rings for accessibility */
+  /* Focus rings for accessibility - enhanced */
   :focus-visible {
-    @apply outline-none ring-2 ring-primary-500 ring-offset-2;
+    @apply outline-none ring-4 ring-primary-500 ring-offset-2;
   }
 
   button:focus-visible,
   a:focus-visible,
   input:focus-visible,
-  textarea:focus-visible {
-    @apply outline-none ring-2 ring-primary-500 ring-offset-2;
+  textarea:focus-visible,
+  select:focus-visible {
+    @apply outline-none ring-4 ring-primary-500 ring-offset-2;
+  }
+
+  /* Respect prefers-reduced-motion */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
 @layer components {
-  /* Child UI - Big touch targets */
+  /* Child UI - Big touch targets (48px minimum for A11y) */
   .child-button {
-    @apply min-h-[80px] min-w-[80px] text-2xl font-bold rounded-2xl;
+    @apply min-h-[88px] min-w-[88px] text-2xl font-bold rounded-2xl;
+    /* Increased from 80px to 88px for better touch target */
   }
 
   .child-card {
     @apply p-8 rounded-3xl shadow-lg;
   }
 
-  /* Parent UI - Standard sizing */
+  /* Parent UI - Standard sizing with good touch targets */
   .parent-button {
-    @apply min-h-[40px] px-4 py-2 text-base font-medium rounded-lg;
+    @apply min-h-[44px] px-4 py-2 text-base font-medium rounded-lg;
+    /* Increased from 40px to 44px for better accessibility */
   }
 
   .parent-card {

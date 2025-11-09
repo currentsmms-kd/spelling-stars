@@ -12,20 +12,45 @@ A Progressive Web App (PWA) for kids to practice spelling, built with Vite, Reac
   - Parent dashboard for managing spelling lists
   - Kid-friendly interface with big touch targets
 
-- 📱 **Progressive Web App**
+- � **Parental Controls** (NEW!)
+  - PIN lock protection for parent area
+  - Configurable game settings (hints, case sensitivity, auto-readback)
+  - Daily session time limits with gentle stop screen
+
+- 📊 **Analytics Dashboard** (NEW!)
+  - Track session length, words practiced, accuracy
+  - Time-range filters (7 days, 30 days, all time)
+  - Visual progress tracking in parent dashboard
+
+- 🎖️ **Sticker Book** (NEW!)
+  - Earn badges for achievements
+  - Track star totals and milestones
+  - 10+ unique badges to collect
+
+- 🔊 **TTS Voice Picker** (NEW!)
+  - Choose text-to-speech voice per word or set default
+  - Multiple English variants (US, UK, Australian, Indian)
+
+- ♿ **Enhanced Accessibility** (NEW!)
+  - Larger touch targets (88px child, 44px parent)
+  - Enhanced focus indicators (4px rings)
+  - Comprehensive ARIA labels
+  - Respects prefers-reduced-motion
+
+- �📱 **Progressive Web App**
   - Installable on any device
   - Works offline
   - Background sync for queued data
 
 - 🎤 **Audio Recording**
   - Record pronunciation attempts
-  - Waveform visualization
+  - Waveform visualization with ARIA labels
   - Auto-upload to cloud storage
 
 - 🌟 **Rewards System**
   - Earn stars for correct answers
   - Track progress and streaks
-  - Achievement badges
+  - Spaced repetition system (SRS)
 
 ## Tech Stack
 

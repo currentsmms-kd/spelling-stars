@@ -4,12 +4,15 @@ import { Signup } from "./pages/auth/Signup";
 import { Dashboard } from "./pages/parent/Dashboard";
 import { Lists } from "./pages/parent/Lists";
 import { ListEditor } from "./pages/parent/ListEditor";
+import { ParentalSettings } from "./pages/parent/Settings";
 import { ChildHome } from "./pages/child/Home";
 import { PlayListenType } from "./pages/child/PlayListenType";
 import { PlaySaySpell } from "./pages/child/PlaySaySpell";
 import { Rewards } from "./pages/child/Rewards";
+import { StickerBook } from "./pages/child/StickerBook";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { RootRedirect } from "./components/RootRedirect";
+import { PinProtectedRoute } from "./components/PinProtectedRoute";
 
 export const router = createBrowserRouter([
   {
@@ -31,7 +34,9 @@ export const router = createBrowserRouter([
         path: "dashboard",
         element: (
           <ProtectedRoute requiredRole="parent">
-            <Dashboard />
+            <PinProtectedRoute>
+              <Dashboard />
+            </PinProtectedRoute>
           </ProtectedRoute>
         ),
       },
@@ -39,7 +44,9 @@ export const router = createBrowserRouter([
         path: "lists",
         element: (
           <ProtectedRoute requiredRole="parent">
-            <Lists />
+            <PinProtectedRoute>
+              <Lists />
+            </PinProtectedRoute>
           </ProtectedRoute>
         ),
       },
@@ -47,7 +54,9 @@ export const router = createBrowserRouter([
         path: "lists/new",
         element: (
           <ProtectedRoute requiredRole="parent">
-            <ListEditor />
+            <PinProtectedRoute>
+              <ListEditor />
+            </PinProtectedRoute>
           </ProtectedRoute>
         ),
       },
@@ -55,7 +64,19 @@ export const router = createBrowserRouter([
         path: "lists/:id",
         element: (
           <ProtectedRoute requiredRole="parent">
-            <ListEditor />
+            <PinProtectedRoute>
+              <ListEditor />
+            </PinProtectedRoute>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "settings",
+        element: (
+          <ProtectedRoute requiredRole="parent">
+            <PinProtectedRoute>
+              <ParentalSettings />
+            </PinProtectedRoute>
           </ProtectedRoute>
         ),
       },
@@ -93,6 +114,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute requiredRole="child">
             <Rewards />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "stickers",
+        element: (
+          <ProtectedRoute requiredRole="child">
+            <StickerBook />
           </ProtectedRoute>
         ),
       },
