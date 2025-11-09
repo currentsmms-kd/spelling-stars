@@ -1,6 +1,6 @@
-import { AppShell } from "src/app/components/AppShell";
-import { Card } from "src/app/components/Card";
-import { RewardStar } from "src/app/components/RewardStar";
+import { AppShell } from "@/app/components/AppShell";
+import { Card } from "@/app/components/Card";
+import { RewardStar } from "@/app/components/RewardStar";
 import { Trophy, Target, Zap } from "lucide-react";
 
 export function Rewards() {

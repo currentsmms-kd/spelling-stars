@@ -2,9 +2,9 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useAuth } from "src/app/hooks/useAuth";
-import { Button } from "src/app/components/Button";
-import { Card } from "src/app/components/Card";
+import { useAuth } from "@/app/hooks/useAuth";
+import { Button } from "@/app/components/Button";
+import { Card } from "@/app/components/Card";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),

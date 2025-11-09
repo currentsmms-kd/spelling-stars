@@ -1,11 +1,11 @@
-import { AppShell } from "src/app/components/AppShell";
-import { Card } from "src/app/components/Card";
-import { Button } from "src/app/components/Button";
+import { AppShell } from "@/app/components/AppShell";
+import { Card } from "@/app/components/Card";
+import { Button } from "@/app/components/Button";
 import { Link } from "react-router-dom";
 import { Plus, Edit, Trash2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "src/app/supabase";
-import { useAuth } from "src/app/hooks/useAuth";
+import { supabase } from "@/app/supabase";
+import { useAuth } from "@/app/hooks/useAuth";
 
 export function Lists() {
   const { user } = useAuth();
@@ -13,16 +13,18 @@ export function Lists() {
   const { data: lists, isLoading } = useQuery({
     queryKey: ["lists", user?.id],
     queryFn: async () => {
+      if (!user?.id) return [];
+
       const { data, error } = await supabase
         .from("spelling_lists")
         .select("*")
-        .eq("parent_id", user?.id)
+        .eq("parent_id", user.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data;
     },
-    enabled: !!user,
+    enabled: Boolean(user),
   });
 
   return (

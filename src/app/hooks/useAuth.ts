@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import { useAuthStore } from "../store/auth";
 import { supabase } from "../supabase";
 
@@ -12,6 +12,26 @@ export function useAuth() {
     setIsLoading,
     logout,
   } = useAuthStore();
+
+  const fetchProfile = useCallback(
+    async (userId: string) => {
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", userId)
+          .single();
+
+        if (error) throw error;
+        setProfile(data);
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [setProfile, setIsLoading]
+  );
 
   useEffect(() => {
     // Get initial session
@@ -38,24 +58,7 @@ export function useAuth() {
     });
 
     return () => subscription.unsubscribe();
-  }, [setUser, setProfile, setIsLoading]);
-
-  const fetchProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single();
-
-      if (error) throw error;
-      setProfile(data);
-    } catch (error) {
-      console.error("Error fetching profile:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [setUser, setProfile, setIsLoading, fetchProfile]);
 
   const signIn = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -92,7 +95,7 @@ export function useAuth() {
     signIn,
     signUp,
     signOut,
-    isAuthenticated: !!user,
+    isAuthenticated: Boolean(user),
     isParent: profile?.role === "parent",
     isChild: profile?.role === "child",
   };

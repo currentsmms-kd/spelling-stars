@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
-import { TopBar, NavRail, parentNavItems, childNavItems } from "./Navigation";
+import { TopBar, NavRail } from "./Navigation";
+import { parentNavItems, childNavItems } from "./navItems";
 import { useAuth } from "../hooks/useAuth";
 
 interface AppShellProps {

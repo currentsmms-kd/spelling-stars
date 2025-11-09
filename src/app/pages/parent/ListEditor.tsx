@@ -3,12 +3,12 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { AppShell } from "src/app/components/AppShell";
-import { Card } from "src/app/components/Card";
-import { Button } from "src/app/components/Button";
+import { AppShell } from "@/app/components/AppShell";
+import { Card } from "@/app/components/Card";
+import { Button } from "@/app/components/Button";
 import { Plus, Trash2, Save } from "lucide-react";
-import { useAuth } from "src/app/hooks/useAuth";
-import { supabase } from "src/app/supabase";
+import { useAuth } from "@/app/hooks/useAuth";
+import { supabase } from "@/app/supabase";
 
 const listSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -142,7 +142,10 @@ export function ListEditor() {
 
             <div>
               <div className="flex items-center justify-between mb-3">
-                <label className="block text-sm font-medium text-gray-700">
+                <label
+                  htmlFor="words-section"
+                  className="block text-sm font-medium text-gray-700"
+                >
                   Words *
                 </label>
                 <Button

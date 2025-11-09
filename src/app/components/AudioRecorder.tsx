@@ -3,7 +3,7 @@ import WaveSurfer from "wavesurfer.js";
 import { Mic, Square, Pause, Play, Trash2 } from "lucide-react";
 import { useAudioRecorder } from "../hooks/useAudioRecorder";
 import { Button } from "./Button";
-import { cn } from "src/lib/utils";
+import { cn } from "@/lib/utils";
 
 interface AudioRecorderProps {
   onRecordingComplete?: (blob: Blob, url: string) => void;

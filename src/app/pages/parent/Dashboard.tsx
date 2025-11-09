@@ -1,7 +1,7 @@
-import { AppShell } from "src/app/components/AppShell";
-import { Card } from "src/app/components/Card";
-import { Button } from "src/app/components/Button";
-import { useAuth } from "src/app/hooks/useAuth";
+import { AppShell } from "@/app/components/AppShell";
+import { Card } from "@/app/components/Card";
+import { Button } from "@/app/components/Button";
+import { useAuth } from "@/app/hooks/useAuth";
 import { Link } from "react-router-dom";
 import { Plus, List, TrendingUp } from "lucide-react";
 
@@ -16,7 +16,7 @@ export function Dashboard() {
             Welcome back, {profile?.email?.split("@")[0]}!
           </h2>
           <p className="text-gray-600">
-            Manage your child's spelling lists and track their progress.
+            Manage your child&apos;s spelling lists and track their progress.
           </p>
         </div>
 
@@ -46,7 +46,7 @@ export function Dashboard() {
               <div className="flex-1">
                 <h3 className="font-semibold text-lg mb-1">Progress</h3>
                 <p className="text-gray-600 text-sm mb-3">
-                  View your child's spelling progress
+                  View your child&apos;s spelling progress
                 </p>
                 <Button size="sm" disabled>
                   Coming Soon

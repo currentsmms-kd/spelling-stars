@@ -1,10 +1,10 @@
-import { AppShell } from "src/app/components/AppShell";
-import { Card } from "src/app/components/Card";
-import { Button } from "src/app/components/Button";
+import { AppShell } from "@/app/components/AppShell";
+import { Card } from "@/app/components/Card";
+import { Button } from "@/app/components/Button";
 import { Link } from "react-router-dom";
 import { Headphones, Mic } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "src/app/supabase";
+import { supabase } from "@/app/supabase";
 
 export function ChildHome() {
   const { data: lists } = useQuery({

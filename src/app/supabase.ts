@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import type { Database } from "../types/database.types";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -7,42 +8,24 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error("Missing Supabase environment variables");
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
-// Database types (extend as needed)
-export interface Profile {
-  id: string;
-  email: string;
-  role: "parent" | "child";
-  created_at: string;
-  updated_at: string;
-}
+// Export type helpers for easier usage
+export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
+export type ProfileInsert = Database["public"]["Tables"]["profiles"]["Insert"];
+export type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
 
-export interface SpellingList {
-  id: string;
-  parent_id: string;
-  title: string;
-  description?: string;
-  created_at: string;
-  updated_at: string;
-}
+export type SpellingList =
+  Database["public"]["Tables"]["spelling_lists"]["Row"];
+export type SpellingListInsert =
+  Database["public"]["Tables"]["spelling_lists"]["Insert"];
+export type SpellingListUpdate =
+  Database["public"]["Tables"]["spelling_lists"]["Update"];
 
-export interface Word {
-  id: string;
-  list_id: string;
-  word: string;
-  audio_url?: string;
-  order: number;
-  created_at: string;
-}
+export type Word = Database["public"]["Tables"]["words"]["Row"];
+export type WordInsert = Database["public"]["Tables"]["words"]["Insert"];
+export type WordUpdate = Database["public"]["Tables"]["words"]["Update"];
 
-export interface Attempt {
-  id: string;
-  child_id: string;
-  word_id: string;
-  list_id: string;
-  is_correct: boolean;
-  typed_answer?: string;
-  audio_url?: string;
-  created_at: string;
-}
+export type Attempt = Database["public"]["Tables"]["attempts"]["Row"];
+export type AttemptInsert = Database["public"]["Tables"]["attempts"]["Insert"];
+export type AttemptUpdate = Database["public"]["Tables"]["attempts"]["Update"];

@@ -1,5 +1,5 @@
-import { db } from "src/data/db";
-import { supabase } from "src/app/supabase";
+import { db } from "@/data/db";
+import { supabase } from "@/app/supabase";
 
 /**
  * Sync queued attempts and audio to Supabase

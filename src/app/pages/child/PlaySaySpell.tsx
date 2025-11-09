@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { AppShell } from "src/app/components/AppShell";
-import { Card } from "src/app/components/Card";
-import { Button } from "src/app/components/Button";
-import { AudioRecorder } from "src/app/components/AudioRecorder";
-import { RewardStar } from "src/app/components/RewardStar";
+import { AppShell } from "@/app/components/AppShell";
+import { Card } from "@/app/components/Card";
+import { Button } from "@/app/components/Button";
+import { AudioRecorder } from "@/app/components/AudioRecorder";
+import { RewardStar } from "@/app/components/RewardStar";
 import { Volume2 } from "lucide-react";
 
 export function PlaySaySpell() {

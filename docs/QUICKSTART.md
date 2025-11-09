@@ -46,14 +46,14 @@ Visit `http://localhost:5173`
 
 ## What's Next?
 
-### For Parents:
+### For Parents
 
 1. Go to Dashboard
 2. Click "New List"
 3. Add spelling words
 4. Save the list
 
-### For Children:
+### For Children
 
 1. Go to Home
 2. Choose "Listen & Type" or "Say & Spell"

@@ -24,7 +24,7 @@
         /* Absolute imports */
         "baseUrl": ".",
         "paths": {
-            "src/*": [
+            "@/*": [
                 "./src/*"
             ]
         }
