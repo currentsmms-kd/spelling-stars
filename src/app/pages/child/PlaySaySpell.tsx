@@ -428,7 +428,7 @@ export function PlaySaySpell() {
 
       if (isOnline) {
         // Upload audio if it exists
-        let audioUrl: string | undefined;
+        let audioPath: string | undefined;
         if (audioBlob && profile?.id) {
           const timestamp = Date.now();
           const fileName = `${profile.id}/${listId}/${wordId}_${timestamp}.webm`;
@@ -440,11 +440,10 @@ export function PlaySaySpell() {
               cacheControl: "3600",
             });
 
-          if (!error) {
-            const { data: urlData } = supabase.storage
-              .from("audio-recordings")
-              .getPublicUrl(data.path);
-            audioUrl = urlData.publicUrl;
+          if (!error && data) {
+            // Store the path, not a URL
+            // Signed URLs will be generated on-demand when audio needs to be played
+            audioPath = data.path;
           }
         }
 
@@ -454,7 +453,7 @@ export function PlaySaySpell() {
           mode: "say-spell",
           correct,
           typed_answer: typedAnswer,
-          audio_url: audioUrl,
+          audio_url: audioPath, // Store path instead of URL
           started_at: new Date().toISOString(),
         });
 

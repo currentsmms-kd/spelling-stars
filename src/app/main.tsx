@@ -4,8 +4,17 @@ import { RouterProvider } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { router } from "./router";
 import { queryClient } from "./queryClient";
-import { syncQueuedData, hasPendingSync } from "@/lib/sync";
+import {
+  syncQueuedData,
+  hasPendingSync,
+  migrateSyncedFieldToBoolean,
+} from "@/lib/sync";
 import "../styles/index.css";
+
+// Run one-time migration to normalize synced field types
+migrateSyncedFieldToBoolean().catch((error) => {
+  console.error("Failed to migrate synced field:", error);
+});
 
 // Initialize theme before rendering
 const initializeTheme = () => {

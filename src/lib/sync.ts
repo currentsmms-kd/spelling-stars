@@ -27,7 +27,9 @@ export async function syncQueuedData(): Promise<void> {
  * Upload queued audio files to Supabase Storage
  */
 async function syncQueuedAudio(): Promise<void> {
-  const queuedAudio = await db.queuedAudio.where("synced").equals(0).toArray();
+  const queuedAudio = await db.queuedAudio
+    .filter((audio) => audio.synced === false)
+    .toArray();
 
   logger.log(`Syncing ${queuedAudio.length} audio files...`);
 
@@ -46,16 +48,13 @@ async function syncQueuedAudio(): Promise<void> {
         continue;
       }
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from("audio-recordings")
-        .getPublicUrl(data.path);
-
-      // Update record as synced
+      // Store the path instead of generating a public URL
+      // Signed URLs will be generated on-demand when playback is needed
+      // Update record as synced with the storage path
       if (audio.id !== undefined) {
         await db.queuedAudio.update(audio.id, {
           synced: true,
-          storage_url: urlData.publicUrl,
+          storage_url: data.path, // Store path, not URL
         });
       }
 
@@ -71,19 +70,19 @@ async function syncQueuedAudio(): Promise<void> {
  */
 async function syncQueuedAttempts(): Promise<void> {
   const queuedAttempts = await db.queuedAttempts
-    .where("synced")
-    .equals(0)
+    .filter((attempt) => attempt.synced === false)
     .toArray();
 
   logger.log(`Syncing ${queuedAttempts.length} attempts...`);
 
   for (const attempt of queuedAttempts) {
     try {
-      // Get audio URL if this attempt has audio
-      let audioUrl: string | undefined;
+      // Get audio path if this attempt has audio
+      // storage_url now contains the storage path, not a URL
+      let audioPath: string | undefined;
       if (attempt.audio_blob_id) {
         const audioRecord = await db.queuedAudio.get(attempt.audio_blob_id);
-        audioUrl = audioRecord?.storage_url;
+        audioPath = audioRecord?.storage_url;
       }
 
       // Insert into Supabase
@@ -93,7 +92,7 @@ async function syncQueuedAttempts(): Promise<void> {
         mode: attempt.mode,
         correct: attempt.is_correct,
         typed_answer: attempt.typed_answer,
-        audio_url: audioUrl,
+        audio_url: audioPath, // Store path, not URL
         started_at: attempt.created_at,
       });
 
@@ -163,11 +162,61 @@ export async function queueAudio(
  */
 export async function hasPendingSync(): Promise<boolean> {
   const pendingAttempts = await db.queuedAttempts
-    .where("synced")
-    .equals(0)
+    .filter((attempt) => attempt.synced === false)
     .count();
 
-  const pendingAudio = await db.queuedAudio.where("synced").equals(0).count();
+  const pendingAudio = await db.queuedAudio
+    .filter((audio) => audio.synced === false)
+    .count();
 
   return pendingAttempts > 0 || pendingAudio > 0;
+}
+
+/**
+ * One-time migration to normalize synced field from numeric to boolean
+ * This should be called once on app initialization to fix any legacy data
+ */
+export async function migrateSyncedFieldToBoolean(): Promise<void> {
+  logger.log("Starting migration of synced field to boolean...");
+
+  try {
+    // Migrate queuedAttempts
+    const allAttempts = await db.queuedAttempts.toArray();
+    let attemptsUpdated = 0;
+
+    for (const attempt of allAttempts) {
+      // Check if synced is stored as number (0 or 1) by casting to unknown
+      const syncedValue = attempt.synced as unknown;
+      if (typeof syncedValue === "number") {
+        const boolValue = syncedValue !== 0;
+        if (attempt.id !== undefined) {
+          await db.queuedAttempts.update(attempt.id, { synced: boolValue });
+          attemptsUpdated++;
+        }
+      }
+    }
+
+    // Migrate queuedAudio
+    const allAudio = await db.queuedAudio.toArray();
+    let audioUpdated = 0;
+
+    for (const audio of allAudio) {
+      // Check if synced is stored as number (0 or 1) by casting to unknown
+      const syncedValue = audio.synced as unknown;
+      if (typeof syncedValue === "number") {
+        const boolValue = syncedValue !== 0;
+        if (audio.id !== undefined) {
+          await db.queuedAudio.update(audio.id, { synced: boolValue });
+          audioUpdated++;
+        }
+      }
+    }
+
+    logger.log(
+      `Migration complete: Updated ${attemptsUpdated} attempts and ${audioUpdated} audio records`
+    );
+  } catch (error) {
+    logger.error("Error during synced field migration:", error);
+    throw error;
+  }
 }

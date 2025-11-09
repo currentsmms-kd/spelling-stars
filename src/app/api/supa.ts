@@ -42,6 +42,55 @@ export interface WordWithIndex extends Word {
 }
 
 /**
+ * Create a signed URL for private audio recordings
+ * @param path - Storage path to the audio file
+ * @param expiresIn - Time in seconds until URL expires (default: 3600 = 1 hour)
+ * @returns Signed URL or null on error
+ */
+export async function getSignedAudioUrl(
+  path: string,
+  expiresIn = 3600
+): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.storage
+      .from("audio-recordings")
+      .createSignedUrl(path, expiresIn);
+
+    if (error) {
+      console.error("Error creating signed URL:", error);
+      return null;
+    }
+
+    return data.signedUrl;
+  } catch (error) {
+    console.error("Exception creating signed URL:", error);
+    return null;
+  }
+}
+
+/**
+ * Create multiple signed URLs in bulk
+ * @param paths - Array of storage paths
+ * @param expiresIn - Time in seconds until URLs expire (default: 3600 = 1 hour)
+ * @returns Object mapping paths to signed URLs
+ */
+export async function getSignedAudioUrls(
+  paths: string[],
+  expiresIn = 3600
+): Promise<Record<string, string | null>> {
+  const urlMap: Record<string, string | null> = {};
+
+  await Promise.all(
+    paths.map(async (path) => {
+      const signedUrl = await getSignedAudioUrl(path, expiresIn);
+      urlMap[path] = signedUrl;
+    })
+  );
+
+  return urlMap;
+}
+
+/**
  * Get the current user's profile
  */
 export async function getProfilesMe(): Promise<Profile | null> {
@@ -224,12 +273,9 @@ export async function uploadAudio(file: File): Promise<string | null> {
     return null;
   }
 
-  // Get the public URL
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from("audio-recordings").getPublicUrl(data.path);
-
-  return publicUrl;
+  // Store the path, not a URL - signed URLs will be generated on-demand
+  // This ensures recordings remain private and URLs expire
+  return data.path;
 }
 
 /**
