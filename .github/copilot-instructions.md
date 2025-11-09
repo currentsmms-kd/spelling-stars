@@ -13,11 +13,11 @@ SpellStars is a Progressive Web App (PWA) for children's spelling practice with 
 
 ### Tech Stack
 
-**Frontend:** React 18 + TypeScript 5.2+ (strict mode) | Vite 5.1+ | TanStack React Query 5.24+ | Zustand 4.5+ | React Router DOM 6.22+
+**Frontend:** React 18 + TypeScript 5.2+ (strict mode) | Vite 7.2+ | TanStack React Query 5.24+ | Zustand 4.5+ | React Router DOM 6.22+
 
 **UI:** Tailwind CSS 3.4+ | class-variance-authority (CVA pattern for ALL components) | Lucide React | WaveSurfer.js 7.7+
 
-**Backend:** Supabase (PostgreSQL + Auth + Storage) | Dexie 3.2+ (IndexedDB) | vite-plugin-pwa 0.19+ (Workbox)
+**Backend:** Supabase (PostgreSQL + Auth + Storage) | Dexie 3.2+ (IndexedDB) | vite-plugin-pwa 1.1+ (Workbox)
 
 **Environment:** Doppler (secrets) | PowerShell scripts (migrations)
 
@@ -54,6 +54,13 @@ SpellStars is a Progressive Web App (PWA) for children's spelling practice with 
 - Cached offline via `CacheFirst` in `vite.config.ts`
 
 **Auth Flow:** Sign in → `handle_new_user()` trigger creates profile → `role` from metadata → `supabase.auth.onAuthStateChange` updates Zustand → `RootRedirect` routes based on role
+
+**PIN Security:** PINs use PBKDF2-HMAC-SHA256 (100k iterations, 16-byte salt) via `src/lib/crypto.ts`:
+
+- Format: `"salt:hash"` (both base64-encoded)
+- Verification uses constant-time comparison to prevent timing attacks
+- Failed attempts tracked with exponential lockout (after 3 failures)
+- All existing PINs cleared on migration to PBKDF2 (see `20241109000007_secure_pin_hashing.sql`)
 
 ### State Management: Three Tools, Three Purposes
 
@@ -115,6 +122,14 @@ if (!isOnline) {
 syncQueuedData() → uploads audio to Storage → inserts attempts → marks synced: true
 ```
 
+**Critical sync features** (`src/lib/sync.ts`):
+
+- Exponential backoff with jitter (1s, 2s, 4s, 8s, 16s delays)
+- Max 5 retry attempts before marking as failed
+- Atomic operations: audio uploaded first, then attempts with references
+- Batch processing to avoid overwhelming network/database
+- Error isolation: one failed item doesn't block entire queue
+
 ### Database Schema (Key Tables)
 
 **Core tables with RLS:**
@@ -129,6 +144,10 @@ syncQueuedData() → uploads audio to Storage → inserts attempts → marks syn
 8. `session_analytics` - Session tracking (`session_date`, `words_practiced`, `correct_on_first_try`)
 
 **Storage bucket:** `word-audio` - Path: `lists/{listId}/words/{wordId}.webm` - Public read, parent write
+
+**Storage bucket (audio-recordings):** Path: `{child_id}/{list_id}/{word_id}_{timestamp}.webm` - **PRIVATE bucket** - Access requires signed URLs (1 hour TTL) via `getSignedAudioUrl()` in `supa.ts`
+
+**Storage bucket (word-audio):** Path: `lists/{listId}/words/{wordId}.webm` - Public read, parent write (prompt audio only)
 
 **RLS Pattern:** Parents CRUD own content; children read-only + insert own attempts
 
@@ -158,6 +177,8 @@ npm run dev:local   # Without Doppler (requires .env file)
 npm run build       # Production: doppler run -- tsc && vite build
 npm run preview     # Preview: doppler run -- vite preview
 ```
+
+**Important:** This project uses **npm**, NOT pnpm or yarn. All dependency management uses npm.
 
 **Required env vars:** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_ACCESS_TOKEN` (migrations only)
 
@@ -202,6 +223,9 @@ doppler secrets  # Verify
 7. `20241109000004_add_srs_table.sql` - Spaced repetition
 8. `20241109000005_add_parental_controls_analytics_badges.sql` - Settings/analytics
 9. `20241109000006_add_color_theme.sql` - Theme preferences
+10. `20241109000007_secure_pin_hashing.sql` - PBKDF2 PIN security (100k iterations)
+11. `20251109164108_secure_audio_recordings_private.sql` - Private audio storage with signed URLs
+12. `20251109164346_document_audio_url_security.sql` - Audio security documentation
 
 ### PWA & Offline Support
 

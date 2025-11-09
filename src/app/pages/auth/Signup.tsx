@@ -19,6 +19,34 @@ const signupSchema = z.object({
 
 type SignupFormData = z.infer<typeof signupSchema>;
 
+// Extracted Role Option Component
+function RoleOption({
+  register,
+  value,
+  title,
+  description,
+}: {
+  register: UseFormRegister<SignupFormData>;
+  value: "parent" | "child";
+  title: string;
+  description: string;
+}) {
+  return (
+    <label className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-muted/50">
+      <input
+        {...register("role")}
+        type="radio"
+        value={value}
+        className="w-4 h-4 text-primary"
+      />
+      <div>
+        <div className="font-medium">{title}</div>
+        <div className="text-sm text-muted-foreground">{description}</div>
+      </div>
+    </label>
+  );
+}
+
 function RoleSelection({
   register,
   error,
@@ -32,36 +60,92 @@ function RoleSelection({
         I am a...
       </p>
       <div className="space-y-2">
-        <label className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-muted/50">
-          <input
-            {...register("role")}
-            type="radio"
-            value="parent"
-            className="w-4 h-4 text-primary"
-          />
-          <div>
-            <div className="font-medium">Parent</div>
-            <div className="text-sm text-muted-foreground">
-              Manage word lists and track progress
-            </div>
-          </div>
-        </label>
-        <label className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-muted/50">
-          <input
-            {...register("role")}
-            type="radio"
-            value="child"
-            className="w-4 h-4 text-primary"
-          />
-          <div>
-            <div className="font-medium">Child</div>
-            <div className="text-sm text-muted-foreground">
-              Practice spelling and earn rewards
-            </div>
-          </div>
-        </label>
+        <RoleOption
+          register={register}
+          value="parent"
+          title="Parent"
+          description="Manage word lists and track progress"
+        />
+        <RoleOption
+          register={register}
+          value="child"
+          title="Child"
+          description="Practice spelling and earn rewards"
+        />
       </div>
       {error && <p className="mt-1 text-sm text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+// Extracted Form Field Component
+function FormField({
+  id,
+  label,
+  type = "text",
+  placeholder,
+  register,
+  error,
+}: {
+  id: string;
+  label: string;
+  type?: string;
+  placeholder: string;
+  register: ReturnType<UseFormRegister<SignupFormData>>;
+  error?: string;
+}) {
+  return (
+    <div>
+      <label
+        htmlFor={id}
+        className="block text-sm font-medium text-foreground mb-1"
+      >
+        {label}
+      </label>
+      <input
+        {...register}
+        type={type}
+        id={id}
+        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
+        placeholder={placeholder}
+      />
+      {error && <p className="mt-1 text-sm text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+// Extracted Header Component
+function SignupHeader() {
+  return (
+    <div className="text-center mb-8">
+      <h1 className="text-4xl font-bold text-primary mb-2">⭐ SpellStars</h1>
+      <p className="text-muted-foreground">Create your account</p>
+    </div>
+  );
+}
+
+// Extracted Footer Component
+function SignupFooter() {
+  return (
+    <div className="mt-6 text-center text-sm text-muted-foreground">
+      <p>
+        Already have an account?{" "}
+        <Link
+          to="/login"
+          className="text-primary hover:text-primary/80 font-medium"
+        >
+          Sign in
+        </Link>
+      </p>
+    </div>
+  );
+}
+
+// Extracted Error Alert Component
+function ErrorAlert({ message }: { message: string }) {
+  return (
+    <div className="p-3 bg-destructive/10 border border-destructive rounded-lg text-destructive text-sm">
+      {message}
     </div>
   );
 }
@@ -145,80 +229,37 @@ function SignupForm() {
 
   return (
     <>
-      <div className="text-center mb-8">
-        <h1 className="text-4xl font-bold text-primary mb-2">⭐ SpellStars</h1>
-        <p className="text-muted-foreground">Create your account</p>
-      </div>
+      <SignupHeader />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {error && (
-          <div className="p-3 bg-destructive/10 border border-destructive rounded-lg text-destructive text-sm">
-            {error}
-          </div>
-        )}
+        {error && <ErrorAlert message={error} />}
 
-        <div>
-          <label
-            htmlFor="email"
-            className="block text-sm font-medium text-foreground mb-1"
-          >
-            Email
-          </label>
-          <input
-            {...register("email")}
-            type="email"
-            id="email"
-            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
-            placeholder="you@example.com"
-          />
-          {errors.email && (
-            <p className="mt-1 text-sm text-destructive">
-              {errors.email.message}
-            </p>
-          )}
-        </div>
+        <FormField
+          id="email"
+          label="Email"
+          type="email"
+          placeholder="you@example.com"
+          register={register("email")}
+          error={errors.email?.message}
+        />
 
-        <div>
-          <label
-            htmlFor="password"
-            className="block text-sm font-medium text-foreground mb-1"
-          >
-            Password
-          </label>
-          <input
-            {...register("password")}
-            type="password"
-            id="password"
-            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
-            placeholder="••••••••"
-          />
-          {errors.password && (
-            <p className="mt-1 text-sm text-destructive">
-              {errors.password.message}
-            </p>
-          )}
-        </div>
+        <FormField
+          id="password"
+          label="Password"
+          type="password"
+          placeholder="••••••••"
+          register={register("password")}
+          error={errors.password?.message}
+        />
 
-        <div>
-          <label
-            htmlFor="displayName"
-            className="block text-sm font-medium text-foreground mb-1"
-          >
-            Name
-          </label>
-          <input
-            {...register("displayName")}
-            type="text"
-            id="displayName"
-            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
-            placeholder="Your name"
-          />
-          {errors.displayName && (
-            <p className="mt-1 text-sm text-destructive">
-              {errors.displayName.message}
-            </p>
-          )}
-        </div>
+        <FormField
+          id="displayName"
+          label="Name"
+          type="text"
+          placeholder="Your name"
+          register={register("displayName")}
+          error={errors.displayName?.message}
+        />
 
         <RoleSelection register={register} error={errors.role?.message} />
 
@@ -227,17 +268,7 @@ function SignupForm() {
         </Button>
       </form>
 
-      <div className="mt-6 text-center text-sm text-muted-foreground">
-        <p>
-          Already have an account?{" "}
-          <Link
-            to="/login"
-            className="text-primary hover:text-primary/80 font-medium"
-          >
-            Sign in
-          </Link>
-        </p>
-      </div>
+      <SignupFooter />
     </>
   );
 }

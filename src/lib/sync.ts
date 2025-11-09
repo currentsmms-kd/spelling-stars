@@ -1,4 +1,5 @@
 import { db } from "@/data/db";
+import type { QueuedAttempt } from "@/data/db";
 import { supabase } from "@/app/supabase";
 import { logger } from "@/lib/logger";
 
@@ -74,10 +75,7 @@ async function syncQueuedAudio(): Promise<void> {
           search: audio.filename,
         });
 
-      if (
-        existingFiles &&
-        existingFiles.some((f) => f.name === audio.filename)
-      ) {
+      if (existingFiles?.some((f) => f.name === audio.filename)) {
         logger.log(`Audio ${audio.filename} already exists, skipping upload`);
 
         // Mark as synced with existing path
@@ -183,6 +181,162 @@ async function syncQueuedAudio(): Promise<void> {
 }
 
 /**
+ * Helper: Get audio path for an attempt
+ */
+async function getAudioPathForAttempt(
+  attempt: QueuedAttempt
+): Promise<string | undefined | null> {
+  if (!attempt.audio_blob_id) {
+    return undefined;
+  }
+
+  const audioRecord = await db.queuedAudio.get(attempt.audio_blob_id);
+
+  // Skip if audio is not yet synced
+  if (audioRecord && !audioRecord.synced) {
+    logger.log(
+      `Attempt ${attempt.id}: Skipping - audio ${attempt.audio_blob_id} not yet synced`
+    );
+    return null; // Signal to skip this attempt
+  }
+
+  // Skip if audio failed
+  if (audioRecord?.failed) {
+    logger.error(
+      `Attempt ${attempt.id}: Skipping - audio ${attempt.audio_blob_id} permanently failed`
+    );
+
+    // Mark attempt as failed too since its audio failed
+    if (attempt.id !== undefined) {
+      await db.queuedAttempts.update(attempt.id, {
+        failed: true,
+        last_error: "Associated audio upload failed",
+      });
+    }
+    return null; // Signal to skip this attempt
+  }
+
+  return audioRecord?.storage_url;
+}
+
+/**
+ * Helper: Check if attempt already exists in Supabase
+ */
+async function attemptExists(attempt: QueuedAttempt): Promise<boolean> {
+  const { data: existingAttempts, error: checkError } = await supabase
+    .from("attempts")
+    .select("id")
+    .eq("child_id", attempt.child_id)
+    .eq("word_id", attempt.word_id)
+    .eq("started_at", attempt.started_at)
+    .limit(1);
+
+  if (checkError) {
+    logger.error("Error checking for duplicate attempts:", checkError);
+    return false; // Continue with insert attempt if check fails
+  }
+
+  if (existingAttempts?.length > 0) {
+    logger.log(`Attempt ${attempt.id}: Already exists, marking as synced`);
+
+    if (attempt.id !== undefined) {
+      await db.queuedAttempts.update(attempt.id, {
+        synced: true,
+      });
+    }
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Helper: Insert a single attempt with retry logic
+ */
+async function insertAttemptWithRetry(
+  attempt: QueuedAttempt,
+  audioPath: string | undefined
+): Promise<boolean> {
+  let insertSuccess = false;
+  let insertError: Error | null = null;
+
+  for (
+    let retry = 0;
+    retry <= attempt.retry_count && retry < MAX_RETRY_ATTEMPTS;
+    retry++
+  ) {
+    try {
+      if (retry > 0) {
+        const delay = calculateBackoffDelay(retry - 1);
+        logger.log(
+          `Attempt ${attempt.id}: Retry ${retry}/${MAX_RETRY_ATTEMPTS} after ${delay}ms`
+        );
+        await sleep(delay);
+      }
+
+      // Insert into Supabase
+      const { error } = await supabase.from("attempts").insert({
+        child_id: attempt.child_id,
+        word_id: attempt.word_id,
+        mode: attempt.mode,
+        correct: attempt.correct,
+        typed_answer: attempt.typed_answer,
+        audio_url: audioPath, // Store path, not URL
+        started_at: attempt.started_at,
+      });
+
+      if (error) {
+        insertError = error instanceof Error ? error : new Error(String(error));
+        throw insertError;
+      }
+
+      // Mark as synced
+      if (attempt.id !== undefined) {
+        await db.queuedAttempts.update(attempt.id, {
+          synced: true,
+          retry_count: retry,
+          last_error: undefined,
+        });
+      }
+
+      logger.log(`Successfully synced attempt ${attempt.id}`);
+      insertSuccess = true;
+      break;
+    } catch (error) {
+      insertError = error instanceof Error ? error : new Error(String(error));
+
+      // Update retry count
+      if (attempt.id !== undefined) {
+        await db.queuedAttempts.update(attempt.id, {
+          retry_count: retry + 1,
+          last_error: insertError.message,
+        });
+      }
+
+      // If max retries reached, mark as failed
+      if (retry >= MAX_RETRY_ATTEMPTS - 1) {
+        if (attempt.id !== undefined) {
+          await db.queuedAttempts.update(attempt.id, {
+            failed: true,
+          });
+        }
+        logger.error(
+          `Attempt ${attempt.id}: Permanently failed after ${MAX_RETRY_ATTEMPTS} attempts`,
+          error
+        );
+        break;
+      }
+    }
+  }
+
+  if (!insertSuccess && insertError) {
+    logger.error(`Failed to insert attempt ${attempt.id}:`, insertError);
+  }
+
+  return insertSuccess;
+}
+
+/**
  * Insert queued attempts into Supabase
  */
 async function syncQueuedAttempts(): Promise<void> {
@@ -195,138 +349,21 @@ async function syncQueuedAttempts(): Promise<void> {
   for (const attempt of queuedAttempts) {
     try {
       // Get audio path if this attempt has audio
-      // storage_url now contains the storage path, not a URL
-      let audioPath: string | undefined;
-      if (attempt.audio_blob_id) {
-        const audioRecord = await db.queuedAudio.get(attempt.audio_blob_id);
+      const audioPath = await getAudioPathForAttempt(attempt);
 
-        // Skip if audio is not yet synced or failed
-        if (audioRecord && !audioRecord.synced) {
-          logger.log(
-            `Attempt ${attempt.id}: Skipping - audio ${attempt.audio_blob_id} not yet synced`
-          );
-          continue;
-        }
-
-        if (audioRecord && audioRecord.failed) {
-          logger.error(
-            `Attempt ${attempt.id}: Skipping - audio ${attempt.audio_blob_id} permanently failed`
-          );
-
-          // Mark attempt as failed too since its audio failed
-          if (attempt.id !== undefined) {
-            await db.queuedAttempts.update(attempt.id, {
-              failed: true,
-              last_error: "Associated audio upload failed",
-            });
-          }
-          continue;
-        }
-
-        audioPath = audioRecord?.storage_url;
+      // null means skip this attempt (audio not ready or failed)
+      if (audioPath === null) {
+        continue;
       }
 
       // Check for duplicate attempts (idempotency)
-      const { data: existingAttempts, error: checkError } = await supabase
-        .from("attempts")
-        .select("id")
-        .eq("child_id", attempt.child_id)
-        .eq("word_id", attempt.word_id)
-        .eq("started_at", attempt.started_at)
-        .limit(1);
-
-      if (checkError) {
-        logger.error("Error checking for duplicate attempts:", checkError);
-        // Continue with insert attempt if check fails
-      } else if (existingAttempts && existingAttempts.length > 0) {
-        logger.log(`Attempt ${attempt.id}: Already exists, marking as synced`);
-
-        if (attempt.id !== undefined) {
-          await db.queuedAttempts.update(attempt.id, {
-            synced: true,
-          });
-        }
+      const exists = await attemptExists(attempt);
+      if (exists) {
         continue;
       }
 
       // Attempt insert with retry logic
-      let insertSuccess = false;
-      let insertError: Error | null = null;
-
-      for (
-        let retry = 0;
-        retry <= attempt.retry_count && retry < MAX_RETRY_ATTEMPTS;
-        retry++
-      ) {
-        try {
-          if (retry > 0) {
-            const delay = calculateBackoffDelay(retry - 1);
-            logger.log(
-              `Attempt ${attempt.id}: Retry ${retry}/${MAX_RETRY_ATTEMPTS} after ${delay}ms`
-            );
-            await sleep(delay);
-          }
-
-          // Insert into Supabase
-          const { error } = await supabase.from("attempts").insert({
-            child_id: attempt.child_id,
-            word_id: attempt.word_id,
-            mode: attempt.mode,
-            correct: attempt.correct,
-            typed_answer: attempt.typed_answer,
-            audio_url: audioPath, // Store path, not URL
-            started_at: attempt.started_at,
-          });
-
-          if (error) {
-            insertError =
-              error instanceof Error ? error : new Error(String(error));
-            throw insertError;
-          }
-
-          // Mark as synced
-          if (attempt.id !== undefined) {
-            await db.queuedAttempts.update(attempt.id, {
-              synced: true,
-              retry_count: retry,
-              last_error: undefined,
-            });
-          }
-
-          logger.log(`Successfully synced attempt ${attempt.id}`);
-          insertSuccess = true;
-          break;
-        } catch (error) {
-          insertError =
-            error instanceof Error ? error : new Error(String(error));
-
-          // Update retry count
-          if (attempt.id !== undefined) {
-            await db.queuedAttempts.update(attempt.id, {
-              retry_count: retry + 1,
-              last_error: insertError.message,
-            });
-          }
-
-          // If max retries reached, mark as failed
-          if (retry >= MAX_RETRY_ATTEMPTS - 1) {
-            if (attempt.id !== undefined) {
-              await db.queuedAttempts.update(attempt.id, {
-                failed: true,
-              });
-            }
-            logger.error(
-              `Attempt ${attempt.id}: Permanently failed after ${MAX_RETRY_ATTEMPTS} attempts`,
-              error
-            );
-            break;
-          }
-        }
-      }
-
-      if (!insertSuccess && insertError) {
-        logger.error(`Failed to insert attempt ${attempt.id}:`, insertError);
-      }
+      await insertAttemptWithRetry(attempt, audioPath);
     } catch (error) {
       logger.error(`Error processing attempt ${attempt.id}:`, error);
 
@@ -358,7 +395,7 @@ export async function queueAttempt(
     word_id: wordId,
     list_id: listId,
     mode,
-    correct: correct,
+    correct,
     typed_answer: typedAnswer,
     audio_blob_id: audioBlobId,
     started_at: new Date().toISOString(),
@@ -430,19 +467,23 @@ export async function getFailedItems(): Promise<{
     .toArray();
 
   return {
-    failedAttempts: failedAttempts.map((a) => ({
-      id: a.id!,
-      retryCount: a.retry_count,
-      lastError: a.last_error,
-      startedAt: a.started_at,
-    })),
-    failedAudio: failedAudio.map((a) => ({
-      id: a.id!,
-      filename: a.filename,
-      retryCount: a.retry_count,
-      lastError: a.last_error,
-      createdAt: a.created_at,
-    })),
+    failedAttempts: failedAttempts
+      .filter((a) => a.id !== undefined)
+      .map((a) => ({
+        id: a.id as number,
+        retryCount: a.retry_count,
+        lastError: a.last_error,
+        startedAt: a.started_at,
+      })),
+    failedAudio: failedAudio
+      .filter((a) => a.id !== undefined)
+      .map((a) => ({
+        id: a.id as number,
+        filename: a.filename,
+        retryCount: a.retry_count,
+        lastError: a.last_error,
+        createdAt: a.created_at,
+      })),
   };
 }
 

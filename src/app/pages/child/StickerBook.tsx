@@ -192,6 +192,56 @@ function EmptyBadgeState() {
   );
 }
 
+// Extracted Header Component
+function StickerBookHeader({ totalStars }: { totalStars: number }) {
+  return (
+    <Card className="child-card bg-gradient-to-br from-secondary-100 to-secondary-200 flex items-center justify-between">
+      <div>
+        <h1 className="text-4xl font-bold mb-2">My Sticker Book</h1>
+        <p className="text-xl text-muted-foreground">
+          Collect stickers by practicing!
+        </p>
+      </div>
+      <div className="flex items-center gap-3 bg-card px-6 py-4 rounded-2xl shadow-lg">
+        <Star className="text-secondary fill-current" size={48} />
+        <div>
+          <div className="text-4xl font-bold">{totalStars}</div>
+          <div className="text-sm text-muted-foreground">Total Stars</div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// Extracted Badges Grid Component
+function BadgesGrid({
+  badges,
+  isBadgeEarned,
+  canEarnBadge,
+}: {
+  badges: Badge[];
+  isBadgeEarned: (badge: Badge) => boolean;
+  canEarnBadge: (badge: Badge) => boolean;
+}) {
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      {badges.map((badge) => {
+        const earned = isBadgeEarned(badge);
+        const canEarn = canEarnBadge(badge);
+
+        return (
+          <BadgeCard
+            key={badge.id}
+            badge={badge}
+            earned={earned}
+            canEarn={canEarn}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 // Extracted Sticker Book Content Component
 function StickerBookContent({
   totalStars,
@@ -208,44 +258,18 @@ function StickerBookContent({
 }) {
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      {/* Header with Stars - Inline to reduce nesting */}
-      <Card className="child-card bg-gradient-to-br from-secondary-100 to-secondary-200 flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-bold mb-2">My Sticker Book</h1>
-          <p className="text-xl text-muted-foreground">
-            Collect stickers by practicing!
-          </p>
-        </div>
-        <div className="flex items-center gap-3 bg-card px-6 py-4 rounded-2xl shadow-lg">
-          <Star className="text-secondary fill-current" size={48} />
-          <div>
-            <div className="text-4xl font-bold">{totalStars}</div>
-            <div className="text-sm text-muted-foreground">Total Stars</div>
-          </div>
-        </div>
-      </Card>
+      <StickerBookHeader totalStars={totalStars} />
 
       <BadgeStatsGrid
         earnedCount={earnedBadges.size}
         totalCount={badges.length}
       />
 
-      {/* Badges Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        {badges.map((badge) => {
-          const earned = isBadgeEarned(badge);
-          const canEarn = canEarnBadge(badge);
-
-          return (
-            <BadgeCard
-              key={badge.id}
-              badge={badge}
-              earned={earned}
-              canEarn={canEarn}
-            />
-          );
-        })}
-      </div>
+      <BadgesGrid
+        badges={badges}
+        isBadgeEarned={isBadgeEarned}
+        canEarnBadge={canEarnBadge}
+      />
 
       {earnedBadges.size === 0 && <EmptyBadgeState />}
     </div>
@@ -314,6 +338,7 @@ export function StickerBook() {
     return totalStars >= badge.required_stars;
   };
 
+  // Early return for loading state
   if (isLoading) {
     return (
       <AppShell title="Sticker Book" variant="child">
@@ -324,6 +349,7 @@ export function StickerBook() {
     );
   }
 
+  // Main content
   return (
     <AppShell title="Sticker Book" variant="child">
       <StickerBookContent
