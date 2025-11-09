@@ -14,7 +14,7 @@ This guide covers deploying SpellStars to various hosting platforms.
 
 Vercel provides excellent support for Vite applications and PWAs.
 
-#### Steps:
+#### Steps
 
 1. **Install Vercel CLI** (optional):
 
