@@ -8,7 +8,7 @@ import { Button } from "@/app/components/Button";
 import { Card } from "@/app/components/Card";
 
 const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  emailOrUsername: z.string().min(1, "Username or email is required"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
@@ -31,7 +31,14 @@ function LoginForm() {
     setIsLoading(true);
     setError(null);
 
-    const { error: signInError } = await signIn(data.email, data.password);
+    // Convert username to internal email format if it doesn't contain @
+    let emailToUse = data.emailOrUsername;
+    if (!emailToUse.includes("@")) {
+      // It's a username, convert to internal email format
+      emailToUse = `${emailToUse}@spellstars.app`;
+    }
+
+    const { error: signInError } = await signIn(emailToUse, data.password);
 
     if (signInError) {
       setError(signInError.message);
@@ -59,23 +66,26 @@ function LoginForm() {
 
         <div>
           <label
-            htmlFor="email"
+            htmlFor="emailOrUsername"
             className="block text-sm font-medium text-foreground mb-1"
           >
-            Email
+            Email or Username
           </label>
           <input
-            {...register("email")}
-            type="email"
-            id="email"
+            {...register("emailOrUsername")}
+            type="text"
+            id="emailOrUsername"
             className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
-            placeholder="you@example.com"
+            placeholder="username or parent@example.com"
           />
-          {errors.email && (
+          {errors.emailOrUsername && (
             <p className="mt-1 text-sm text-destructive">
-              {errors.email.message}
+              {errors.emailOrUsername.message}
             </p>
           )}
+          <p className="mt-1 text-xs text-muted-foreground">
+            Children: Enter your username • Parents: Enter your email
+          </p>
         </div>
 
         <div>

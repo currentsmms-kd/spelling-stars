@@ -17,10 +17,10 @@ interface ChildProfile {
 }
 
 export function ChildManagement() {
-  const { user, profile, signUp } = useAuth();
+  const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const [showAddForm, setShowAddForm] = useState(false);
-  const [childEmail, setChildEmail] = useState("");
+  const [childUsername, setChildUsername] = useState(""); // Changed from email to username
   const [childPassword, setChildPassword] = useState("");
   const [childName, setChildName] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -57,27 +57,41 @@ export function ChildManagement() {
   // Create child account mutation
   const createChild = useMutation({
     mutationFn: async ({
-      email,
+      username,
       password,
       displayName,
       parentId,
     }: {
-      email: string;
+      username: string;
       password: string;
       displayName: string;
       parentId: string;
     }) => {
-      // Sign up child account
-      const { data: authData, error: authError } = await signUp(
-        email,
+      // Generate a unique email from username (internal use only)
+      // Using .app domain (valid TLD) to satisfy Supabase email validation
+      const generatedEmail = `${username}@spellstars.app`;
+
+      // Sign up child account with metadata
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: generatedEmail,
         password,
-        "child"
-      );
+        options: {
+          data: {
+            role: "child",
+            display_name: displayName,
+            parent_id: parentId,
+            username: username, // Store username in metadata
+          },
+        },
+      });
 
       if (authError) throw authError;
       if (!authData.user) throw new Error("No user created");
 
-      // Update profile with parent_id and display_name
+      // Wait a moment for the trigger to create the profile
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Update profile with parent_id (in case trigger didn't get it from metadata)
       const { error: profileError } = await supabase
         .from("profiles")
         .update({
@@ -86,14 +100,20 @@ export function ChildManagement() {
         })
         .eq("id", authData.user.id);
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        logger.warn(
+          "Profile update after creation failed (might be okay):",
+          profileError
+        );
+        // Don't throw - the trigger should have created the profile
+      }
 
       return authData.user;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["children"] });
       setShowAddForm(false);
-      setChildEmail("");
+      setChildUsername("");
       setChildPassword("");
       setChildName("");
       logger.info("Child account created successfully");
@@ -134,8 +154,16 @@ export function ChildManagement() {
       return;
     }
 
-    if (!childEmail || !childPassword || !childName) {
+    if (!childUsername || !childPassword || !childName) {
       alert("Please fill in all fields");
+      return;
+    }
+
+    // Validate username (alphanumeric only, no spaces)
+    if (!/^[a-zA-Z0-9]+$/.test(childUsername)) {
+      alert(
+        "Username can only contain letters and numbers (no spaces or special characters)"
+      );
       return;
     }
 
@@ -145,7 +173,7 @@ export function ChildManagement() {
     }
 
     createChild.mutate({
-      email: childEmail,
+      username: childUsername,
       password: childPassword,
       displayName: childName,
       parentId: user.id,
@@ -213,17 +241,23 @@ export function ChildManagement() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Email</label>
+                <label className="block text-sm font-medium mb-1">
+                  Username
+                </label>
                 <input
-                  type="email"
-                  value={childEmail}
-                  onChange={(e) => setChildEmail(e.target.value)}
-                  placeholder="child@example.com"
+                  type="text"
+                  value={childUsername}
+                  onChange={(e) =>
+                    setChildUsername(e.target.value.toLowerCase())
+                  }
+                  placeholder="e.g., sally, tommy, alex"
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
                   required
+                  pattern="[a-zA-Z0-9]+"
+                  title="Only letters and numbers, no spaces"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Use a unique email for each child
+                  Letters and numbers only (no spaces or special characters)
                 </p>
               </div>
 

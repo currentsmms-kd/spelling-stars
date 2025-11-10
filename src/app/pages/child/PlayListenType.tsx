@@ -390,7 +390,7 @@ function AnswerSection({
 
 export function PlayListenType() {
   const [searchParams] = useSearchParams();
-  const listId = searchParams.get("list");
+  const listId = searchParams.get("listId"); // Fixed: was "list", should be "listId"
   const navigate = useNavigate();
   const { profile } = useAuth();
   const isOnline = useOnline();
@@ -515,7 +515,7 @@ export function PlayListenType() {
 
   const playAudio = useCallback(() => {
     if (!currentWord) {
-      return undefined;
+      return;
     }
 
     if (currentWord.prompt_audio_url) {
@@ -529,7 +529,6 @@ export function PlayListenType() {
       }
       speechSynthesis.speak(utterance);
     }
-    return undefined;
   }, [currentWord, getVoiceByName]);
 
   // Auto-play on word change
@@ -550,7 +549,7 @@ export function PlayListenType() {
 
   const nextWord = useCallback(() => {
     if (!listData) {
-      return undefined;
+      return;
     }
 
     if (currentWordIndex < listData.words.length - 1) {
@@ -563,7 +562,6 @@ export function PlayListenType() {
       // Completed all words
       navigate("/child/rewards");
     }
-    return undefined;
   }, [listData, currentWordIndex, navigate]);
 
   const retry = () => {

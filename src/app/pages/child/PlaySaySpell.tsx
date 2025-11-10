@@ -459,7 +459,7 @@ function LoadingState() {
 
 export function PlaySaySpell() {
   const [searchParams] = useSearchParams();
-  const listId = searchParams.get("list");
+  const listId = searchParams.get("listId"); // Fixed: was "list", should be "listId"
   const navigate = useNavigate();
   const { profile } = useAuth();
   const isOnline = useOnline();
