@@ -1337,3 +1337,126 @@ export function useUpdateSrs() {
     },
   });
 }
+
+// ============================================================================
+// PARENT ANALYTICS & DASHBOARD
+// ============================================================================
+
+/**
+ * Get comprehensive parent overview analytics
+ */
+export async function getParentOverview(
+  parentId: string,
+  dateFrom?: Date,
+  dateTo?: Date
+) {
+  const { data, error } = await supabase.rpc("get_parent_overview", {
+    p_parent_id: parentId,
+    p_date_from: dateFrom?.toISOString().split("T")[0],
+    p_date_to: dateTo?.toISOString().split("T")[0],
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Hook to get parent overview analytics
+ */
+export function useParentOverview(
+  parentId?: string,
+  dateFrom?: Date,
+  dateTo?: Date
+) {
+  return useQuery({
+    queryKey: ["parent_overview", parentId, dateFrom, dateTo],
+    queryFn: () => {
+      if (!parentId) throw new Error("parentId is required");
+      return getParentOverview(parentId, dateFrom, dateTo);
+    },
+    enabled: Boolean(parentId),
+    staleTime: 1000 * 60, // Cache for 1 minute
+  });
+}
+
+/**
+ * Get child mastery data
+ */
+export async function getChildMastery(childId: string) {
+  const { data, error } = await supabase
+    .from("view_child_mastery")
+    .select("*")
+    .eq("child_id", childId);
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Hook to get child mastery data
+ */
+export function useChildMastery(childId?: string) {
+  return useQuery({
+    queryKey: ["child_mastery", childId],
+    queryFn: () => {
+      if (!childId) throw new Error("childId is required");
+      return getChildMastery(childId);
+    },
+    enabled: Boolean(childId),
+  });
+}
+
+/**
+ * Get n-gram error patterns
+ */
+export async function getNgramErrors(childId: string, limit = 10) {
+  const { data, error } = await supabase
+    .from("view_ngram_errors")
+    .select("*")
+    .eq("child_id", childId)
+    .order("error_count", { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Hook to get n-gram error patterns
+ */
+export function useNgramErrors(childId?: string, limit = 10) {
+  return useQuery({
+    queryKey: ["ngram_errors", childId, limit],
+    queryFn: () => {
+      if (!childId) throw new Error("childId is required");
+      return getNgramErrors(childId, limit);
+    },
+    enabled: Boolean(childId),
+  });
+}
+
+/**
+ * Get all children for a parent
+ */
+export async function getChildrenForParent(parentId: string) {
+  const { data, error } = await supabase.rpc("get_children_for_parent", {
+    p_parent_id: parentId,
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Hook to get all children for a parent
+ */
+export function useChildrenForParent(parentId?: string) {
+  return useQuery({
+    queryKey: ["children_for_parent", parentId],
+    queryFn: () => {
+      if (!parentId) throw new Error("parentId is required");
+      return getChildrenForParent(parentId);
+    },
+    enabled: Boolean(parentId),
+  });
+}

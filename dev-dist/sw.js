@@ -67,7 +67,7 @@ if (!self.define) {
     });
   };
 }
-define(['./workbox-414b1829'], (function (workbox) { 'use strict';
+define(['./workbox-e39e166f'], (function (workbox) { 'use strict';
 
   self.skipWaiting();
   workbox.clientsClaim();
@@ -82,26 +82,70 @@ define(['./workbox-414b1829'], (function (workbox) { 'use strict';
     "revision": "3ca0b8505b4bec776b69afdba2768812"
   }, {
     "url": "index.html",
-    "revision": "0.7dsc4mq5nvg"
+    "revision": "0.bnttkia469o"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
     allowlist: [/^\/$/]
   }));
-  workbox.registerRoute(/^https:\/\/.*\.supabase\.co\/.*/i, new workbox.NetworkFirst({
-    "cacheName": "supabase-cache",
+  workbox.registerRoute(/^https:\/\/.*\.supabase\.co\/auth\/.*/i, new workbox.NetworkOnly({
+    "cacheName": "supabase-auth-cache",
+    plugins: []
+  }), 'GET');
+  workbox.registerRoute(/^https:\/\/.*\.supabase\.co\/rest\/.*/i, new workbox.NetworkFirst({
+    "cacheName": "supabase-api-cache",
+    "networkTimeoutSeconds": 5,
     plugins: [new workbox.ExpirationPlugin({
       maxEntries: 50,
-      maxAgeSeconds: 86400
+      maxAgeSeconds: 300
     }), new workbox.CacheableResponsePlugin({
       statuses: [0, 200]
     })]
   }), 'GET');
-  workbox.registerRoute(/\/child\/.*/, new workbox.CacheFirst({
+  workbox.registerRoute(({
+    url
+  }) => {
+    const isStorage = url.hostname.includes(".supabase.co") && url.pathname.includes("/storage/");
+    const isAudioRecordings = url.pathname.includes("/audio-recordings/");
+    const hasSignedToken = url.searchParams.has("token");
+    return isStorage && (isAudioRecordings || hasSignedToken);
+  }, new workbox.NetworkOnly({
+    "cacheName": "private-audio-cache",
+    plugins: []
+  }), 'GET');
+  workbox.registerRoute(/^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/public\/word-audio\/.*/i, new workbox.CacheFirst({
+    "cacheName": "public-audio-cache",
+    plugins: [new workbox.ExpirationPlugin({
+      maxEntries: 100,
+      maxAgeSeconds: 172800
+    }), new workbox.CacheableResponsePlugin({
+      statuses: [0, 200]
+    })]
+  }), 'GET');
+  workbox.registerRoute(/^https:\/\/.*\.supabase\.co\/storage\/.*/i, new workbox.NetworkFirst({
+    "cacheName": "supabase-storage-fallback",
+    "networkTimeoutSeconds": 5,
+    plugins: [new workbox.ExpirationPlugin({
+      maxEntries: 50,
+      maxAgeSeconds: 1800
+    }), new workbox.CacheableResponsePlugin({
+      statuses: [0, 200]
+    })]
+  }), 'GET');
+  workbox.registerRoute(/\/child\/.*/, new workbox.NetworkFirst({
     "cacheName": "child-routes-cache",
+    "networkTimeoutSeconds": 3,
     plugins: [new workbox.ExpirationPlugin({
       maxEntries: 20,
-      maxAgeSeconds: 604800
+      maxAgeSeconds: 86400
+    })]
+  }), 'GET');
+  workbox.registerRoute(/\/parent\/.*/, new workbox.NetworkFirst({
+    "cacheName": "parent-routes-cache",
+    "networkTimeoutSeconds": 3,
+    plugins: [new workbox.ExpirationPlugin({
+      maxEntries: 20,
+      maxAgeSeconds: 3600
     })]
   }), 'GET');
 

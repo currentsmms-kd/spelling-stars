@@ -12,193 +12,8 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.5";
   };
-  graphql_public: {
-    Tables: {
-      [_ in never]: never;
-    };
-    Views: {
-      [_ in never]: never;
-    };
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json;
-          operationName?: string;
-          query?: string;
-          variables?: Json;
-        };
-        Returns: Json;
-      };
-    };
-    Enums: {
-      [_ in never]: never;
-    };
-    CompositeTypes: {
-      [_ in never]: never;
-    };
-  };
   public: {
     Tables: {
-      parental_settings: {
-        Row: {
-          id: string;
-          parent_id: string;
-          pin_code: string;
-          show_hints_on_first_miss: boolean;
-          enforce_case_sensitivity: boolean;
-          auto_readback_spelling: boolean;
-          daily_session_limit_minutes: number;
-          default_tts_voice: string;
-          color_theme: string;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          parent_id: string;
-          pin_code: string;
-          show_hints_on_first_miss?: boolean;
-          enforce_case_sensitivity?: boolean;
-          auto_readback_spelling?: boolean;
-          daily_session_limit_minutes?: number;
-          default_tts_voice?: string;
-          color_theme?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          parent_id?: string;
-          pin_code?: string;
-          show_hints_on_first_miss?: boolean;
-          enforce_case_sensitivity?: boolean;
-          auto_readback_spelling?: boolean;
-          daily_session_limit_minutes?: number;
-          default_tts_voice?: string;
-          color_theme?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "parental_settings_parent_id_fkey";
-            columns: ["parent_id"];
-            isOneToOne: true;
-            referencedRelation: "profiles";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      session_analytics: {
-        Row: {
-          id: string;
-          child_id: string;
-          session_date: string;
-          session_duration_seconds: number;
-          words_practiced: number;
-          correct_on_first_try: number;
-          total_attempts: number;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          child_id: string;
-          session_date?: string;
-          session_duration_seconds?: number;
-          words_practiced?: number;
-          correct_on_first_try?: number;
-          total_attempts?: number;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          child_id?: string;
-          session_date?: string;
-          session_duration_seconds?: number;
-          words_practiced?: number;
-          correct_on_first_try?: number;
-          total_attempts?: number;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "session_analytics_child_id_fkey";
-            columns: ["child_id"];
-            isOneToOne: false;
-            referencedRelation: "profiles";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      badges: {
-        Row: {
-          id: string;
-          badge_key: string;
-          name: string;
-          description: string;
-          icon: string;
-          required_stars: number;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          badge_key: string;
-          name: string;
-          description: string;
-          icon: string;
-          required_stars?: number;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          badge_key?: string;
-          name?: string;
-          description?: string;
-          icon?: string;
-          required_stars?: number;
-          created_at?: string;
-        };
-        Relationships: [];
-      };
-      user_badges: {
-        Row: {
-          id: string;
-          child_id: string;
-          badge_id: string;
-          earned_at: string;
-        };
-        Insert: {
-          id?: string;
-          child_id: string;
-          badge_id: string;
-          earned_at?: string;
-        };
-        Update: {
-          id?: string;
-          child_id?: string;
-          badge_id?: string;
-          earned_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "user_badges_child_id_fkey";
-            columns: ["child_id"];
-            isOneToOne: false;
-            referencedRelation: "profiles";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "user_badges_badge_id_fkey";
-            columns: ["badge_id"];
-            isOneToOne: false;
-            referencedRelation: "badges";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
       attempts: {
         Row: {
           audio_url: string | null;
@@ -250,6 +65,36 @@ export type Database = {
           },
         ];
       };
+      badges: {
+        Row: {
+          badge_key: string;
+          created_at: string | null;
+          description: string;
+          icon: string;
+          id: string;
+          name: string;
+          required_stars: number | null;
+        };
+        Insert: {
+          badge_key: string;
+          created_at?: string | null;
+          description: string;
+          icon: string;
+          id?: string;
+          name: string;
+          required_stars?: number | null;
+        };
+        Update: {
+          badge_key?: string;
+          created_at?: string | null;
+          description?: string;
+          icon?: string;
+          id?: string;
+          name?: string;
+          required_stars?: number | null;
+        };
+        Relationships: [];
+      };
       list_words: {
         Row: {
           list_id: string;
@@ -283,35 +128,96 @@ export type Database = {
           },
         ];
       };
+      parental_settings: {
+        Row: {
+          auto_readback_spelling: boolean | null;
+          color_theme: string | null;
+          created_at: string | null;
+          daily_session_limit_minutes: number | null;
+          default_tts_voice: string | null;
+          enforce_case_sensitivity: boolean | null;
+          id: string;
+          parent_id: string;
+          pin_code: string;
+          show_hints_on_first_miss: boolean | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          auto_readback_spelling?: boolean | null;
+          color_theme?: string | null;
+          created_at?: string | null;
+          daily_session_limit_minutes?: number | null;
+          default_tts_voice?: string | null;
+          enforce_case_sensitivity?: boolean | null;
+          id?: string;
+          parent_id: string;
+          pin_code: string;
+          show_hints_on_first_miss?: boolean | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          auto_readback_spelling?: boolean | null;
+          color_theme?: string | null;
+          created_at?: string | null;
+          daily_session_limit_minutes?: number | null;
+          default_tts_voice?: string | null;
+          enforce_case_sensitivity?: boolean | null;
+          id?: string;
+          parent_id?: string;
+          pin_code?: string;
+          show_hints_on_first_miss?: boolean | null;
+          updated_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "parental_settings_parent_id_fkey";
+            columns: ["parent_id"];
+            isOneToOne: true;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       profiles: {
         Row: {
           avatar_url: string | null;
+          color_theme: string | null;
           created_at: string | null;
           display_name: string | null;
           id: string;
+          parent_id: string | null;
           role: string;
-          color_theme: string;
           updated_at: string | null;
         };
         Insert: {
           avatar_url?: string | null;
+          color_theme?: string | null;
           created_at?: string | null;
           display_name?: string | null;
           id: string;
+          parent_id?: string | null;
           role: string;
-          color_theme?: string;
           updated_at?: string | null;
         };
         Update: {
           avatar_url?: string | null;
+          color_theme?: string | null;
           created_at?: string | null;
           display_name?: string | null;
           id?: string;
+          parent_id?: string | null;
           role?: string;
-          color_theme?: string;
           updated_at?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "profiles_parent_id_fkey";
+            columns: ["parent_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       rewards: {
         Row: {
@@ -342,42 +248,86 @@ export type Database = {
           },
         ];
       };
-      srs: {
+      session_analytics: {
         Row: {
-          id: string;
           child_id: string;
-          word_id: string;
-          ease: number;
-          interval_days: number;
-          due_date: string;
-          reps: number;
-          lapses: number;
-          created_at: string;
-          updated_at: string;
+          correct_on_first_try: number | null;
+          created_at: string | null;
+          id: string;
+          session_date: string;
+          session_duration_seconds: number | null;
+          total_attempts: number | null;
+          updated_at: string | null;
+          words_practiced: number | null;
         };
         Insert: {
-          id?: string;
           child_id: string;
-          word_id: string;
-          ease?: number;
-          interval_days?: number;
-          due_date?: string;
-          reps?: number;
-          lapses?: number;
-          created_at?: string;
-          updated_at?: string;
+          correct_on_first_try?: number | null;
+          created_at?: string | null;
+          id?: string;
+          session_date?: string;
+          session_duration_seconds?: number | null;
+          total_attempts?: number | null;
+          updated_at?: string | null;
+          words_practiced?: number | null;
         };
         Update: {
-          id?: string;
           child_id?: string;
-          word_id?: string;
-          ease?: number;
-          interval_days?: number;
-          due_date?: string;
-          reps?: number;
-          lapses?: number;
+          correct_on_first_try?: number | null;
+          created_at?: string | null;
+          id?: string;
+          session_date?: string;
+          session_duration_seconds?: number | null;
+          total_attempts?: number | null;
+          updated_at?: string | null;
+          words_practiced?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "session_analytics_child_id_fkey";
+            columns: ["child_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      srs: {
+        Row: {
+          child_id: string;
+          created_at: string;
+          due_date: string;
+          ease: number;
+          id: string;
+          interval_days: number;
+          lapses: number;
+          reps: number;
+          updated_at: string;
+          word_id: string;
+        };
+        Insert: {
+          child_id: string;
           created_at?: string;
+          due_date?: string;
+          ease?: number;
+          id?: string;
+          interval_days?: number;
+          lapses?: number;
+          reps?: number;
           updated_at?: string;
+          word_id: string;
+        };
+        Update: {
+          child_id?: string;
+          created_at?: string;
+          due_date?: string;
+          ease?: number;
+          id?: string;
+          interval_days?: number;
+          lapses?: number;
+          reps?: number;
+          updated_at?: string;
+          word_id?: string;
         };
         Relationships: [
           {
@@ -396,12 +346,49 @@ export type Database = {
           },
         ];
       };
+      user_badges: {
+        Row: {
+          badge_id: string;
+          child_id: string;
+          earned_at: string | null;
+          id: string;
+        };
+        Insert: {
+          badge_id: string;
+          child_id: string;
+          earned_at?: string | null;
+          id?: string;
+        };
+        Update: {
+          badge_id?: string;
+          child_id?: string;
+          earned_at?: string | null;
+          id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "user_badges_badge_id_fkey";
+            columns: ["badge_id"];
+            isOneToOne: false;
+            referencedRelation: "badges";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "user_badges_child_id_fkey";
+            columns: ["child_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       word_lists: {
         Row: {
           created_at: string | null;
           created_by: string;
           id: string;
           title: string;
+          updated_at: string | null;
           week_start_date: string | null;
         };
         Insert: {
@@ -409,6 +396,7 @@ export type Database = {
           created_by: string;
           id?: string;
           title: string;
+          updated_at?: string | null;
           week_start_date?: string | null;
         };
         Update: {
@@ -416,11 +404,12 @@ export type Database = {
           created_by?: string;
           id?: string;
           title?: string;
+          updated_at?: string | null;
           week_start_date?: string | null;
         };
         Relationships: [
           {
-            foreignKeyName: "word_lists_created_by_fkey";
+            foreignKeyName: "spelling_lists_parent_id_fkey";
             columns: ["created_by"];
             isOneToOne: false;
             referencedRelation: "profiles";
@@ -460,15 +449,68 @@ export type Database = {
       };
     };
     Views: {
-      [_ in never]: never;
+      view_child_mastery: {
+        Row: {
+          accuracy: number | null;
+          child_id: string | null;
+          last_practiced_at: string | null;
+          list_id: string | null;
+          list_title: string | null;
+          mastered_count: number | null;
+          mastery_percentage: number | null;
+          total_words_in_list: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "attempts_child_id_fkey";
+            columns: ["child_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "list_words_list_id_fkey";
+            columns: ["list_id"];
+            isOneToOne: false;
+            referencedRelation: "word_lists";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      view_ngram_errors: {
+        Row: {
+          affected_word_ids: string[] | null;
+          child_id: string | null;
+          error_count: number | null;
+          last_seen: string | null;
+          ngram: string | null;
+          ngram_length: number | null;
+          typed_ngram: string | null;
+        };
+        Relationships: [];
+      };
     };
     Functions: {
       fn_add_stars: {
-        Args: {
-          p_child: string;
-          p_amount: number;
-        };
+        Args: { p_amount: number; p_child: string };
         Returns: number;
+      };
+      get_children_for_parent: {
+        Args: { p_parent_id: string };
+        Returns: {
+          created_at: string;
+          display_name: string;
+          email: string;
+          id: string;
+        }[];
+      };
+      get_parent_overview: {
+        Args: { p_date_from?: string; p_date_to?: string; p_parent_id: string };
+        Returns: Json;
+      };
+      is_word_mastered: {
+        Args: { p_child_id: string; p_word_id: string };
+        Returns: boolean;
       };
     };
     Enums: {
@@ -601,9 +643,6 @@ export type CompositeTypes<
     : never;
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },
