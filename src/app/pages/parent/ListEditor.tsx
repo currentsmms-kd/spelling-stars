@@ -556,7 +556,12 @@ export function ListEditor() {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (hasUnsavedChanges) {
         e.preventDefault();
-        e.returnValue = "";
+        // Modern browsers use preventDefault() to trigger the native prompt.
+        // Setting returnValue is only needed for legacy browser compatibility.
+        // Feature-detect and set only if necessary.
+        if (typeof e.returnValue !== "undefined") {
+          e.returnValue = "";
+        }
       }
     };
 

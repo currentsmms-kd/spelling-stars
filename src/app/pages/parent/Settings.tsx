@@ -7,8 +7,9 @@ import { useParentalSettingsStore } from "@/app/store/parentalSettings";
 import { useThemeStore } from "@/app/store/theme";
 import { useAuth } from "@/app/hooks/useAuth";
 import { supabase } from "@/app/supabase";
-import { Lock, Save, Settings } from "lucide-react";
+import { Lock, Save, Settings, Trash2, RefreshCw } from "lucide-react";
 import { isValidPinFormat } from "@/lib/crypto";
+import { clearUserCaches, clearAllCaches, getCacheInfo } from "@/lib/cache";
 
 // Extracted PIN Settings Component
 function PinSettings({
@@ -233,6 +234,125 @@ function TtsSettings({
   );
 }
 
+// Cache Management Component
+function CacheManagement() {
+  const [cacheInfo, setCacheInfo] = useState<Map<string, number>>(new Map());
+  const [isClearing, setIsClearing] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const loadCacheInfo = async () => {
+    const info = await getCacheInfo();
+    setCacheInfo(info);
+  };
+
+  useEffect(() => {
+    loadCacheInfo();
+  }, []);
+
+  const handleClearUserCaches = async () => {
+    setIsClearing(true);
+    setMessage(null);
+    try {
+      await clearUserCaches();
+      setMessage("User caches cleared successfully");
+      await loadCacheInfo();
+    } catch (error) {
+      setMessage("Failed to clear user caches");
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  const handleClearAllCaches = async () => {
+    if (
+      !confirm(
+        "This will clear ALL caches, including downloaded content. Continue?"
+      )
+    ) {
+      return;
+    }
+    setIsClearing(true);
+    setMessage(null);
+    try {
+      await clearAllCaches();
+      setMessage("All caches cleared successfully");
+      await loadCacheInfo();
+    } catch (error) {
+      setMessage("Failed to clear all caches");
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  const totalCachedItems = Array.from(cacheInfo.values()).reduce(
+    (sum, count) => sum + count,
+    0
+  );
+
+  return (
+    <Card>
+      <h2 className="text-xl font-bold mb-4">Cache Management</h2>
+      <p className="text-muted-foreground mb-4">
+        Clear cached data to free up space or fix issues. User caches are
+        automatically cleared when you sign out.
+      </p>
+
+      {message && (
+        <div className="p-3 mb-4 rounded-lg bg-secondary/10 border border-secondary text-secondary-foreground">
+          {message}
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <div className="p-3 bg-muted/50 rounded-lg">
+          <div className="text-sm text-muted-foreground mb-2">Cache Status</div>
+          <div className="font-medium">
+            {totalCachedItems} item{totalCachedItems !== 1 ? "s" : ""} cached
+          </div>
+          {cacheInfo.size > 0 && (
+            <div className="mt-2 text-sm text-muted-foreground space-y-1">
+              {Array.from(cacheInfo.entries()).map(([name, count]) => (
+                <div key={name}>
+                  {name}: {count} item{count !== 1 ? "s" : ""}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <Button
+            onClick={handleClearUserCaches}
+            disabled={isClearing}
+            variant="outline"
+            className="flex items-center justify-center gap-2"
+          >
+            <Trash2 size={18} aria-hidden="true" />
+            Clear User Data
+          </Button>
+          <Button
+            onClick={handleClearAllCaches}
+            disabled={isClearing}
+            variant="outline"
+            className="flex items-center justify-center gap-2"
+          >
+            <RefreshCw size={18} aria-hidden="true" />
+            Clear All Caches
+          </Button>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          <strong>Clear User Data:</strong> Removes personal content caches
+          (routes and API data). Safe for regular use.
+          <br />
+          <strong>Clear All Caches:</strong> Removes everything including
+          downloaded assets. Use if experiencing issues.
+        </p>
+      </div>
+    </Card>
+  );
+}
+
 export function ParentalSettings() {
   const { profile } = useAuth();
   const {
@@ -420,6 +540,9 @@ export function ParentalSettings() {
             setLocalSettings({ ...localSettings, defaultTtsVoice: voice })
           }
         />
+
+        {/* Cache Management */}
+        <CacheManagement />
 
         {/* Color Theme Picker */}
         <Card>

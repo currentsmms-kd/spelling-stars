@@ -337,35 +337,58 @@ export function Rewards() {
     enabled: Boolean(profile?.id),
   });
 
-  // Calculate perfect words (words with at least one correct first-try attempt)
+  // Calculate perfect words (words where the first attempt was correct)
   const { data: perfectWordsCount } = useQuery({
     queryKey: ["perfect-words", profile?.id],
     queryFn: async () => {
       if (!profile?.id) return 0;
 
-      // Get all correct attempts
+      // Get ALL attempts (both correct and incorrect) to properly identify first attempts
       const { data: attempts } = await supabase
         .from("attempts")
-        .select("word_id, started_at")
+        .select("word_id, started_at, correct")
         .eq("child_id", profile.id)
-        .eq("correct", true)
         .order("started_at", { ascending: true });
 
-      if (!attempts) return 0;
+      if (!attempts || attempts.length === 0) return 0;
 
-      // Group by word_id and check if first attempt was correct
-      const wordAttempts = new Map<string, string[]>();
+      // Group by word_id and collect all attempts for each word
+      const wordAttemptsMap = new Map<
+        string,
+        Array<{ started_at: string; correct: boolean }>
+      >();
 
       attempts.forEach((attempt) => {
-        if (!wordAttempts.has(attempt.word_id)) {
-          wordAttempts.set(attempt.word_id, []);
+        if (!attempt.word_id || !attempt.started_at) return;
+
+        if (!wordAttemptsMap.has(attempt.word_id)) {
+          wordAttemptsMap.set(attempt.word_id, []);
         }
-        if (attempt.started_at) {
-          wordAttempts.get(attempt.word_id)?.push(attempt.started_at);
+        const wordAttempts = wordAttemptsMap.get(attempt.word_id);
+        if (wordAttempts) {
+          wordAttempts.push({
+            started_at: attempt.started_at,
+            correct: attempt.correct,
+          });
         }
-      }); // Count words where we have at least one correct attempt
-      // (In a real implementation, we'd need to check if it was the first try)
-      return wordAttempts.size;
+      });
+
+      // Count words where the first attempt (earliest started_at) was correct
+      let perfectCount = 0;
+      wordAttemptsMap.forEach((wordAttempts) => {
+        // Sort by started_at ascending to ensure we get the first attempt
+        wordAttempts.sort(
+          (a, b) =>
+            new Date(a.started_at).getTime() - new Date(b.started_at).getTime()
+        );
+
+        // Check if the first attempt was correct
+        if (wordAttempts[0]?.correct === true) {
+          perfectCount++;
+        }
+      });
+
+      return perfectCount;
     },
     enabled: Boolean(profile?.id),
   });

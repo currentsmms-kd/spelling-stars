@@ -1,6 +1,8 @@
 import { useEffect, useCallback } from "react";
 import { useAuthStore } from "../store/auth";
 import { supabase } from "../supabase";
+import { clearUserCaches } from "@/lib/cache";
+import { logger } from "@/lib/logger";
 
 export function useAuth() {
   const {
@@ -47,13 +49,23 @@ export function useAuth() {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         fetchProfile(session.user.id);
       } else {
         setProfile(null);
         setIsLoading(false);
+
+        // Clear caches when user signs out
+        if (event === "SIGNED_OUT") {
+          try {
+            await clearUserCaches();
+            logger.info("User caches cleared after auth state change");
+          } catch (error) {
+            logger.error("Failed to clear caches after sign-out:", error);
+          }
+        }
       }
     });
 
@@ -84,6 +96,15 @@ export function useAuth() {
   };
 
   const signOut = async () => {
+    try {
+      // Clear user-specific caches to prevent stale data
+      await clearUserCaches();
+      logger.info("User caches cleared on sign-out");
+    } catch (error) {
+      // Don't block sign-out if cache clearing fails
+      logger.error("Failed to clear caches on sign-out:", error);
+    }
+
     await supabase.auth.signOut();
     logout();
   };

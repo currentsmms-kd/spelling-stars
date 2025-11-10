@@ -3,14 +3,21 @@ import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { NavItem } from "./navItems";
 import { ThemeToggle } from "./ThemeToggle";
+import type { ReactNode } from "react";
 
 interface TopBarProps {
   title: string;
   isChild?: boolean;
   onLogout?: () => void;
+  syncBadge?: ReactNode;
 }
 
-export function TopBar({ title, isChild = false, onLogout }: TopBarProps) {
+export function TopBar({
+  title,
+  isChild = false,
+  onLogout,
+  syncBadge,
+}: TopBarProps) {
   return (
     <header
       className={cn(
@@ -27,6 +34,7 @@ export function TopBar({ title, isChild = false, onLogout }: TopBarProps) {
         ⭐ {title}
       </h1>
       <div className="flex items-center gap-3">
+        {syncBadge}
         {!isChild && <ThemeToggle />}
         {onLogout && (
           <button

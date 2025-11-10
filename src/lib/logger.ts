@@ -126,6 +126,119 @@ function captureProductionError(message: string, ...args: unknown[]): void {
   }
 }
 
+/**
+ * Telemetry metrics for sync operations
+ */
+interface SyncMetrics {
+  attemptsQueued: number;
+  attemptsSynced: number;
+  attemptsFailed: number;
+  audioQueued: number;
+  audioUploaded: number;
+  audioFailed: number;
+  lastSyncTimestamp?: string;
+  lastSyncDurationMs?: number;
+  syncInProgress: boolean;
+}
+
+/**
+ * In-memory metrics storage (reset on app reload)
+ */
+let syncMetrics: SyncMetrics = {
+  attemptsQueued: 0,
+  attemptsSynced: 0,
+  attemptsFailed: 0,
+  audioQueued: 0,
+  audioUploaded: 0,
+  audioFailed: 0,
+  syncInProgress: false,
+};
+
+/**
+ * Event listeners for metrics updates (for UI components)
+ */
+type MetricsListener = (metrics: SyncMetrics) => void;
+const metricsListeners = new Set<MetricsListener>();
+
+/**
+ * Subscribe to metrics updates
+ */
+function subscribeToMetrics(listener: MetricsListener): () => void {
+  metricsListeners.add(listener);
+  // Immediately notify with current metrics
+  listener({ ...syncMetrics });
+
+  // Return unsubscribe function
+  return () => {
+    metricsListeners.delete(listener);
+  };
+}
+
+/**
+ * Notify all listeners of metrics update
+ */
+function notifyMetricsListeners(): void {
+  const snapshot = { ...syncMetrics };
+  metricsListeners.forEach((listener) => {
+    try {
+      listener(snapshot);
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error("[METRICS] Listener error:", error);
+    }
+  });
+}
+
+/**
+ * Increment a metrics counter
+ */
+function incrementMetric(
+  metric: keyof Omit<
+    SyncMetrics,
+    "lastSyncTimestamp" | "lastSyncDurationMs" | "syncInProgress"
+  >
+): void {
+  syncMetrics[metric]++;
+  notifyMetricsListeners();
+}
+
+/**
+ * Update sync status
+ */
+function updateSyncStatus(inProgress: boolean, durationMs?: number): void {
+  syncMetrics.syncInProgress = inProgress;
+
+  if (!inProgress && durationMs !== undefined) {
+    syncMetrics.lastSyncTimestamp = new Date().toISOString();
+    syncMetrics.lastSyncDurationMs = durationMs;
+  }
+
+  notifyMetricsListeners();
+}
+
+/**
+ * Get current metrics snapshot
+ */
+function getMetrics(): SyncMetrics {
+  return { ...syncMetrics };
+}
+
+/**
+ * Reset all metrics (for testing or manual reset)
+ */
+function resetMetrics(): void {
+  syncMetrics = {
+    attemptsQueued: 0,
+    attemptsSynced: 0,
+    attemptsFailed: 0,
+    audioQueued: 0,
+    audioUploaded: 0,
+    audioFailed: 0,
+    syncInProgress: false,
+  };
+  notifyMetricsListeners();
+}
+
 export const logger = {
   /**
    * Debug logs - only in development
@@ -183,4 +296,26 @@ export const logger = {
       console.log("[LOG]", ...formatArgs(...args));
     }
   },
+
+  /**
+   * Telemetry: Track sync metrics
+   */
+  metrics: {
+    attemptQueued: () => incrementMetric("attemptsQueued"),
+    attemptSynced: () => incrementMetric("attemptsSynced"),
+    attemptFailed: () => incrementMetric("attemptsFailed"),
+    audioQueued: () => incrementMetric("audioQueued"),
+    audioUploaded: () => incrementMetric("audioUploaded"),
+    audioFailed: () => incrementMetric("audioFailed"),
+    syncStarted: () => updateSyncStatus(true),
+    syncCompleted: (durationMs: number) => updateSyncStatus(false, durationMs),
+    getMetrics: () => getMetrics(),
+    resetMetrics: () => resetMetrics(),
+    subscribe: (listener: MetricsListener) => subscribeToMetrics(listener),
+  },
 };
+
+/**
+ * Export types for external use
+ */
+export type { SyncMetrics, MetricsListener };

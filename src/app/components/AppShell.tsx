@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { TopBar, NavRail } from "./Navigation";
 import { parentNavItems, childNavItems } from "./navItems";
 import { useAuth } from "../hooks/useAuth";
+import { SyncStatusBadge } from "./SyncStatusBadge";
 
 interface AppShellProps {
   children: ReactNode;
@@ -20,7 +21,12 @@ export function AppShell({
 
   return (
     <div className="h-screen flex flex-col">
-      <TopBar title={title} isChild={isChild} onLogout={signOut} />
+      <TopBar
+        title={title}
+        isChild={isChild}
+        onLogout={signOut}
+        syncBadge={<SyncStatusBadge variant={variant} />}
+      />
       <div className="flex-1 flex overflow-hidden">
         <NavRail items={navItems} isChild={isChild} />
         <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8 bg-background">

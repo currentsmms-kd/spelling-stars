@@ -40,7 +40,9 @@ function sleep(ms: number): Promise<void> {
  * Called when app comes back online
  */
 export async function syncQueuedData(): Promise<void> {
+  const syncStartTime = Date.now();
   logger.log("Starting sync of queued data...");
+  logger.metrics.syncStarted();
 
   try {
     // First, sync audio files
@@ -49,9 +51,13 @@ export async function syncQueuedData(): Promise<void> {
     // Then sync attempts (which may reference uploaded audio)
     await syncQueuedAttempts();
 
-    logger.log("Sync completed successfully");
+    const syncDuration = Date.now() - syncStartTime;
+    logger.log(`Sync completed successfully in ${syncDuration}ms`);
+    logger.metrics.syncCompleted(syncDuration);
   } catch (error) {
+    const syncDuration = Date.now() - syncStartTime;
     logger.error("Error during sync:", error);
+    logger.metrics.syncCompleted(syncDuration);
     throw error;
   }
 }
@@ -132,6 +138,7 @@ async function syncQueuedAudio(): Promise<void> {
           }
 
           logger.log(`Successfully uploaded: ${audio.filename}`);
+          logger.metrics.audioUploaded();
           uploadSuccess = true;
           break;
         } catch (error) {
@@ -158,6 +165,7 @@ async function syncQueuedAudio(): Promise<void> {
               `Audio ${audio.filename}: Permanently failed after ${MAX_RETRY_ATTEMPTS} attempts`,
               error
             );
+            logger.metrics.audioFailed();
             break;
           }
         }
@@ -165,9 +173,11 @@ async function syncQueuedAudio(): Promise<void> {
 
       if (!uploadSuccess && uploadError) {
         logger.error(`Failed to upload audio ${audio.filename}:`, uploadError);
+        logger.metrics.audioFailed();
       }
     } catch (error) {
       logger.error(`Error processing audio ${audio.filename}:`, error);
+      logger.metrics.audioFailed();
 
       // Mark as failed if we can't even attempt the upload
       if (audio.id !== undefined) {
@@ -192,18 +202,26 @@ async function getAudioPathForAttempt(
 
   const audioRecord = await db.queuedAudio.get(attempt.audio_blob_id);
 
-  // Skip if audio is not yet synced
-  if (audioRecord && !audioRecord.synced) {
-    logger.log(
-      `Attempt ${attempt.id}: Skipping - audio ${attempt.audio_blob_id} not yet synced`
+  // Audio record not found - should not happen but handle gracefully
+  if (!audioRecord) {
+    logger.error(
+      `Attempt ${attempt.id}: Audio record ${attempt.audio_blob_id} not found`
     );
     return null; // Signal to skip this attempt
   }
 
+  // Skip if audio is not yet synced
+  if (!audioRecord.synced) {
+    logger.log(
+      `Attempt ${attempt.id}: Deferring - audio ${attempt.audio_blob_id} not yet synced`
+    );
+    return null; // Signal to skip this attempt for now
+  }
+
   // Skip if audio failed
-  if (audioRecord?.failed) {
+  if (audioRecord.failed) {
     logger.error(
-      `Attempt ${attempt.id}: Skipping - audio ${attempt.audio_blob_id} permanently failed`
+      `Attempt ${attempt.id}: Blocking - audio ${attempt.audio_blob_id} permanently failed`
     );
 
     // Mark attempt as failed too since its audio failed
@@ -216,7 +234,23 @@ async function getAudioPathForAttempt(
     return null; // Signal to skip this attempt
   }
 
-  return audioRecord?.storage_url;
+  // Verify storage_url exists even if synced is true
+  // This handles edge cases where synced was set but storage_url is missing
+  if (!audioRecord.storage_url) {
+    logger.warn(
+      `Attempt ${attempt.id}: Deferring - audio ${attempt.audio_blob_id} marked as synced but storage_url is missing`
+    );
+
+    // Reset synced flag to force re-upload on next sync cycle
+    await db.queuedAudio.update(attempt.audio_blob_id, {
+      synced: false,
+      last_error: "storage_url missing after sync, requires re-upload",
+    });
+
+    return null; // Signal to skip this attempt and retry after audio re-sync
+  }
+
+  return audioRecord.storage_url;
 }
 
 /**
@@ -300,6 +334,7 @@ async function insertAttemptWithRetry(
       }
 
       logger.log(`Successfully synced attempt ${attempt.id}`);
+      logger.metrics.attemptSynced();
       insertSuccess = true;
       break;
     } catch (error) {
@@ -324,6 +359,7 @@ async function insertAttemptWithRetry(
           `Attempt ${attempt.id}: Permanently failed after ${MAX_RETRY_ATTEMPTS} attempts`,
           error
         );
+        logger.metrics.attemptFailed();
         break;
       }
     }
@@ -331,6 +367,7 @@ async function insertAttemptWithRetry(
 
   if (!insertSuccess && insertError) {
     logger.error(`Failed to insert attempt ${attempt.id}:`, insertError);
+    logger.metrics.attemptFailed();
   }
 
   return insertSuccess;
@@ -366,6 +403,7 @@ async function syncQueuedAttempts(): Promise<void> {
       await insertAttemptWithRetry(attempt, audioPath);
     } catch (error) {
       logger.error(`Error processing attempt ${attempt.id}:`, error);
+      logger.metrics.attemptFailed();
 
       // Mark as failed if we can't even attempt the insert
       if (attempt.id !== undefined) {
@@ -403,6 +441,9 @@ export async function queueAttempt(
     retry_count: 0,
     failed: false,
   });
+
+  logger.metrics.attemptQueued();
+  logger.log(`Queued attempt for word ${wordId} (offline mode)`);
 }
 
 /**
@@ -421,6 +462,8 @@ export async function queueAudio(
     failed: false,
   });
 
+  logger.metrics.audioQueued();
+  logger.log(`Queued audio ${filename} for upload (offline mode)`);
   return id as number;
 }
 
