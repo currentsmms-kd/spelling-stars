@@ -11,7 +11,13 @@ import { useAuth } from "@/app/hooks/useAuth";
 import { useOnline } from "@/app/hooks/useOnline";
 import { useTtsVoices } from "@/app/hooks/useTtsVoices";
 import { queueAttempt } from "@/lib/sync";
-import { addStars, useUpdateSrs } from "@/app/api/supa";
+import {
+  useUpdateSrs,
+  useAwardStars,
+  useUpdateDailyStreak,
+  computeAttemptQuality,
+} from "@/app/api/supa";
+import { queueSrsUpdate, queueStarTransaction } from "@/lib/sync";
 import type { Tables } from "@/types/database.types";
 
 type Word = Tables<"words">;
@@ -85,15 +91,102 @@ function PlayWordButton({ playAudio }: PlayWordButtonProps) {
 }
 
 function ListSelector() {
+  const { profile } = useAuth();
+  const navigate = useNavigate();
+
+  // Fetch all word lists - we need to get parent's lists that child can access
+  // For now, fetch all lists since children have read access via RLS
+  const { data: lists, isLoading: listsLoading } = useQuery({
+    queryKey: ["word_lists_for_child"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("word_lists")
+        .select(
+          `
+          *,
+          list_words!inner(
+            word_id,
+            words(id, text)
+          )
+        `
+        )
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      // Transform to include word count
+      return (data || []).map((list) => ({
+        ...list,
+        word_count: list.list_words?.length || 0,
+      }));
+    },
+    enabled: Boolean(profile?.id),
+  });
+
+  if (listsLoading) {
+    return (
+      <Card variant="child">
+        <div className="text-center">
+          <p className="text-2xl">Loading lists...</p>
+        </div>
+      </Card>
+    );
+  }
+
+  if (!lists || lists.length === 0) {
+    return (
+      <Card variant="child">
+        <div className="text-center space-y-6">
+          <h3 className="text-3xl font-bold">No Lists Available</h3>
+          <p className="text-xl text-muted-foreground">
+            Ask your parent to create some spelling lists first!
+          </p>
+          <Link to="/child/home">
+            <Button size="child">Go to Home</Button>
+          </Link>
+        </div>
+      </Card>
+    );
+  }
+
   return (
-    <Card variant="child">
-      <div className="text-center space-y-6">
-        <h3 className="text-3xl font-bold">Choose a list to practice</h3>
+    <div className="space-y-6">
+      <div className="text-center">
+        <h3 className="text-3xl font-bold mb-4">Choose a list to practice</h3>
+        <p className="text-xl text-muted-foreground">
+          Pick a list to start practicing!
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {lists.map((list) => (
+          <Card
+            key={list.id}
+            variant="child"
+            className="cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => navigate(`?listId=${list.id}`)}
+          >
+            <div className="text-center space-y-4">
+              <h4 className="text-2xl font-bold">{list.title}</h4>
+              <p className="text-xl text-muted-foreground">
+                {list.word_count} {list.word_count === 1 ? "word" : "words"}
+              </p>
+              <Button size="child" className="w-full">
+                Practice This List
+              </Button>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      <div className="text-center">
         <Link to="/child/home">
-          <Button size="child">Go to Home</Button>
+          <Button size="child" variant="outline">
+            Back to Home
+          </Button>
         </Link>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -157,8 +250,23 @@ function GameContent({
   onNextWord,
   isOnline,
 }: GameContentProps) {
+  const { profile } = useAuth();
+
   return (
-    <div className="max-w-3xl mx-auto space-y-8">
+    <div className="max-w-3xl mx-auto space-y-8 relative">
+      {/* Equipped avatar and streak display in corner */}
+      <div className="absolute top-4 right-4 flex items-center gap-3">
+        {profile?.equipped_avatar && (
+          <div className="text-5xl">{profile.equipped_avatar}</div>
+        )}
+        {(profile?.streak_days || 0) > 0 && (
+          <div className="flex items-center gap-1 bg-primary/20 px-3 py-2 rounded-full">
+            <span className="text-3xl">🔥</span>
+            <span className="text-2xl font-bold">{profile?.streak_days}</span>
+          </div>
+        )}
+      </div>
+
       <GameHeader starsEarned={starsEarned} />
 
       <ProgressDisplay
@@ -295,9 +403,20 @@ export function PlayListenType() {
   const [starsEarned, setStarsEarned] = useState(0);
   const [hasTriedOnce, setHasTriedOnce] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [hasUpdatedStreak, setHasUpdatedStreak] = useState(false);
 
-  // SRS mutation
+  // Hooks for D3/D4 features
   const updateSrs = useUpdateSrs();
+  const awardStars = useAwardStars();
+  const updateStreak = useUpdateDailyStreak();
+
+  // Update streak when component mounts (first practice of session)
+  useEffect(() => {
+    if (profile?.id && !hasUpdatedStreak) {
+      updateStreak.mutate(profile.id);
+      setHasUpdatedStreak(true);
+    }
+  }, [profile?.id, hasUpdatedStreak, updateStreak]);
 
   // Fetch the selected list or show list selector
   const { data: listData, isLoading } = useQuery<ListWithWords>({
@@ -342,10 +461,12 @@ export function PlayListenType() {
       wordId,
       correct,
       typedAnswer,
+      quality,
     }: {
       wordId: string;
       correct: boolean;
       typedAnswer: string;
+      quality: number;
     }) => {
       if (!profile?.id || !listId) return;
 
@@ -354,6 +475,7 @@ export function PlayListenType() {
         word_id: wordId,
         mode: "listen-type",
         correct,
+        quality, // Add quality field
         typed_answer: typedAnswer,
         started_at: new Date().toISOString(),
       };
@@ -362,9 +484,13 @@ export function PlayListenType() {
         const { error } = await supabase.from("attempts").insert(attemptData);
         if (error) throw error;
 
-        // Add stars if first-try correct
+        // Award stars if first-try correct
         if (correct && !hasTriedOnce) {
-          await addStars(profile.id, 1);
+          await awardStars.mutateAsync({
+            userId: profile.id,
+            amount: 1,
+            reason: "correct_word",
+          });
         }
       } else {
         // Queue for later sync
@@ -376,6 +502,11 @@ export function PlayListenType() {
           correct,
           typedAnswer
         );
+
+        // Queue star transaction
+        if (correct && !hasTriedOnce) {
+          await queueStarTransaction(profile.id, 1, "correct_word");
+        }
       }
     },
   });
@@ -447,6 +578,10 @@ export function PlayListenType() {
     const normalizedCorrect = normalizeAnswer(currentWord.text);
     const correct = normalizedAnswer === normalizedCorrect;
 
+    // Calculate quality score (0-5)
+    const usedHint = showHint > 0;
+    const quality = computeAttemptQuality(correct, !hasTriedOnce, usedHint);
+
     if (correct) {
       setFeedback("correct");
       setShowConfetti(true);
@@ -456,11 +591,12 @@ export function PlayListenType() {
         setStarsEarned((prev) => prev + 1);
       }
 
-      // Save attempt
+      // Save attempt with quality
       await saveAttemptMutation.mutateAsync({
         wordId: currentWord.id,
         correct: true,
         typedAnswer: answer,
+        quality,
       });
 
       // Update SRS: first-try correct
@@ -470,6 +606,8 @@ export function PlayListenType() {
           wordId: currentWord.id,
           isCorrectFirstTry: !hasTriedOnce,
         });
+      } else {
+        await queueSrsUpdate(profile.id, currentWord.id, !hasTriedOnce);
       }
 
       // Move to next word after delay
@@ -480,11 +618,12 @@ export function PlayListenType() {
       setFeedback("wrong");
       setHasTriedOnce(true);
 
-      // Save incorrect attempt
+      // Save incorrect attempt with quality
       await saveAttemptMutation.mutateAsync({
         wordId: currentWord.id,
         correct: false,
         typedAnswer: answer,
+        quality,
       });
 
       // Update SRS: not first-try correct (miss)
@@ -495,6 +634,8 @@ export function PlayListenType() {
           wordId: currentWord.id,
           isCorrectFirstTry: false,
         });
+      } else if (!isOnline && !hasTriedOnce) {
+        await queueSrsUpdate(profile.id, currentWord.id, false);
       }
 
       // Show hint progressively

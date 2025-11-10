@@ -22,6 +22,7 @@ export type Database = {
           duration_ms: number | null;
           id: string;
           mode: string;
+          quality: number | null;
           started_at: string | null;
           typed_answer: string | null;
           word_id: string;
@@ -33,6 +34,7 @@ export type Database = {
           duration_ms?: number | null;
           id?: string;
           mode: string;
+          quality?: number | null;
           started_at?: string | null;
           typed_answer?: string | null;
           word_id: string;
@@ -44,6 +46,7 @@ export type Database = {
           duration_ms?: number | null;
           id?: string;
           mode?: string;
+          quality?: number | null;
           started_at?: string | null;
           typed_answer?: string | null;
           word_id?: string;
@@ -140,6 +143,7 @@ export type Database = {
           parent_id: string;
           pin_code: string;
           show_hints_on_first_miss: boolean | null;
+          strict_spaced_mode: boolean | null;
           updated_at: string | null;
         };
         Insert: {
@@ -153,6 +157,7 @@ export type Database = {
           parent_id: string;
           pin_code: string;
           show_hints_on_first_miss?: boolean | null;
+          strict_spaced_mode?: boolean | null;
           updated_at?: string | null;
         };
         Update: {
@@ -166,6 +171,7 @@ export type Database = {
           parent_id?: string;
           pin_code?: string;
           show_hints_on_first_miss?: boolean | null;
+          strict_spaced_mode?: boolean | null;
           updated_at?: string | null;
         };
         Relationships: [
@@ -184,9 +190,14 @@ export type Database = {
           color_theme: string | null;
           created_at: string | null;
           display_name: string | null;
+          equipped_avatar: string | null;
+          equipped_theme: string | null;
           id: string;
+          last_active: string | null;
           parent_id: string | null;
           role: string;
+          stars: number | null;
+          streak_days: number | null;
           updated_at: string | null;
         };
         Insert: {
@@ -194,9 +205,14 @@ export type Database = {
           color_theme?: string | null;
           created_at?: string | null;
           display_name?: string | null;
+          equipped_avatar?: string | null;
+          equipped_theme?: string | null;
           id: string;
+          last_active?: string | null;
           parent_id?: string | null;
           role: string;
+          stars?: number | null;
+          streak_days?: number | null;
           updated_at?: string | null;
         };
         Update: {
@@ -204,9 +220,14 @@ export type Database = {
           color_theme?: string | null;
           created_at?: string | null;
           display_name?: string | null;
+          equipped_avatar?: string | null;
+          equipped_theme?: string | null;
           id?: string;
+          last_active?: string | null;
           parent_id?: string | null;
           role?: string;
+          stars?: number | null;
+          streak_days?: number | null;
           updated_at?: string | null;
         };
         Relationships: [
@@ -244,6 +265,84 @@ export type Database = {
             columns: ["child_id"];
             isOneToOne: true;
             referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      rewards_catalog: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          cost_stars: number;
+          icon: string;
+          type: "avatar" | "theme" | "coupon" | "badge";
+          is_active: boolean;
+          metadata: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          description?: string | null;
+          cost_stars: number;
+          icon: string;
+          type: "avatar" | "theme" | "coupon" | "badge";
+          is_active?: boolean;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          description?: string | null;
+          cost_stars?: number;
+          icon?: string;
+          type?: "avatar" | "theme" | "coupon" | "badge";
+          is_active?: boolean;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      user_rewards: {
+        Row: {
+          id: string;
+          user_id: string;
+          reward_id: string;
+          acquired_at: string;
+          equipped: boolean;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          reward_id: string;
+          acquired_at?: string;
+          equipped?: boolean;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          reward_id?: string;
+          acquired_at?: string;
+          equipped?: boolean;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "user_rewards_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "user_rewards_reward_id_fkey";
+            columns: ["reward_id"];
+            isOneToOne: false;
+            referencedRelation: "rewards_catalog";
             referencedColumns: ["id"];
           },
         ];

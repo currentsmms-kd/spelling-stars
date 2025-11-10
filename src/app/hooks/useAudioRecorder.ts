@@ -32,7 +32,21 @@ export function useAudioRecorder(): UseAudioRecorderResult {
   const startRecording = useCallback(async () => {
     try {
       setError(null);
+
+      // Check if MediaRecorder is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error(
+          "Audio recording is not supported in this browser. Please use Chrome, Firefox, or Edge."
+        );
+      }
+
+      if (typeof MediaRecorder === "undefined") {
+        throw new Error("MediaRecorder API is not available in this browser.");
+      }
+
+      logger.info("Requesting microphone access...");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      logger.info("Microphone access granted");
 
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
@@ -41,17 +55,23 @@ export function useAudioRecorder(): UseAudioRecorderResult {
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           chunksRef.current.push(event.data);
+          logger.debug("Audio chunk received:", event.data.size, "bytes");
         }
       };
 
       mediaRecorder.onstop = () => {
+        logger.info("Recording stopped, creating audio blob");
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
         const url = URL.createObjectURL(blob);
         setAudioUrl(url);
         setAudioBlob(blob);
+        logger.info("Audio blob created:", blob.size, "bytes");
 
         // Stop all tracks
-        stream.getTracks().forEach((track) => track.stop());
+        stream.getTracks().forEach((track) => {
+          track.stop();
+          logger.debug("Stopped audio track");
+        });
 
         // Clear timer
         if (timerRef.current) {
@@ -60,7 +80,13 @@ export function useAudioRecorder(): UseAudioRecorderResult {
         }
       };
 
+      mediaRecorder.onerror = (event) => {
+        logger.error("MediaRecorder error:", event);
+        setError("Recording error occurred. Please try again.");
+      };
+
       mediaRecorder.start();
+      logger.info("Recording started");
       setIsRecording(true);
       setIsPaused(false);
       startTimeRef.current = Date.now();
@@ -73,9 +99,33 @@ export function useAudioRecorder(): UseAudioRecorderResult {
         );
       }, 100);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to start recording"
-      );
+      let errorMessage = "Failed to start recording";
+
+      if (err instanceof Error) {
+        if (
+          err.name === "NotAllowedError" ||
+          err.name === "PermissionDeniedError"
+        ) {
+          errorMessage =
+            "Microphone permission denied. Please allow microphone access in your browser settings.";
+        } else if (
+          err.name === "NotFoundError" ||
+          err.name === "DevicesNotFoundError"
+        ) {
+          errorMessage =
+            "No microphone found. Please connect a microphone and try again.";
+        } else if (
+          err.name === "NotReadableError" ||
+          err.name === "TrackStartError"
+        ) {
+          errorMessage =
+            "Microphone is already in use by another application. Please close other apps using the microphone.";
+        } else {
+          errorMessage = err.message;
+        }
+      }
+
+      setError(errorMessage);
       logger.error("Error starting recording:", err);
     }
   }, []);

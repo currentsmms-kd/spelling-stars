@@ -116,12 +116,14 @@ function GameSettings({
     showHintsOnFirstMiss: boolean;
     enforceCaseSensitivity: boolean;
     autoReadbackSpelling: boolean;
+    strictSpacedMode: boolean;
   };
   onSettingsChange: (
     settings: Partial<{
       showHintsOnFirstMiss: boolean;
       enforceCaseSensitivity: boolean;
       autoReadbackSpelling: boolean;
+      strictSpacedMode: boolean;
       dailySessionLimitMinutes: number;
       defaultTtsVoice: string;
     }>
@@ -156,6 +158,15 @@ function GameSettings({
           checked={settings.autoReadbackSpelling}
           onChange={(checked) =>
             onSettingsChange({ autoReadbackSpelling: checked })
+          }
+        />
+        <CheckboxSetting
+          id="strict-spaced-mode"
+          label="Strict Spaced Repetition Mode"
+          description="Only show due words and words that need work (leeches). Disables review and new words in practice."
+          checked={settings.strictSpacedMode}
+          onChange={(checked) =>
+            onSettingsChange({ strictSpacedMode: checked })
           }
         />
       </div>
@@ -384,6 +395,7 @@ export function ParentalSettings() {
     autoReadbackSpelling,
     dailySessionLimitMinutes,
     defaultTtsVoice,
+    strictSpacedMode,
     setSettings,
     setPinCode,
   } = useParentalSettingsStore();
@@ -397,6 +409,7 @@ export function ParentalSettings() {
     autoReadbackSpelling,
     dailySessionLimitMinutes,
     defaultTtsVoice,
+    strictSpacedMode,
   });
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{
@@ -422,11 +435,12 @@ export function ParentalSettings() {
 
         if (data) {
           const newSettings = {
-            showHintsOnFirstMiss: data.show_hints_on_first_miss,
-            enforceCaseSensitivity: data.enforce_case_sensitivity,
-            autoReadbackSpelling: data.auto_readback_spelling,
-            dailySessionLimitMinutes: data.daily_session_limit_minutes,
-            defaultTtsVoice: data.default_tts_voice,
+            showHintsOnFirstMiss: data.show_hints_on_first_miss ?? true,
+            enforceCaseSensitivity: data.enforce_case_sensitivity ?? false,
+            autoReadbackSpelling: data.auto_readback_spelling ?? true,
+            dailySessionLimitMinutes: data.daily_session_limit_minutes ?? 20,
+            defaultTtsVoice: data.default_tts_voice ?? "en-US",
+            strictSpacedMode: data.strict_spaced_mode ?? false,
           };
           setLocalSettings(newSettings);
           setSettings(newSettings);
@@ -486,6 +500,7 @@ export function ParentalSettings() {
         daily_session_limit_minutes: localSettings.dailySessionLimitMinutes,
         default_tts_voice: localSettings.defaultTtsVoice,
         color_theme: currentTheme,
+        strict_spaced_mode: localSettings.strictSpacedMode,
       });
 
       if (error) throw error;
@@ -538,6 +553,7 @@ export function ParentalSettings() {
             showHintsOnFirstMiss: localSettings.showHintsOnFirstMiss,
             enforceCaseSensitivity: localSettings.enforceCaseSensitivity,
             autoReadbackSpelling: localSettings.autoReadbackSpelling,
+            strictSpacedMode: localSettings.strictSpacedMode,
           }}
           onSettingsChange={(newSettings) =>
             setLocalSettings({ ...localSettings, ...newSettings })

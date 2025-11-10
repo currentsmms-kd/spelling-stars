@@ -12,6 +12,7 @@ export interface ParentalSettings {
   isPinLocked: boolean; // Local state for lock status
   failedAttempts: number; // Track failed PIN attempts
   lockoutUntil: number | null; // Timestamp when lockout expires
+  strictSpacedMode: boolean; // Only show due words and leeches in practice
 }
 
 interface ParentalSettingsState extends ParentalSettings {
@@ -39,6 +40,7 @@ export const useParentalSettingsStore = create<ParentalSettingsState>()(
       isPinLocked: true, // Locked by default
       failedAttempts: 0,
       lockoutUntil: null,
+      strictSpacedMode: false, // Default to false for more forgiving practice
 
       setSettings: (settings) => set((state) => ({ ...state, ...settings })),
 

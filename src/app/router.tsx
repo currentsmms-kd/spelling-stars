@@ -5,6 +5,8 @@ import { Dashboard } from "./pages/parent/Dashboard";
 import { Lists } from "./pages/parent/Lists";
 import { ListEditor } from "./pages/parent/ListEditor";
 import { ParentalSettings } from "./pages/parent/Settings";
+import { RewardsManagement } from "./pages/parent/RewardsManagement";
+import { ChildManagement } from "./pages/parent/ChildManagement";
 import { ChildHome } from "./pages/child/Home";
 import { PlayListenType } from "./pages/child/PlayListenType";
 import { PlaySaySpell } from "./pages/child/PlaySaySpell";
@@ -77,6 +79,26 @@ export const router = createBrowserRouter([
           <ProtectedRoute requiredRole="parent">
             <PinProtectedRoute>
               <ParentalSettings />
+            </PinProtectedRoute>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "rewards-management",
+        element: (
+          <ProtectedRoute requiredRole="parent">
+            <PinProtectedRoute>
+              <RewardsManagement />
+            </PinProtectedRoute>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "children",
+        element: (
+          <ProtectedRoute requiredRole="parent">
+            <PinProtectedRoute>
+              <ChildManagement />
             </PinProtectedRoute>
           </ProtectedRoute>
         ),

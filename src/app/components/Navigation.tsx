@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import type { NavItem } from "./navItems";
 import { ThemeToggle } from "./ThemeToggle";
 import type { ReactNode } from "react";
+import { useAuth } from "@/app/hooks/useAuth";
 
 interface TopBarProps {
   title: string;
@@ -18,6 +19,8 @@ export function TopBar({
   onLogout,
   syncBadge,
 }: TopBarProps) {
+  const { profile } = useAuth();
+
   return (
     <header
       className={cn(
@@ -34,6 +37,37 @@ export function TopBar({
         ⭐ {title}
       </h1>
       <div className="flex items-center gap-3">
+        {/* Show avatar and streak for child users */}
+        {isChild && profile?.role === "child" && (
+          <Link
+            to="/child/rewards"
+            className="flex items-center gap-3 p-2 hover:bg-muted rounded-lg transition-colors"
+          >
+            {/* Equipped Avatar */}
+            {profile.equipped_avatar && (
+              <div className="text-4xl">{profile.equipped_avatar}</div>
+            )}
+
+            {/* Streak Counter */}
+            {(profile.streak_days || 0) > 0 && (
+              <div className="flex items-center gap-1 bg-primary/20 px-3 py-1 rounded-full">
+                <span className="text-2xl">🔥</span>
+                <span className="text-xl font-bold text-primary">
+                  {profile.streak_days}
+                </span>
+              </div>
+            )}
+
+            {/* Stars Count */}
+            <div className="flex items-center gap-1 bg-secondary/20 px-3 py-1 rounded-full">
+              <span className="text-2xl">⭐</span>
+              <span className="text-xl font-bold text-secondary">
+                {profile.stars || 0}
+              </span>
+            </div>
+          </Link>
+        )}
+
         {syncBadge}
         {!isChild && <ThemeToggle />}
         {onLogout && (

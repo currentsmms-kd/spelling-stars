@@ -8,12 +8,13 @@ import {
   TrendingUp,
   Calendar,
   ArrowLeft,
+  Target,
   type LucideIcon,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/app/supabase";
 import { useAuth } from "@/app/hooks/useAuth";
-import { useDueWords } from "@/app/api/supa";
+import { useDueWords, useNextBatch } from "@/app/api/supa";
 import { cn } from "@/lib/utils";
 
 interface ListProgress {
@@ -231,6 +232,72 @@ function ListsSection({
   );
 }
 
+// Next Up Counter Component
+function NextUpCounter({ childId }: { childId: string }) {
+  const { data: nextBatch } = useNextBatch(childId, undefined, 15, false);
+
+  if (!nextBatch || nextBatch.length === 0) return null;
+
+  // Count by batch type
+  const counts = nextBatch.reduce(
+    (acc, word) => {
+      acc[word.batch_type] = (acc[word.batch_type] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
+
+  const totalDue = nextBatch.length;
+  const dueCount = counts.due || 0;
+  const leechCount = counts.leech || 0;
+  const reviewCount = counts.review || 0;
+  const newCount = counts.new || 0;
+
+  return (
+    <Card variant="child">
+      <div className="flex items-center gap-4 mb-4">
+        <Target className="text-primary" size={32} />
+        <h3 className="text-3xl font-bold">Next Up</h3>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="text-center p-4 bg-primary/10 rounded-xl">
+          <p className="text-4xl font-bold text-primary">{dueCount}</p>
+          <p className="text-lg text-muted-foreground mt-1">Due</p>
+        </div>
+
+        {leechCount > 0 && (
+          <div className="text-center p-4 bg-destructive/10 rounded-xl">
+            <p className="text-4xl font-bold text-destructive">{leechCount}</p>
+            <p className="text-lg text-muted-foreground mt-1">Needs Work</p>
+          </div>
+        )}
+
+        {reviewCount > 0 && (
+          <div className="text-center p-4 bg-secondary/10 rounded-xl">
+            <p className="text-4xl font-bold text-secondary">{reviewCount}</p>
+            <p className="text-lg text-muted-foreground mt-1">Review</p>
+          </div>
+        )}
+
+        {newCount > 0 && (
+          <div className="text-center p-4 bg-accent/10 rounded-xl">
+            <p className="text-4xl font-bold text-accent">{newCount}</p>
+            <p className="text-lg text-muted-foreground mt-1">New</p>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 text-center">
+        <p className="text-xl text-muted-foreground">
+          <span className="font-bold text-foreground">{totalDue}</span> words
+          ready to practice
+        </p>
+      </div>
+    </Card>
+  );
+}
+
 export function ChildHome() {
   const { profile } = useAuth();
   const navigate = useNavigate();
@@ -345,6 +412,9 @@ export function ChildHome() {
             Choose a game to play!
           </p>
         </div>
+
+        {/* Next Up Counter */}
+        {profile?.id && <NextUpCounter childId={profile.id} />}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <GameCard

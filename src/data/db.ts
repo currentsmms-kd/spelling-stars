@@ -28,12 +28,51 @@ export interface QueuedAudio {
   failed: boolean;
 }
 
+export interface QueuedSrsUpdate {
+  id?: number;
+  child_id: string;
+  word_id: string;
+  is_correct_first_try: boolean;
+  created_at: string;
+  synced: boolean;
+  retry_count: number;
+  last_error?: string;
+  failed: boolean;
+}
+
+export interface QueuedStarTransaction {
+  id?: number;
+  user_id: string;
+  amount: number;
+  reason: string;
+  created_at: string;
+  synced: boolean;
+  retry_count: number;
+  last_error?: string;
+  failed: boolean;
+}
+
 export class SpellStarsDB extends Dexie {
   queuedAttempts!: Table<QueuedAttempt>;
   queuedAudio!: Table<QueuedAudio>;
+  queuedSrsUpdates!: Table<QueuedSrsUpdate>;
+  queuedStarTransactions!: Table<QueuedStarTransaction>;
 
   constructor() {
     super("SpellStarsDB");
+
+    // Version 3: Add SRS updates and star transactions tables
+    this.version(3)
+      .stores({
+        queuedAttempts:
+          "++id, child_id, word_id, list_id, mode, synced, failed, started_at",
+        queuedAudio: "++id, filename, synced, failed, created_at",
+        queuedSrsUpdates: "++id, child_id, word_id, synced, failed, created_at",
+        queuedStarTransactions: "++id, user_id, synced, failed, created_at",
+      })
+      .upgrade(async (_trans) => {
+        // Initialize new tables (they'll be empty for existing users)
+      });
 
     // Version 2: Add retry_count, last_error, and failed fields
     this.version(2)

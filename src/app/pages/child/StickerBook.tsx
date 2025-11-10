@@ -126,7 +126,7 @@ function BadgeCard({
       <BadgeRequirements
         earned={earned}
         canEarn={canEarn}
-        requiredStars={badge.required_stars}
+        requiredStars={badge.required_stars || 0}
       />
     </Card>
   );
@@ -334,7 +334,7 @@ export function StickerBook() {
   };
 
   const canEarnBadge = (badge: Badge) => {
-    if (badge.required_stars === 0) return false; // Criteria-based, not star-based
+    if (!badge.required_stars || badge.required_stars === 0) return false; // Criteria-based, not star-based
     return totalStars >= badge.required_stars;
   };
 

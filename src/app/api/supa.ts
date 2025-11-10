@@ -837,7 +837,7 @@ export function useWordLists(userId?: string) {
         .select(
           `
           *,
-          list_words (count)
+          list_words!inner(count)
         `
         )
         .eq("created_by", userId)
@@ -846,13 +846,23 @@ export function useWordLists(userId?: string) {
       if (error) throw error;
 
       // Transform to include word count
-      return (data || []).map((list) => ({
-        ...list,
-        word_count: Array.isArray(list.list_words)
-          ? list.list_words.length
-          : (list.list_words as { count?: number })?.count || 0,
-        words: [], // Will be populated when fetching individual list
-      })) as WordListWithWords[];
+      // Supabase returns count as [{ count: N }], extract the count value
+      return (data || []).map((list) => {
+        const listWords = list.list_words as unknown;
+        let wordCount = 0;
+
+        if (Array.isArray(listWords) && listWords.length > 0) {
+          // Supabase count aggregation returns [{ count: N }]
+          const countObj = listWords[0] as { count?: number };
+          wordCount = countObj?.count || 0;
+        }
+
+        return {
+          ...list,
+          word_count: wordCount,
+          words: [], // Will be populated when fetching individual list
+        };
+      }) as WordListWithWords[];
     },
     enabled: Boolean(userId),
   });
@@ -1458,5 +1468,384 @@ export function useChildrenForParent(parentId?: string) {
       return getChildrenForParent(parentId);
     },
     enabled: Boolean(parentId),
+  });
+}
+
+// ============================================================================
+// D3: SPACED REPETITION SCHEDULER
+// ============================================================================
+
+export interface NextBatchWord {
+  word_id: string;
+  word_text: string;
+  word_phonetic: string | null;
+  word_prompt_audio_path: string | null;
+  word_tts_voice: string | null;
+  due_date: string;
+  ease: number;
+  interval_days: number;
+  reps: number;
+  lapses: number;
+  batch_type: "due" | "leech" | "review" | "new";
+}
+
+/**
+ * Get next practice batch using smart scheduler
+ * Includes: due words + 20% leeches + 10% near-future review
+ */
+export async function getNextBatch(
+  childId: string,
+  listId?: string,
+  limit = 15,
+  strictMode = false
+): Promise<NextBatchWord[]> {
+  const { data, error } = await supabase.rpc(
+    "get_next_batch" as unknown as "fn_add_stars",
+    {
+      p_child_id: childId,
+      p_list_id: listId || null,
+      p_limit: limit,
+      p_strict_mode: strictMode,
+    } as unknown as { p_child: string; p_amount: number }
+  );
+
+  if (error) {
+    logger.error("Error fetching next batch:", error);
+    return [];
+  }
+
+  // Generate signed URLs for prompt audio paths
+  const wordsWithPaths = (data as unknown as NextBatchWord[]) || [];
+  const pathsToSign = wordsWithPaths
+    .filter((word) => Boolean(word.word_prompt_audio_path))
+    .map((word) => word.word_prompt_audio_path as string);
+
+  const signedUrlMap =
+    pathsToSign.length > 0 ? await getSignedPromptAudioUrls(pathsToSign) : {};
+
+  // Replace paths with signed URLs
+  return wordsWithPaths.map((word) => {
+    if (
+      word.word_prompt_audio_path &&
+      signedUrlMap[word.word_prompt_audio_path]
+    ) {
+      const signedUrl = signedUrlMap[word.word_prompt_audio_path];
+      if (signedUrl) {
+        return {
+          ...word,
+          word_prompt_audio_path: signedUrl,
+        };
+      }
+    }
+    return word;
+  });
+}
+
+/**
+ * Hook to get next practice batch
+ */
+export function useNextBatch(
+  childId?: string,
+  listId?: string,
+  limit = 15,
+  strictMode = false
+) {
+  return useQuery({
+    queryKey: ["next_batch", childId, listId, limit, strictMode],
+    queryFn: () => {
+      if (!childId) throw new Error("childId is required");
+      return getNextBatch(childId, listId, limit, strictMode);
+    },
+    enabled: Boolean(childId),
+    staleTime: 1000 * 10, // Cache for 10 seconds (practice changes frequently)
+  });
+}
+
+/**
+ * Compute quality score from attempt result
+ * Used for tracking attempt quality in the SRS system
+ */
+export function computeAttemptQuality(
+  correct: boolean,
+  isFirstTry: boolean,
+  usedHint = false
+): number {
+  if (!correct) return 1; // Wrong answer
+  if (isFirstTry) {
+    return usedHint ? 3 : 5; // Correct after hint or perfect
+  }
+  return 2; // Wrong then correct (second try)
+}
+
+// ============================================================================
+// D4: REWARDS SHOP & AVATARS
+// ============================================================================
+
+export interface RewardsCatalogItem {
+  id: string;
+  name: string;
+  description: string | null;
+  cost_stars: number;
+  icon: string;
+  type: "avatar" | "theme" | "coupon" | "badge";
+  is_active: boolean;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserReward {
+  id: string;
+  user_id: string;
+  reward_id: string;
+  acquired_at: string;
+  equipped: boolean;
+  reward?: RewardsCatalogItem; // Joined data
+}
+
+/**
+ * Get rewards catalog (active items only)
+ */
+export async function getRewardsCatalog(
+  type?: "avatar" | "theme" | "coupon" | "badge"
+): Promise<RewardsCatalogItem[]> {
+  let query = supabase
+    .from("rewards_catalog" as unknown as "profiles")
+    .select("*")
+    .eq("is_active", true)
+    .order("cost_stars", { ascending: true });
+
+  if (type) {
+    query = query.eq("type", type);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    logger.error("Error fetching rewards catalog:", error);
+    return [];
+  }
+
+  return (data as unknown as RewardsCatalogItem[]) || [];
+}
+
+/**
+ * Hook to get rewards catalog
+ */
+export function useRewardsCatalog(
+  type?: "avatar" | "theme" | "coupon" | "badge"
+) {
+  return useQuery({
+    queryKey: ["rewards_catalog", type],
+    queryFn: () => getRewardsCatalog(type),
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  });
+}
+
+/**
+ * Get user's owned rewards
+ */
+export async function getUserRewards(userId: string): Promise<UserReward[]> {
+  const { data, error } = await supabase
+    .from("user_rewards" as unknown as "profiles")
+    .select(
+      `
+      *,
+      reward:rewards_catalog (*)
+    `
+    )
+    .eq("user_id", userId)
+    .order("acquired_at", { ascending: false });
+
+  if (error) {
+    logger.error("Error fetching user rewards:", error);
+    return [];
+  }
+
+  return (data as unknown as UserReward[]) || [];
+}
+
+/**
+ * Hook to get user's owned rewards
+ */
+export function useUserRewards(userId?: string) {
+  return useQuery({
+    queryKey: ["user_rewards", userId],
+    queryFn: () => {
+      if (!userId) throw new Error("userId is required");
+      return getUserRewards(userId);
+    },
+    enabled: Boolean(userId),
+  });
+}
+
+/**
+ * Purchase a reward
+ */
+export async function purchaseReward(userId: string, rewardId: string) {
+  const { data, error } = await supabase.rpc(
+    "purchase_reward" as unknown as "fn_add_stars",
+    {
+      p_user_id: userId,
+      p_reward_id: rewardId,
+    } as unknown as { p_child: string; p_amount: number }
+  );
+
+  if (error) throw error;
+
+  const result = data as unknown as {
+    success: boolean;
+    error?: string;
+    reward_name?: string;
+    reward_type?: string;
+    cost?: number;
+    remaining_stars?: number;
+    required?: number;
+    available?: number;
+  };
+
+  if (!result.success) {
+    throw new Error(result.error || "Failed to purchase reward");
+  }
+
+  return result;
+}
+
+/**
+ * Hook to purchase a reward
+ */
+export function usePurchaseReward() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ userId, rewardId }: { userId: string; rewardId: string }) =>
+      purchaseReward(userId, rewardId),
+    onSuccess: (_, { userId }) => {
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: ["user_rewards", userId] });
+      queryClient.invalidateQueries({ queryKey: ["profile", userId] });
+    },
+  });
+}
+
+/**
+ * Equip a reward (avatar or theme)
+ */
+export async function equipReward(userId: string, rewardId: string) {
+  const { data, error } = await supabase.rpc(
+    "equip_reward" as unknown as "fn_add_stars",
+    {
+      p_user_id: userId,
+      p_reward_id: rewardId,
+    } as unknown as { p_child: string; p_amount: number }
+  );
+
+  if (error) throw error;
+
+  const result = data as unknown as {
+    success: boolean;
+    error?: string;
+    reward_type?: string;
+    equipped?: string;
+  };
+
+  if (!result.success) {
+    throw new Error(result.error || "Failed to equip reward");
+  }
+
+  return result;
+}
+
+/**
+ * Hook to equip a reward
+ */
+export function useEquipReward() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ userId, rewardId }: { userId: string; rewardId: string }) =>
+      equipReward(userId, rewardId),
+    onSuccess: (_, { userId }) => {
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: ["user_rewards", userId] });
+      queryClient.invalidateQueries({ queryKey: ["profile", userId] });
+    },
+  });
+}
+
+/**
+ * Award stars to a user
+ */
+export async function awardStars(
+  userId: string,
+  amount: number,
+  reason = "practice"
+): Promise<number> {
+  const { data, error } = await supabase.rpc(
+    "award_stars" as unknown as "fn_add_stars",
+    {
+      p_user_id: userId,
+      p_amount: amount,
+      p_reason: reason,
+    } as unknown as { p_child: string; p_amount: number }
+  );
+
+  if (error) throw error;
+  return data as number; // Returns new total
+}
+
+/**
+ * Hook to award stars
+ */
+export function useAwardStars() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      userId,
+      amount,
+      reason,
+    }: {
+      userId: string;
+      amount: number;
+      reason?: string;
+    }) => awardStars(userId, amount, reason),
+    onSuccess: (_, { userId }) => {
+      queryClient.invalidateQueries({ queryKey: ["profile", userId] });
+    },
+  });
+}
+
+/**
+ * Update daily streak
+ */
+export async function updateDailyStreak(userId: string) {
+  const { data, error } = await supabase.rpc(
+    "update_daily_streak" as unknown as "fn_add_stars",
+    {
+      p_user_id: userId,
+    } as unknown as { p_child: string; p_amount: number }
+  );
+
+  if (error) throw error;
+
+  return data as unknown as {
+    streak_days: number;
+    bonus_stars: number;
+    continued: boolean;
+  };
+}
+
+/**
+ * Hook to update daily streak
+ */
+export function useUpdateDailyStreak() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (userId: string) => updateDailyStreak(userId),
+    onSuccess: (_, userId) => {
+      queryClient.invalidateQueries({ queryKey: ["profile", userId] });
+    },
   });
 }

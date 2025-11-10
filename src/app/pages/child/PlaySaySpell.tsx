@@ -12,7 +12,13 @@ import { useOnline } from "@/app/hooks/useOnline";
 import { useAudioRecorder } from "@/app/hooks/useAudioRecorder";
 import { useTtsVoices } from "@/app/hooks/useTtsVoices";
 import { queueAttempt, queueAudio } from "@/lib/sync";
-import { addStars, useUpdateSrs } from "@/app/api/supa";
+import {
+  useUpdateSrs,
+  useAwardStars,
+  useUpdateDailyStreak,
+  computeAttemptQuality,
+} from "@/app/api/supa";
+import { queueSrsUpdate, queueStarTransaction } from "@/lib/sync";
 import type { Tables } from "@/types/database.types";
 
 type Word = Tables<"words">;
@@ -272,8 +278,23 @@ function GameContent({
   showConfetti: boolean;
   isOnline: boolean;
 }) {
+  const { profile } = useAuth();
+
   return (
-    <div className="max-w-3xl mx-auto space-y-8">
+    <div className="max-w-3xl mx-auto space-y-8 relative">
+      {/* Equipped avatar and streak display in corner */}
+      <div className="absolute top-4 right-4 flex items-center gap-3">
+        {profile?.equipped_avatar && (
+          <div className="text-5xl">{profile.equipped_avatar}</div>
+        )}
+        {(profile?.streak_days || 0) > 0 && (
+          <div className="flex items-center gap-1 bg-primary/20 px-3 py-2 rounded-full">
+            <span className="text-3xl">🔥</span>
+            <span className="text-2xl font-bold">{profile?.streak_days}</span>
+          </div>
+        )}
+      </div>
+
       <GameHeader starsEarned={starsEarned} />
 
       <GameProgress
@@ -321,16 +342,106 @@ function GameContent({
 
 function NoListSelected() {
   const navigate = useNavigate();
+  const { profile } = useAuth();
+
+  // Fetch all word lists
+  const { data: lists, isLoading: listsLoading } = useQuery({
+    queryKey: ["word_lists_for_child"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("word_lists")
+        .select(
+          `
+          *,
+          list_words!inner(
+            word_id,
+            words(id, text)
+          )
+        `
+        )
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      // Transform to include word count
+      return (data || []).map((list) => ({
+        ...list,
+        word_count: list.list_words?.length || 0,
+      }));
+    },
+    enabled: Boolean(profile?.id),
+  });
+
+  if (listsLoading) {
+    return (
+      <AppShell title="Say & Spell" variant="child">
+        <Card variant="child" className="max-w-3xl mx-auto">
+          <div className="text-center">
+            <p className="text-2xl">Loading lists...</p>
+          </div>
+        </Card>
+      </AppShell>
+    );
+  }
+
+  if (!lists || lists.length === 0) {
+    return (
+      <AppShell title="Say & Spell" variant="child">
+        <Card variant="child" className="max-w-3xl mx-auto">
+          <div className="text-center space-y-6">
+            <h3 className="text-3xl font-bold">No Lists Available</h3>
+            <p className="text-xl text-muted-foreground">
+              Ask your parent to create some spelling lists first!
+            </p>
+            <Button size="child" onClick={() => navigate("/child/home")}>
+              Go to Home
+            </Button>
+          </div>
+        </Card>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell title="Say & Spell" variant="child">
-      <div className="max-w-3xl mx-auto bg-card text-card-foreground border border-border child-card text-center space-y-6">
-        <h3 className="text-3xl font-bold">Choose a list to practice</h3>
-        <button
-          onClick={() => navigate("/child/home")}
-          className="inline-flex items-center justify-center rounded-md font-medium transition-colors child-button bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          Go to Home
-        </button>
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div className="text-center">
+          <h3 className="text-3xl font-bold mb-4">Choose a list to practice</h3>
+          <p className="text-xl text-muted-foreground">
+            Pick a list to start practicing!
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {lists.map((list) => (
+            <Card
+              key={list.id}
+              variant="child"
+              className="cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => navigate(`?listId=${list.id}`)}
+            >
+              <div className="text-center space-y-4">
+                <h4 className="text-2xl font-bold">{list.title}</h4>
+                <p className="text-xl text-muted-foreground">
+                  {list.word_count} {list.word_count === 1 ? "word" : "words"}
+                </p>
+                <Button size="child" className="w-full">
+                  Practice This List
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        <div className="text-center">
+          <Button
+            size="child"
+            variant="outline"
+            onClick={() => navigate("/child/home")}
+          >
+            Back to Home
+          </Button>
+        </div>
       </div>
     </AppShell>
   );
@@ -364,9 +475,20 @@ export function PlaySaySpell() {
   const [starsEarned, setStarsEarned] = useState(0);
   const [hasTriedOnce, setHasTriedOnce] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [hasUpdatedStreak, setHasUpdatedStreak] = useState(false);
 
-  // SRS mutation
+  // Hooks for D3/D4 features
   const updateSrs = useUpdateSrs();
+  const awardStars = useAwardStars();
+  const updateStreak = useUpdateDailyStreak();
+
+  // Update streak when component mounts (first practice of session)
+  useEffect(() => {
+    if (profile?.id && !hasUpdatedStreak) {
+      updateStreak.mutate(profile.id);
+      setHasUpdatedStreak(true);
+    }
+  }, [profile?.id, hasUpdatedStreak, updateStreak]);
 
   const {
     isRecording,
@@ -419,11 +541,13 @@ export function PlaySaySpell() {
       wordId,
       correct,
       typedAnswer,
+      quality,
       audioBlobId,
     }: {
       wordId: string;
       correct: boolean;
       typedAnswer: string;
+      quality: number;
       audioBlobId?: number;
     }) => {
       if (!profile?.id || !listId) return;
@@ -454,6 +578,7 @@ export function PlaySaySpell() {
           word_id: wordId,
           mode: "say-spell",
           correct,
+          quality, // Add quality field
           typed_answer: typedAnswer,
           audio_url: audioPath, // Store path instead of URL
           started_at: new Date().toISOString(),
@@ -461,9 +586,13 @@ export function PlaySaySpell() {
 
         if (error) throw error;
 
-        // Add stars if first-try correct
+        // Award stars if first-try correct
         if (correct && !hasTriedOnce) {
-          await addStars(profile.id, 1);
+          await awardStars.mutateAsync({
+            userId: profile.id,
+            amount: 1,
+            reason: "correct_word",
+          });
         }
       } else {
         // Queue for later sync
@@ -476,6 +605,11 @@ export function PlaySaySpell() {
           typedAnswer,
           audioBlobId
         );
+
+        // Queue star transaction
+        if (correct && !hasTriedOnce) {
+          await queueStarTransaction(profile.id, 1, "correct_word");
+        }
       }
     },
   });
@@ -561,6 +695,10 @@ export function PlaySaySpell() {
     const normalizedCorrect = normalizeAnswer(currentWord.text);
     const correct = normalizedAnswer === normalizedCorrect;
 
+    // Calculate quality score (0-5)
+    const usedHint = showHint > 0;
+    const quality = computeAttemptQuality(correct, !hasTriedOnce, usedHint);
+
     if (correct) {
       setFeedback("correct");
       setShowConfetti(true);
@@ -570,11 +708,12 @@ export function PlaySaySpell() {
         setStarsEarned((prev) => prev + 1);
       }
 
-      // Save attempt
+      // Save attempt with quality
       await saveAttemptMutation.mutateAsync({
         wordId: currentWord.id,
         correct: true,
         typedAnswer: answer,
+        quality,
         audioBlobId: audioBlobId || undefined,
       });
 
@@ -585,6 +724,8 @@ export function PlaySaySpell() {
           wordId: currentWord.id,
           isCorrectFirstTry: !hasTriedOnce,
         });
+      } else {
+        await queueSrsUpdate(profile.id, currentWord.id, !hasTriedOnce);
       }
 
       // Move to next word after delay
@@ -595,11 +736,12 @@ export function PlaySaySpell() {
       setFeedback("wrong");
       setHasTriedOnce(true);
 
-      // Save incorrect attempt
+      // Save incorrect attempt with quality
       await saveAttemptMutation.mutateAsync({
         wordId: currentWord.id,
         correct: false,
         typedAnswer: answer,
+        quality,
         audioBlobId: audioBlobId || undefined,
       });
 
@@ -611,6 +753,8 @@ export function PlaySaySpell() {
           wordId: currentWord.id,
           isCorrectFirstTry: false,
         });
+      } else if (!isOnline && !hasTriedOnce) {
+        await queueSrsUpdate(profile.id, currentWord.id, false);
       }
 
       // Show hint progressively

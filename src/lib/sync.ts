@@ -51,6 +51,12 @@ export async function syncQueuedData(): Promise<void> {
     // Then sync attempts (which may reference uploaded audio)
     await syncQueuedAttempts();
 
+    // Sync SRS updates
+    await syncQueuedSrsUpdates();
+
+    // Sync star transactions
+    await syncQueuedStarTransactions();
+
     const syncDuration = Date.now() - syncStartTime;
     logger.log(`Sync completed successfully in ${syncDuration}ms`);
     logger.metrics.syncCompleted(syncDuration);
@@ -622,5 +628,188 @@ export async function migrateSyncedFieldToBoolean(): Promise<void> {
   } catch (error) {
     logger.error("Error during synced field migration:", error);
     throw error;
+  }
+}
+
+/**
+ * Queue an SRS update for offline sync
+ */
+export async function queueSrsUpdate(
+  childId: string,
+  wordId: string,
+  isCorrectFirstTry: boolean
+): Promise<void> {
+  await db.queuedSrsUpdates.add({
+    child_id: childId,
+    word_id: wordId,
+    is_correct_first_try: isCorrectFirstTry,
+    created_at: new Date().toISOString(),
+    synced: false,
+    retry_count: 0,
+    failed: false,
+  });
+
+  logger.log(`Queued SRS update for word ${wordId}`);
+  logger.metrics.attemptQueued(); // Reuse metrics
+}
+
+/**
+ * Queue a star transaction for offline sync
+ */
+export async function queueStarTransaction(
+  userId: string,
+  amount: number,
+  reason: string
+): Promise<void> {
+  await db.queuedStarTransactions.add({
+    user_id: userId,
+    amount,
+    reason,
+    created_at: new Date().toISOString(),
+    synced: false,
+    retry_count: 0,
+    failed: false,
+  });
+
+  logger.log(`Queued star transaction: +${amount} stars for ${reason}`);
+}
+
+/**
+ * Sync queued SRS updates to Supabase
+ */
+async function syncQueuedSrsUpdates(): Promise<void> {
+  const queuedUpdates = await db.queuedSrsUpdates
+    .filter((update) => update.synced === false && update.failed === false)
+    .toArray();
+
+  logger.log(`Syncing ${queuedUpdates.length} SRS updates...`);
+
+  for (const update of queuedUpdates) {
+    try {
+      // Check if SRS entry already exists
+      const { data: existing } = await supabase
+        .from("srs")
+        .select("*")
+        .eq("child_id", update.child_id)
+        .eq("word_id", update.word_id)
+        .single();
+
+      // Prepare SRS update values
+      const { prepareSrsUpdate } = await import("@/lib/srs");
+      const srsValues = prepareSrsUpdate(
+        update.is_correct_first_try,
+        existing || undefined
+      );
+
+      // Upsert SRS entry
+      const { error } = await supabase.from("srs").upsert({
+        child_id: update.child_id,
+        word_id: update.word_id,
+        ...srsValues,
+      });
+
+      if (error) throw error;
+
+      // Mark as synced
+      if (update.id !== undefined) {
+        await db.queuedSrsUpdates.update(update.id, { synced: true });
+        logger.log(`Synced SRS update ${update.id}`);
+      }
+    } catch (error) {
+      const retryCount = update.retry_count + 1;
+
+      if (retryCount >= MAX_RETRY_ATTEMPTS) {
+        // Mark as permanently failed
+        if (update.id !== undefined) {
+          await db.queuedSrsUpdates.update(update.id, {
+            failed: true,
+            retry_count: retryCount,
+            last_error: error instanceof Error ? error.message : String(error),
+          });
+        }
+        logger.error(
+          `SRS update ${update.id} permanently failed after ${MAX_RETRY_ATTEMPTS} attempts:`,
+          error
+        );
+      } else {
+        // Update retry count for next attempt
+        if (update.id !== undefined) {
+          await db.queuedSrsUpdates.update(update.id, {
+            retry_count: retryCount,
+            last_error: error instanceof Error ? error.message : String(error),
+          });
+        }
+        logger.warn(`SRS update ${update.id} failed, will retry:`, error);
+        await sleep(calculateBackoffDelay(retryCount));
+      }
+    }
+  }
+}
+
+/**
+ * Sync queued star transactions to Supabase
+ */
+async function syncQueuedStarTransactions(): Promise<void> {
+  const queuedTransactions = await db.queuedStarTransactions
+    .filter(
+      (transaction) =>
+        transaction.synced === false && transaction.failed === false
+    )
+    .toArray();
+
+  logger.log(`Syncing ${queuedTransactions.length} star transactions...`);
+
+  for (const transaction of queuedTransactions) {
+    try {
+      // Call the award_stars RPC function
+      const { error } = await supabase.rpc(
+        "award_stars" as unknown as "fn_add_stars",
+        {
+          p_user_id: transaction.user_id,
+          p_amount: transaction.amount,
+          p_reason: transaction.reason,
+        } as unknown as { p_child: string; p_amount: number }
+      );
+
+      if (error) throw error;
+
+      // Mark as synced
+      if (transaction.id !== undefined) {
+        await db.queuedStarTransactions.update(transaction.id, {
+          synced: true,
+        });
+        logger.log(`Synced star transaction ${transaction.id}`);
+      }
+    } catch (error) {
+      const retryCount = transaction.retry_count + 1;
+
+      if (retryCount >= MAX_RETRY_ATTEMPTS) {
+        // Mark as permanently failed
+        if (transaction.id !== undefined) {
+          await db.queuedStarTransactions.update(transaction.id, {
+            failed: true,
+            retry_count: retryCount,
+            last_error: error instanceof Error ? error.message : String(error),
+          });
+        }
+        logger.error(
+          `Star transaction ${transaction.id} permanently failed after ${MAX_RETRY_ATTEMPTS} attempts:`,
+          error
+        );
+      } else {
+        // Update retry count for next attempt
+        if (transaction.id !== undefined) {
+          await db.queuedStarTransactions.update(transaction.id, {
+            retry_count: retryCount,
+            last_error: error instanceof Error ? error.message : String(error),
+          });
+        }
+        logger.warn(
+          `Star transaction ${transaction.id} failed, will retry:`,
+          error
+        );
+        await sleep(calculateBackoffDelay(retryCount));
+      }
+    }
   }
 }
