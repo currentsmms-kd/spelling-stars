@@ -17,11 +17,9 @@ CREATE POLICY "Parents can upload word audio"
         )
     );
 
--- Allow public read access to word audio
-CREATE POLICY "Public can view word audio"
-    ON storage.objects FOR SELECT
-    TO public
-    USING (bucket_id = 'word-audio');
+-- Note: Public read access policy removed - superseded by migration 20251109170000
+-- Bucket is now private and accessed via signed URLs
+-- See migration 20251109170000_secure_prompt_audio_private.sql for updated policies
 
 -- Allow parents to update their word audio
 CREATE POLICY "Parents can update word audio"

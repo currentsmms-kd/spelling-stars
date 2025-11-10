@@ -14,9 +14,9 @@ supabase db push
 
 This will create:
 
-- `word-audio` storage bucket (public read)
+- `word-audio` storage bucket (private, accessed via signed URLs)
 - RLS policies for parent upload/update/delete access
-- Public read access for audio playback
+- Authenticated read access (requires signed URLs for playback)
 
 ## Verify Storage Bucket
 

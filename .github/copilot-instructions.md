@@ -143,11 +143,9 @@ syncQueuedData() → uploads audio to Storage → inserts attempts → marks syn
 7. `parental_settings` - Parent prefs (`pin_code`, `show_hints_on_first_miss`, `daily_session_limit_minutes`, etc.)
 8. `session_analytics` - Session tracking (`session_date`, `words_practiced`, `correct_on_first_try`)
 
-**Storage bucket:** `word-audio` - Path: `lists/{listId}/words/{wordId}.webm` - Public read, parent write
-
 **Storage bucket (audio-recordings):** Path: `{child_id}/{list_id}/{word_id}_{timestamp}.webm` - **PRIVATE bucket** - Access requires signed URLs (1 hour TTL) via `getSignedAudioUrl()` in `supa.ts`
 
-**Storage bucket (word-audio):** Path: `lists/{listId}/words/{wordId}.webm` - Public read, parent write (prompt audio only)
+**Storage bucket (word-audio):** Path: `lists/{listId}/words/{wordId}.webm` - **PRIVATE bucket** - Parent write, authenticated read via signed URLs (1 hour TTL) via `getSignedPromptAudioUrl()` in `supa.ts` (prompt audio only)
 
 **RLS Pattern:** Parents CRUD own content; children read-only + insert own attempts
 

@@ -15,8 +15,10 @@ WHERE prompt_audio_url IS NOT NULL
   AND prompt_audio_url LIKE '%/storage/v1/object/public/word-audio/%';
 
 -- Step 3: Update the word-audio bucket to be private
--- Note: This is done via Supabase Storage API, but we document it here
--- The bucket configuration should be changed from public to private
+-- Note: This change was applied manually via Supabase Studio (not tracked in migrations)
+-- The bucket configuration is stored in the storage.buckets table but changes are not 
+-- typically reflected in migration history. Verify bucket privacy in Supabase Studio.
+-- UPDATE storage.buckets SET public = false WHERE id = 'word-audio';
 
 -- Step 4: Update RLS policies for word-audio bucket
 -- Parents can upload/update/delete their own list audio (write access)
@@ -26,6 +28,7 @@ WHERE prompt_audio_url IS NOT NULL
 DROP POLICY IF EXISTS "Parents can upload word audio" ON storage.objects;
 DROP POLICY IF EXISTS "Parents can update word audio" ON storage.objects;
 DROP POLICY IF EXISTS "Parents can delete word audio" ON storage.objects;
+DROP POLICY IF EXISTS "Public can view word audio" ON storage.objects;
 DROP POLICY IF EXISTS "Anyone can read word audio" ON storage.objects;
 
 -- Create new policies for private word-audio bucket

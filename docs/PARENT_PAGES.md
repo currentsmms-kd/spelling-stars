@@ -97,14 +97,15 @@ The `useReorderWords` hook implements optimistic updates:
 ### Bucket: `word-audio`
 
 **Location:** Supabase Storage
-**Access:** Public read, parent write
+**Access:** Private bucket with signed URLs (1 hour TTL)
 **Path Structure:** `lists/{listId}/words/{wordId}.webm`
-**Migration:** `20241109000001_add_word_audio_bucket.sql`
+**Migration:** `20241109000001_add_word_audio_bucket.sql` (initial), `20251109170000_secure_prompt_audio_private.sql` (security update)
 
 **Policies:**
 
 - Parents can upload, update, and delete audio
-- Public read access for playback by children
+- All authenticated users can read (requires signed URLs for access)
+- Signed URLs generated via `getSignedPromptAudioUrl()` in `supa.ts`
 
 ## UX Features
 
