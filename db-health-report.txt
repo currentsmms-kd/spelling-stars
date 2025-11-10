@@ -1,0 +1,112 @@
+=== SUPABASE DATABASE HEALTH CHECK ===
+Project: spelling-stars (mxgamemjvrcajwhbefvz)
+
+
+1. Tables without Primary Keys
+Checking: Tables without primary keys
+
+2. Unused Indexes
+Checking: Unused indexes
+[
+  {
+    "schemaname": "public",
+    "tablename": "srs",
+    "indexname": "idx_srs_due_date",
+    "scans": 0
+  },
+  {
+    "schemaname": "public",
+    "tablename": "srs",
+    "indexname": "srs_child_id_word_id_key",
+    "scans": 0
+  }
+]
+
+3. Missing Foreign Key Indexes
+Checking: Missing foreign key indexes
+
+4. Tables without RLS Enabled
+Checking: Tables without RLS
+
+5. Tables with RLS Enabled but No Policies
+Checking: Tables with RLS but no policies
+
+6. Duplicate Indexes
+Checking: Duplicate indexes
+
+7. Table Sizes
+Checking: Table sizes
+[
+  {
+    "schemaname": "public",
+    "tablename": "words",
+    "size": "64 kB"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "word_lists",
+    "size": "48 kB"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "badges",
+    "size": "48 kB"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "srs",
+    "size": "40 kB"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "list_words",
+    "size": "40 kB"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profiles",
+    "size": "32 kB"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "rewards",
+    "size": "32 kB"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "parental_settings",
+    "size": "24 kB"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "attempts",
+    "size": "24 kB"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "session_analytics",
+    "size": "16 kB"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "user_badges",
+    "size": "16 kB"
+  }
+]
+
+8. Security Definer Functions
+Checking: Security definer functions
+[
+  {
+    "schema": "public",
+    "function_name": "fn_add_stars",
+    "definition": "CREATE OR REPLACE FUNCTION public.fn_add_stars(p_child uuid, p_amount integer)\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\r\nDECLARE\r\n    v_new_total INTEGER;\r\nBEGIN\r\n    INSERT INTO rewards (child_id, stars_total)\r\n    VALUES (p_child, p_amount)\r\n    ON CONFLICT (child_id)\r\n    DO UPDATE SET stars_total = rewards.stars_total + p_amount\r\n    RETURNING stars_total INTO v_new_total;\r\n\r\n    RETURN v_new_total;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "handle_new_user",
+    "definition": "CREATE OR REPLACE FUNCTION public.handle_new_user()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\r\nBEGIN\r\n    INSERT INTO public.profiles (id, role, display_name)\r\n    VALUES (\r\n        NEW.id,\r\n        COALESCE(NEW.raw_user_meta_data->>'role', 'parent'),\r\n        COALESCE(NEW.raw_user_meta_data->>'display_name', split_part(NEW.email, '@', 1))\r\n    );\r\n    RETURN NEW;\r\nEND;\r\n$function$\n"
+  }
+]
+
+=== HEALTH CHECK COMPLETE ===
