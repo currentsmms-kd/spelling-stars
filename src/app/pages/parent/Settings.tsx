@@ -239,6 +239,8 @@ function CacheManagement() {
   const [cacheInfo, setCacheInfo] = useState<Map<string, number>>(new Map());
   const [isClearing, setIsClearing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [showClearAllConfirmation, setShowClearAllConfirmation] =
+    useState(false);
 
   const loadCacheInfo = async () => {
     const info = await getCacheInfo();
@@ -264,15 +266,9 @@ function CacheManagement() {
   };
 
   const handleClearAllCaches = async () => {
-    if (
-      !confirm(
-        "This will clear ALL caches, including downloaded content. Continue?"
-      )
-    ) {
-      return;
-    }
     setIsClearing(true);
     setMessage(null);
+    setShowClearAllConfirmation(false);
     try {
       await clearAllCaches();
       setMessage("All caches cleared successfully");
@@ -300,6 +296,31 @@ function CacheManagement() {
       {message && (
         <div className="p-3 mb-4 rounded-lg bg-secondary/10 border border-secondary text-secondary-foreground">
           {message}
+        </div>
+      )}
+
+      {showClearAllConfirmation && (
+        <div className="p-3 mb-4 rounded-lg bg-destructive/10 border border-destructive text-destructive-foreground">
+          <p className="font-medium mb-2">
+            This will clear ALL caches, including downloaded content. Continue?
+          </p>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setShowClearAllConfirmation(false)}
+              variant="outline"
+              size="sm"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleClearAllCaches}
+              variant="danger"
+              size="sm"
+              disabled={isClearing}
+            >
+              Clear All Caches
+            </Button>
+          </div>
         </div>
       )}
 
@@ -331,8 +352,8 @@ function CacheManagement() {
             Clear User Data
           </Button>
           <Button
-            onClick={handleClearAllCaches}
-            disabled={isClearing}
+            onClick={() => setShowClearAllConfirmation(true)}
+            disabled={isClearing || showClearAllConfirmation}
             variant="outline"
             className="flex items-center justify-center gap-2"
           >
