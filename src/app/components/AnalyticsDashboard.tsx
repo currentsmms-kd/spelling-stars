@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Card } from "./Card";
 import { supabase } from "../supabase";
 import { TrendingUp, Target, Award, Clock } from "lucide-react";
+import { logger } from "@/lib/logger";
 
 interface AnalyticsSummary {
   totalSessions: number;
@@ -176,7 +177,7 @@ export function AnalyticsDashboard({ childId }: AnalyticsDashboardProps) {
           setAnalytics(null);
         }
       } catch (err) {
-        console.error("Error loading analytics:", err);
+        logger.error("Error loading analytics:", err);
         setAnalytics(null);
       } finally {
         setIsLoading(false);

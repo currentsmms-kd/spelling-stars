@@ -6,6 +6,8 @@
  * - hash: PBKDF2-HMAC-SHA256 with 100,000 iterations
  */
 
+import { logger } from "./logger";
+
 const ITERATIONS = 100000;
 const HASH_LENGTH = 32; // 256 bits
 const SALT_LENGTH = 16; // 128 bits
@@ -136,7 +138,7 @@ export async function verifyPin(
     // Constant-time comparison
     return constantTimeEqual(actualHash, expectedHash);
   } catch (error) {
-    console.error("PIN verification error:", error);
+    logger.error("PIN verification error:", error);
     return false;
   }
 }

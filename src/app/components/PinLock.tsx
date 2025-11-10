@@ -4,6 +4,7 @@ import { Card } from "./Card";
 import { Lock, X } from "lucide-react";
 import { useParentalSettingsStore } from "../store/parentalSettings";
 import { verifyPin } from "@/lib/crypto";
+import { logger } from "@/lib/logger";
 
 interface PinLockProps {
   onUnlock: () => void;
@@ -222,7 +223,7 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
         setPin("");
       }
     } catch (err) {
-      console.error("PIN verification error:", err);
+      logger.error("PIN verification error:", err);
       setError("An error occurred. Please try again.");
       setPin("");
     } finally {

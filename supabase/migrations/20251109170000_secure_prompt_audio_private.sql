@@ -16,7 +16,7 @@ WHERE prompt_audio_url IS NOT NULL
 
 -- Step 3: Update the word-audio bucket to be private
 -- Note: This change was applied manually via Supabase Studio (not tracked in migrations)
--- The bucket configuration is stored in the storage.buckets table but changes are not 
+-- The bucket configuration is stored in the storage.buckets table but changes are not
 -- typically reflected in migration history. Verify bucket privacy in Supabase Studio.
 -- UPDATE storage.buckets SET public = false WHERE id = 'word-audio';
 

@@ -10,6 +10,7 @@ import {
   useDuplicateWordList,
 } from "@/app/api/supa";
 import { useState } from "react";
+import { logger } from "@/lib/logger";
 
 type SortField = "title" | "week_start_date" | "word_count" | "created_at";
 type SortOrder = "asc" | "desc";
@@ -446,9 +447,9 @@ export function Lists() {
       await deleteList.mutateAsync({ id, userId: user.id });
       setDeleteConfirm(null);
     } catch (error) {
-      console.error("Error deleting list:", error);
+      logger.error("Error deleting list:", error);
       // TODO: Replace with toast notification
-      console.error("Failed to delete list. Please try again.");
+      logger.error("Failed to delete list. Please try again.");
     }
   };
 
@@ -457,9 +458,9 @@ export function Lists() {
     try {
       await duplicateList.mutateAsync({ listId: id, userId: user.id });
     } catch (error) {
-      console.error("Error duplicating list:", error);
+      logger.error("Error duplicating list:", error);
       // TODO: Replace with toast notification
-      console.error("Failed to duplicate list. Please try again.");
+      logger.error("Failed to duplicate list. Please try again.");
     }
   };
 

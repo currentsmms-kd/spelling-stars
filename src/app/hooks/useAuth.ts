@@ -27,7 +27,7 @@ export function useAuth() {
         if (error) throw error;
         setProfile(data);
       } catch (error) {
-        console.error("Error fetching profile:", error);
+        logger.error("Error fetching profile:", error);
       } finally {
         setIsLoading(false);
       }

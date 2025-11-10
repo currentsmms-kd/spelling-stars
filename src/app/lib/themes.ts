@@ -1,3 +1,5 @@
+import { logger } from "@/lib/logger";
+
 export interface ColorTheme {
   id: string;
   name: string;
@@ -1631,7 +1633,7 @@ export function getThemeById(themeId: string): ColorTheme | undefined {
 export function applyTheme(themeId: string): void {
   const theme = getThemeById(themeId);
   if (!theme) {
-    console.warn(`Theme with id "${themeId}" not found`);
+    logger.warn(`Theme with id "${themeId}" not found`);
     return;
   }
 

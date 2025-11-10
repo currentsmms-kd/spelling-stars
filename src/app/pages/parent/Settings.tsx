@@ -10,6 +10,7 @@ import { supabase } from "@/app/supabase";
 import { Lock, Save, Settings, Trash2, RefreshCw } from "lucide-react";
 import { isValidPinFormat } from "@/lib/crypto";
 import { clearUserCaches, clearAllCaches, getCacheInfo } from "@/lib/cache";
+import { logger } from "@/lib/logger";
 
 // Extracted PIN Settings Component
 function PinSettings({
@@ -415,7 +416,7 @@ export function ParentalSettings() {
           .single();
 
         if (error && error.code !== "PGRST116") {
-          console.error("Error loading settings:", error);
+          logger.error("Error loading settings:", error);
           return;
         }
 
@@ -437,7 +438,7 @@ export function ParentalSettings() {
           }
         }
       } catch (err) {
-        console.error("Error loading settings:", err);
+        logger.error("Error loading settings:", err);
       }
     };
 
@@ -496,7 +497,7 @@ export function ParentalSettings() {
       setLocalPin("");
       setConfirmPin("");
     } catch (err) {
-      console.error("Error saving settings:", err);
+      logger.error("Error saving settings:", err);
       setMessage({ type: "error", text: "Failed to save settings" });
     } finally {
       setIsSaving(false);
