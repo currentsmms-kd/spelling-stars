@@ -14,7 +14,10 @@ import { logger } from "./logger";
 export const CACHE_NAMES = {
   AUTH: "supabase-auth-cache",
   API: "supabase-api-cache",
-  STORAGE: "supabase-storage-cache",
+  STORAGE: "supabase-storage-cache", // DEPRECATED - kept for backwards compatibility
+  PRIVATE_AUDIO: "private-audio-cache",
+  PUBLIC_AUDIO: "public-audio-cache",
+  STORAGE_FALLBACK: "supabase-storage-fallback",
   CHILD_ROUTES: "child-routes-cache",
   PARENT_ROUTES: "parent-routes-cache",
 } as const;
@@ -67,8 +70,8 @@ export async function clearCache(cacheName: string): Promise<void> {
 }
 
 /**
- * Clear user-specific caches (routes and API data)
- * Preserves static assets (storage cache)
+ * Clear user-specific caches (routes, API data, and private audio)
+ * Preserves public static assets (public-audio-cache)
  */
 export async function clearUserCaches(): Promise<void> {
   if (!("caches" in window)) {
@@ -82,8 +85,11 @@ export async function clearUserCaches(): Promise<void> {
       clearCache(CACHE_NAMES.API),
       clearCache(CACHE_NAMES.CHILD_ROUTES),
       clearCache(CACHE_NAMES.PARENT_ROUTES),
+      clearCache(CACHE_NAMES.PRIVATE_AUDIO), // Clear private audio with signed URLs
+      clearCache(CACHE_NAMES.STORAGE_FALLBACK), // Clear fallback storage cache
+      clearCache(CACHE_NAMES.STORAGE), // Clear deprecated storage cache if exists
     ]);
-    logger.info("User-specific caches cleared");
+    logger.info("User-specific caches cleared (including private audio)");
   } catch (error) {
     logger.error("Failed to clear user caches:", error);
     throw error;

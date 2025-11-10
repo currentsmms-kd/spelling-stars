@@ -91,6 +91,55 @@ export async function getSignedAudioUrls(
 }
 
 /**
+ * Create a signed URL for private prompt audio (word-audio bucket)
+ * @param path - Storage path to the prompt audio file
+ * @param expiresIn - Time in seconds until URL expires (default: 3600 = 1 hour)
+ * @returns Signed URL or null on error
+ */
+export async function getSignedPromptAudioUrl(
+  path: string,
+  expiresIn = 3600
+): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.storage
+      .from("word-audio")
+      .createSignedUrl(path, expiresIn);
+
+    if (error) {
+      console.error("Error creating signed prompt audio URL:", error);
+      return null;
+    }
+
+    return data.signedUrl;
+  } catch (error) {
+    console.error("Exception creating signed prompt audio URL:", error);
+    return null;
+  }
+}
+
+/**
+ * Create multiple signed URLs for prompt audio in bulk
+ * @param paths - Array of storage paths
+ * @param expiresIn - Time in seconds until URLs expire (default: 3600 = 1 hour)
+ * @returns Object mapping paths to signed URLs
+ */
+export async function getSignedPromptAudioUrls(
+  paths: string[],
+  expiresIn = 3600
+): Promise<Record<string, string | null>> {
+  const urlMap: Record<string, string | null> = {};
+
+  await Promise.all(
+    paths.map(async (path) => {
+      const signedUrl = await getSignedPromptAudioUrl(path, expiresIn);
+      urlMap[path] = signedUrl;
+    })
+  );
+
+  return urlMap;
+}
+
+/**
  * Get the current user's profile
  */
 export async function getProfilesMe(): Promise<Profile | null> {
@@ -175,9 +224,31 @@ export async function getListWithWords(
       sort_index: lw.sort_index,
     })) || [];
 
+  // Generate signed URLs for prompt audio paths
+  // Use batch function for efficiency
+  const pathsToSign = words
+    .filter((w): w is typeof w & { prompt_audio_path: string } =>
+      Boolean(w.prompt_audio_path)
+    )
+    .map((w) => w.prompt_audio_path);
+
+  const signedUrlMap =
+    pathsToSign.length > 0 ? await getSignedPromptAudioUrls(pathsToSign) : {};
+
+  // Add signed URLs to words (temporarily store in prompt_audio_url field for backward compatibility)
+  const wordsWithSignedUrls = words.map((word) => {
+    if (word.prompt_audio_path && signedUrlMap[word.prompt_audio_path]) {
+      return {
+        ...word,
+        prompt_audio_url: signedUrlMap[word.prompt_audio_path],
+      };
+    }
+    return word;
+  });
+
   return {
     ...list,
-    words,
+    words: wordsWithSignedUrls,
   };
 }
 
@@ -572,7 +643,37 @@ export async function getDueWords(childId: string): Promise<
     })
   );
 
-  return wordsWithLists;
+  // Generate signed URLs for prompt audio paths
+  const pathsToSign = wordsWithLists
+    .filter(
+      (
+        entry
+      ): entry is typeof entry & { word: { prompt_audio_path: string } } =>
+        Boolean(entry.word.prompt_audio_path)
+    )
+    .map((entry) => entry.word.prompt_audio_path);
+
+  const signedUrlMap =
+    pathsToSign.length > 0 ? await getSignedPromptAudioUrls(pathsToSign) : {};
+
+  // Add signed URLs to words
+  const wordsWithSignedUrls = wordsWithLists.map((entry) => {
+    if (
+      entry.word.prompt_audio_path &&
+      signedUrlMap[entry.word.prompt_audio_path]
+    ) {
+      return {
+        ...entry,
+        word: {
+          ...entry.word,
+          prompt_audio_url: signedUrlMap[entry.word.prompt_audio_path],
+        },
+      };
+    }
+    return entry;
+  });
+
+  return wordsWithSignedUrls;
 }
 
 const DEFAULT_LIMIT = 10;
@@ -611,10 +712,40 @@ export async function getHardestWords(
     return [];
   }
 
-  return (data || []).map((entry) => ({
+  const entries = (data || []).map((entry) => ({
     ...(entry as SrsEntry),
     word: entry.words as unknown as Word,
   }));
+
+  // Generate signed URLs for prompt audio paths
+  const pathsToSign = entries
+    .filter(
+      (
+        entry
+      ): entry is typeof entry & { word: { prompt_audio_path: string } } =>
+        Boolean(entry.word.prompt_audio_path)
+    )
+    .map((entry) => entry.word.prompt_audio_path);
+
+  const signedUrlMap =
+    pathsToSign.length > 0 ? await getSignedPromptAudioUrls(pathsToSign) : {};
+
+  // Add signed URLs to words
+  return entries.map((entry) => {
+    if (
+      entry.word.prompt_audio_path &&
+      signedUrlMap[entry.word.prompt_audio_path]
+    ) {
+      return {
+        ...entry,
+        word: {
+          ...entry.word,
+          prompt_audio_url: signedUrlMap[entry.word.prompt_audio_path],
+        },
+      };
+    }
+    return entry;
+  });
 }
 
 /**
@@ -651,10 +782,40 @@ export async function getMostLapsedWords(
     return [];
   }
 
-  return (data || []).map((entry) => ({
+  const entries = (data || []).map((entry) => ({
     ...(entry as SrsEntry),
     word: entry.words as unknown as Word,
   }));
+
+  // Generate signed URLs for prompt audio paths
+  const pathsToSign = entries
+    .filter(
+      (
+        entry
+      ): entry is typeof entry & { word: { prompt_audio_path: string } } =>
+        Boolean(entry.word.prompt_audio_path)
+    )
+    .map((entry) => entry.word.prompt_audio_path);
+
+  const signedUrlMap =
+    pathsToSign.length > 0 ? await getSignedPromptAudioUrls(pathsToSign) : {};
+
+  // Add signed URLs to words
+  return entries.map((entry) => {
+    if (
+      entry.word.prompt_audio_path &&
+      signedUrlMap[entry.word.prompt_audio_path]
+    ) {
+      return {
+        ...entry,
+        word: {
+          ...entry.word,
+          prompt_audio_url: signedUrlMap[entry.word.prompt_audio_path],
+        },
+      };
+    }
+    return entry;
+  });
 }
 
 // ============================================
@@ -1088,20 +1249,19 @@ export function useUploadAudio() {
 
       if (error) throw error;
 
-      // Get the public URL
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("word-audio").getPublicUrl(data.path);
+      // Store the storage path (not public URL) for signed URL generation
+      // Format: lists/{listId}/words/{wordId}.webm
+      const storagePath = data.path;
 
-      // Update the word with the audio URL
+      // Update the word with the audio path
       const { error: updateError } = await supabase
         .from("words")
-        .update({ prompt_audio_url: publicUrl })
+        .update({ prompt_audio_path: storagePath })
         .eq("id", wordId);
 
       if (updateError) throw updateError;
 
-      return publicUrl;
+      return storagePath;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({

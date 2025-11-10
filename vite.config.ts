@@ -60,17 +60,53 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/.*/i,
+            // Private audio recordings with signed URLs - never cache
+            urlPattern: ({ url }: { url: URL }) => {
+              const isStorage =
+                url.hostname.includes(".supabase.co") &&
+                url.pathname.includes("/storage/");
+              const isAudioRecordings =
+                url.pathname.includes("/audio-recordings/");
+              const hasSignedToken = url.searchParams.has("token");
+              // Don't cache if it's audio-recordings bucket OR has a signed URL token
+              return isStorage && (isAudioRecordings || hasSignedToken);
+            },
+            handler: "NetworkOnly",
+            options: {
+              cacheName: "private-audio-cache",
+              // NetworkOnly ignores cache entirely
+            },
+          },
+          {
+            // Public static assets (word-audio prompt files) - cache with reduced TTL
+            urlPattern:
+              /^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/public\/word-audio\/.*/i,
             handler: "CacheFirst",
             options: {
-              cacheName: "supabase-storage-cache",
+              cacheName: "public-audio-cache",
               expiration: {
                 maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days for static assets
+                maxAgeSeconds: 60 * 60 * 24 * 2, // 2 days (reduced from 7)
               },
               cacheableResponse: {
                 statuses: [0, 200],
               },
+            },
+          },
+          {
+            // Other Supabase storage - short cache with network priority
+            urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/.*/i,
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "supabase-storage-fallback",
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 30, // 30 minutes
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+              networkTimeoutSeconds: 5,
             },
           },
           {

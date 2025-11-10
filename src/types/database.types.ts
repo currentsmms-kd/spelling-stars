@@ -433,6 +433,7 @@ export type Database = {
           created_at: string | null;
           id: string;
           phonetic: string | null;
+          prompt_audio_path: string | null;
           prompt_audio_url: string | null;
           text: string;
           tts_voice: string | null;
@@ -441,6 +442,7 @@ export type Database = {
           created_at?: string | null;
           id?: string;
           phonetic?: string | null;
+          prompt_audio_path?: string | null;
           prompt_audio_url?: string | null;
           text: string;
           tts_voice?: string | null;
@@ -449,6 +451,7 @@ export type Database = {
           created_at?: string | null;
           id?: string;
           phonetic?: string | null;
+          prompt_audio_path?: string | null;
           prompt_audio_url?: string | null;
           text?: string;
           tts_voice?: string | null;
