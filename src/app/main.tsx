@@ -9,11 +9,12 @@ import {
   hasPendingSync,
   migrateSyncedFieldToBoolean,
 } from "@/lib/sync";
+import { logger } from "@/lib/logger";
 import "../styles/index.css";
 
 // Run one-time migration to normalize synced field types
 migrateSyncedFieldToBoolean().catch((error) => {
-  console.error("Failed to migrate synced field:", error);
+  logger.error("Failed to migrate synced field:", error);
 });
 
 // Initialize theme before rendering
@@ -29,7 +30,7 @@ const initializeTheme = () => {
         });
       }
     } catch (error) {
-      console.error("Failed to parse stored theme:", error);
+      logger.error("Failed to parse stored theme:", error);
     }
   }
 };
@@ -46,11 +47,11 @@ if ("serviceWorker" in navigator) {
         // Listen for background sync
         if ("sync" in registration) {
           // Background sync is supported
-          console.log("Background sync is available");
+          logger.info("Background sync is available");
         }
       })
       .catch((error) => {
-        console.error("SW registration failed:", error);
+        logger.error("SW registration failed:", error);
       });
   });
 }
@@ -71,7 +72,7 @@ window.addEventListener("online", async () => {
     try {
       await syncQueuedData();
     } catch (error) {
-      console.error("Failed to sync queued data:", error);
+      logger.error("Failed to sync queued data:", error);
     }
   }
 

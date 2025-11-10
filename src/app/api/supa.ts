@@ -8,6 +8,7 @@ import type { Database } from "../../types/database.types";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { prepareSrsUpdate } from "../../lib/srs";
 import type { SrsEntry, SrsInsert, SrsUpdate } from "../../lib/srs";
+import { logger } from "@/lib/logger";
 
 // Type aliases for convenience
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
@@ -57,13 +58,13 @@ export async function getSignedAudioUrl(
       .createSignedUrl(path, expiresIn);
 
     if (error) {
-      console.error("Error creating signed URL:", error);
+      logger.error("Error creating signed URL:", error);
       return null;
     }
 
     return data.signedUrl;
   } catch (error) {
-    console.error("Exception creating signed URL:", error);
+    logger.error("Exception creating signed URL:", error);
     return null;
   }
 }
@@ -106,13 +107,13 @@ export async function getSignedPromptAudioUrl(
       .createSignedUrl(path, expiresIn);
 
     if (error) {
-      console.error("Error creating signed prompt audio URL:", error);
+      logger.error("Error creating signed prompt audio URL:", error);
       return null;
     }
 
     return data.signedUrl;
   } catch (error) {
-    console.error("Exception creating signed prompt audio URL:", error);
+    logger.error("Exception creating signed prompt audio URL:", error);
     return null;
   }
 }
@@ -158,7 +159,7 @@ export async function getProfilesMe(): Promise<Profile | null> {
     .single();
 
   if (error) {
-    console.error("Error fetching profile:", error);
+    logger.error("Error fetching profile:", error);
     return null;
   }
 
@@ -175,7 +176,7 @@ export async function getLists(): Promise<WordList[]> {
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("Error fetching lists:", error);
+    logger.error("Error fetching lists:", error);
     return [];
   }
 
@@ -196,7 +197,7 @@ export async function getListWithWords(
     .single();
 
   if (listError || !list) {
-    console.error("Error fetching list:", listError);
+    logger.error("Error fetching list:", listError);
     return null;
   }
 
@@ -213,7 +214,7 @@ export async function getListWithWords(
     .order("sort_index", { ascending: true });
 
   if (wordsError) {
-    console.error("Error fetching words:", wordsError);
+    logger.error("Error fetching words:", wordsError);
     return { ...list, words: [] };
   }
 
@@ -269,7 +270,7 @@ export async function upsertList(
       .single();
 
     if (error) {
-      console.error("Error updating list:", error);
+      logger.error("Error updating list:", error);
       return null;
     }
 
@@ -283,7 +284,7 @@ export async function upsertList(
       .single();
 
     if (error) {
-      console.error("Error creating list:", error);
+      logger.error("Error creating list:", error);
       return null;
     }
 
@@ -304,7 +305,7 @@ export async function insertAttempt(
     .single();
 
   if (error) {
-    console.error("Error inserting attempt:", error);
+    logger.error("Error inserting attempt:", error);
     return null;
   }
 
@@ -321,7 +322,7 @@ export async function uploadAudio(file: File): Promise<string | null> {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    console.error("User not authenticated");
+    logger.error("User not authenticated");
     return null;
   }
 
@@ -340,7 +341,7 @@ export async function uploadAudio(file: File): Promise<string | null> {
     });
 
   if (error) {
-    console.error("Error uploading audio:", error);
+    logger.error("Error uploading audio:", error);
     return null;
   }
 
@@ -360,7 +361,7 @@ export async function getRewards(childId: string): Promise<Reward | null> {
     .single();
 
   if (error) {
-    console.error("Error fetching rewards:", error);
+    logger.error("Error fetching rewards:", error);
     return null;
   }
 
@@ -380,7 +381,7 @@ export async function addStars(
   });
 
   if (error) {
-    console.error("Error adding stars:", error);
+    logger.error("Error adding stars:", error);
     return null;
   }
 
@@ -403,7 +404,7 @@ export async function createWord(word: {
     .single();
 
   if (error) {
-    console.error("Error creating word:", error);
+    logger.error("Error creating word:", error);
     return null;
   }
 
@@ -429,7 +430,7 @@ export async function addWordToList(
     .single();
 
   if (error) {
-    console.error("Error adding word to list:", error);
+    logger.error("Error adding word to list:", error);
     return null;
   }
 
@@ -450,7 +451,7 @@ export async function removeWordFromList(
     .eq("word_id", wordId);
 
   if (error) {
-    console.error("Error removing word from list:", error);
+    logger.error("Error removing word from list:", error);
     return false;
   }
 
@@ -468,7 +469,7 @@ export async function getAttempts(childId: string): Promise<Attempt[]> {
     .order("started_at", { ascending: false });
 
   if (error) {
-    console.error("Error fetching attempts:", error);
+    logger.error("Error fetching attempts:", error);
     return [];
   }
 
@@ -490,7 +491,7 @@ export async function getAttemptsForWord(
     .order("started_at", { ascending: false });
 
   if (error) {
-    console.error("Error fetching attempts for word:", error);
+    logger.error("Error fetching attempts for word:", error);
     return [];
   }
 
@@ -516,7 +517,7 @@ export async function getSrsEntry(
     .maybeSingle();
 
   if (error) {
-    console.error("Error fetching SRS entry:", error);
+    logger.error("Error fetching SRS entry:", error);
     return null;
   }
 
@@ -544,7 +545,7 @@ export async function upsertSrsEntry(
     .single();
 
   if (error) {
-    console.error("Error upserting SRS entry:", error);
+    logger.error("Error upserting SRS entry:", error);
     return null;
   }
 
@@ -605,7 +606,7 @@ export async function getDueWords(childId: string): Promise<
     .order("due_date", { ascending: true });
 
   if (error) {
-    console.error("Error fetching due words:", error);
+    logger.error("Error fetching due words:", error);
     return [];
   }
 
@@ -708,7 +709,7 @@ export async function getHardestWords(
     .limit(resultLimit);
 
   if (error) {
-    console.error("Error fetching hardest words:", error);
+    logger.error("Error fetching hardest words:", error);
     return [];
   }
 
@@ -778,7 +779,7 @@ export async function getMostLapsedWords(
     .limit(resultLimit);
 
   if (error) {
-    console.error("Error fetching most lapsed words:", error);
+    logger.error("Error fetching most lapsed words:", error);
     return [];
   }
 

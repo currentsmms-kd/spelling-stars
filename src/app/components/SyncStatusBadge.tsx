@@ -13,6 +13,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { Card } from "./Card";
+import { logger } from "@/lib/logger";
 
 interface SyncStatusBadgeProps {
   variant?: "parent" | "child";
@@ -415,7 +416,7 @@ export function SyncStatusBadge({ variant = "parent" }: SyncStatusBadgeProps) {
       await actions.manualSync();
     } catch (error) {
       // Error already logged by hook
-      console.error("Sync failed:", error);
+      logger.error("Sync failed:", error);
     } finally {
       setIsSyncing(false);
     }
@@ -425,7 +426,7 @@ export function SyncStatusBadge({ variant = "parent" }: SyncStatusBadgeProps) {
     try {
       await actions.clearFailed();
     } catch (error) {
-      console.error("Failed to clear items:", error);
+      logger.error("Failed to clear items:", error);
     }
   };
 
@@ -433,7 +434,7 @@ export function SyncStatusBadge({ variant = "parent" }: SyncStatusBadgeProps) {
     try {
       await actions.retryItem(type, id);
     } catch (error) {
-      console.error(`Failed to retry ${type} ${id}:`, error);
+      logger.error(`Failed to retry ${type} ${id}:`, error);
     }
   };
 
