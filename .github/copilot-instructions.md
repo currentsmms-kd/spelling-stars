@@ -129,6 +129,17 @@ syncQueuedData() → uploads audio to Storage → inserts attempts → marks syn
 - Atomic operations: audio uploaded first, then attempts with references
 - Batch processing to avoid overwhelming network/database
 - Error isolation: one failed item doesn't block entire queue
+- Idempotency checks: prevents duplicate uploads/inserts
+- Telemetry tracking: `logger.metrics` tracks sync performance (see `src/lib/logger.ts`)
+- Failed items management: `getFailedItems()`, `clearFailedItems()`, `retryFailedItem()`
+
+**Sync workflow:**
+
+1. Check offline queue: `queuedAudio` and `queuedAttempts` tables in IndexedDB
+2. Upload audio first (dependency: attempts reference audio paths)
+3. For each audio: check if exists → upload → mark synced with storage path
+4. For each attempt: check if exists → verify audio ready → insert → mark synced
+5. Failed items marked with `failed: true` and `last_error` for troubleshooting
 
 ### Database Schema (Key Tables)
 
@@ -143,9 +154,11 @@ syncQueuedData() → uploads audio to Storage → inserts attempts → marks syn
 7. `parental_settings` - Parent prefs (`pin_code`, `show_hints_on_first_miss`, `daily_session_limit_minutes`, etc.)
 8. `session_analytics` - Session tracking (`session_date`, `words_practiced`, `correct_on_first_try`)
 
-**Storage bucket (audio-recordings):** Path: `{child_id}/{list_id}/{word_id}_{timestamp}.webm` - **PRIVATE bucket** - Access requires signed URLs (1 hour TTL) via `getSignedAudioUrl()` in `supa.ts`
+**Storage bucket (audio-recordings):** Path: `{child_id}/{list_id}/{word_id}_{timestamp}.webm` - **PRIVATE bucket** - Access requires signed URLs (1 hour TTL) via `getSignedAudioUrl()` in `supa.ts` - Child recordings
 
-**Storage bucket (word-audio):** Path: `lists/{listId}/words/{wordId}.webm` - **PRIVATE bucket** - Parent write, authenticated read via signed URLs (1 hour TTL) via `getSignedPromptAudioUrl()` in `supa.ts` (prompt audio only)
+**Storage bucket (word-audio):** Path: `lists/{listId}/words/{wordId}.webm` - **PRIVATE bucket** - Parent write, authenticated read via signed URLs (1 hour TTL) via `getSignedPromptAudioUrl()` in `supa.ts` - Parent-uploaded prompt audio
+
+**Security Note:** Both buckets use PRIVATE storage with signed URLs. Never cache signed URLs - generate fresh ones on each access. Service worker explicitly excludes signed URLs from caching (see `vite.config.ts` - `NetworkOnly` handler for signed tokens).
 
 **RLS Pattern:** Parents CRUD own content; children read-only + insert own attempts
 
@@ -176,7 +189,12 @@ npm run build       # Production: doppler run -- tsc && vite build
 npm run preview     # Preview: doppler run -- vite preview
 ```
 
-**Important:** This project uses **npm**, NOT pnpm or yarn. All dependency management uses npm.
+**Critical Note on Package Management:**
+
+- **package.json specifies npm** in scripts (`npm run dev`)
+- **pnpm-lock.yaml exists** but project uses npm for all operations
+- If you see `pnpm-lock.yaml`, ignore it - this is for historical reasons
+- **ALWAYS use npm**, NOT pnpm or yarn, for consistency
 
 **Required env vars:** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_ACCESS_TOKEN` (migrations only)
 
@@ -224,6 +242,11 @@ doppler secrets  # Verify
 10. `20241109000007_secure_pin_hashing.sql` - PBKDF2 PIN security (100k iterations)
 11. `20251109164108_secure_audio_recordings_private.sql` - Private audio storage with signed URLs
 12. `20251109164346_document_audio_url_security.sql` - Audio security documentation
+13. `20251109170000_secure_prompt_audio_private.sql` - Private prompt audio with signed URLs
+14. `20251109180000_add_performance_indexes.sql` - Performance optimization indexes
+15. `20251109190000_fix_function_search_path.sql` - Database function security
+16. `20251109200000_optimize_rls_policies.sql` - RLS performance improvements
+17. `20251109210000_fix_multiple_permissive_policies.sql` - RLS policy conflict resolution
 
 ### PWA & Offline Support
 
@@ -234,17 +257,35 @@ VitePWA({
   workbox: {
     runtimeCaching: [
       {
-        urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-        handler: "NetworkFirst", // Supabase API: network first, cache fallback
+        urlPattern: /^https:\/\/.*\.supabase\.co\/auth\/.*/i,
+        handler: "NetworkOnly", // Auth: never cache
+      },
+      {
+        urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/.*/i,
+        handler: "NetworkFirst", // Supabase REST API: network first, 5min cache
+      },
+      {
+        // CRITICAL: Never cache private audio with signed URLs
+        urlPattern: ({ url }) => {
+          const isStorage =
+            url.hostname.includes(".supabase.co") &&
+            url.pathname.includes("/storage/");
+          const isAudioRecordings = url.pathname.includes("/audio-recordings/");
+          const hasSignedToken = url.searchParams.has("token");
+          return isStorage && (isAudioRecordings || hasSignedToken);
+        },
+        handler: "NetworkOnly", // Private audio: always fetch fresh
       },
       {
         urlPattern: /\/child\/.*/,
-        handler: "CacheFirst", // Child routes: cache first for offline play
+        handler: "NetworkFirst", // Child routes: network first with 24hr cache fallback
       },
     ],
   },
 });
 ```
+
+**Why NetworkOnly for signed URLs:** Signed URLs expire after 1 hour. Caching them would serve expired/unauthorized URLs, breaking audio playback.
 
 **Offline flow:**
 
@@ -383,6 +424,47 @@ export function cn(...inputs: ClassValue[]) {
 ### Audio Recording Pattern
 
 See `src/app/hooks/useAudioRecorder.ts` for hook implementation and `src/app/components/AudioRecorder.tsx` for WaveSurfer.js integration. Returns Blob via `onRecordingComplete` callback.
+
+### Logging & Telemetry Pattern
+
+**Centralized logging** (`src/lib/logger.ts`):
+
+- Environment-aware: Debug/info only in dev, errors always logged
+- Sensitive data redaction: Emails, passwords, PINs, tokens auto-redacted
+- Sampling support: 100% in dev, 1% in prod (high-frequency logs)
+- Production error capture placeholder (ready for Sentry/LogRocket integration)
+
+**Sync telemetry** (`logger.metrics`):
+
+```typescript
+// Track sync operations
+logger.metrics.attemptQueued(); // Increment attempt queue counter
+logger.metrics.audioUploaded(); // Increment audio upload counter
+logger.metrics.syncStarted(); // Mark sync in progress
+logger.metrics.syncCompleted(ms); // Mark sync complete with duration
+
+// Subscribe to metrics (for UI display)
+const unsubscribe = logger.metrics.subscribe((metrics) => {
+  console.log(
+    `Queued: ${metrics.attemptsQueued}, Synced: ${metrics.attemptsSynced}`
+  );
+});
+
+// Get current snapshot
+const current = logger.metrics.getMetrics();
+```
+
+**Usage pattern:**
+
+```typescript
+import { logger } from "@/lib/logger";
+
+// Never use console.log directly - always use logger
+logger.debug("Debug info", { data }); // Dev only
+logger.info("Operation started"); // Dev only
+logger.warn("Non-critical issue"); // Always shown
+logger.error("Critical failure", error); // Always shown + captured in prod
+```
 
 ## Testing & Debugging
 
@@ -960,8 +1042,11 @@ queryFn: async (): Promise<WordList[]> => { ... }
 - ALL Supabase database operations
 - Structure:
   - Lines 1-25: Type imports and aliases
-  - Lines 27-400: Raw async functions (can be called directly)
-  - Lines 400-1133: React Query hooks (primary interface)
+  - Lines 27-100: Signed URL helpers (`getSignedAudioUrl()`, `getSignedPromptAudioUrl()`)
+  - Lines 100-400: Raw async functions (can be called directly)
+  - Lines 400-1340: React Query hooks (primary interface)
+
+**Critical Pattern:** All audio URLs in database store PATHS, not URLs. Signed URLs generated on-demand via helper functions. This prevents expired URL issues.
 
 Key Query Hooks:
 
@@ -1052,6 +1137,15 @@ Key Mutation Hooks:
   - Handles conditional classes
   - Resolves Tailwind class conflicts (e.g., `px-4` + `px-6` → `px-6`)
   - Used in EVERY component
+
+**`src/lib/logger.ts`** (~350 lines)
+
+- Centralized logging utility
+- Environment-aware log levels (dev vs prod)
+- Automatic sensitive data redaction (emails, PINs, tokens, passwords)
+- Sync telemetry tracking with metrics subscription
+- Production error capture placeholder (ready for monitoring integration)
+- Sampling support for high-frequency logs (100% dev, 1% prod)
 
 ### Hooks
 
