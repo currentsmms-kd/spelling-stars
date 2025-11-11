@@ -655,7 +655,6 @@ export function PlaySaySpell() {
         await queueAttempt(
           profile.id,
           wordId,
-          listId,
           "say-spell",
           correct,
           typedAnswer,

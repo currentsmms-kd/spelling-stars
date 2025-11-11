@@ -210,6 +210,12 @@ function LoadingDisplay() {
 }
 
 function GameHeader({ starsEarned }: GameHeaderProps) {
+  // Generate stable keys for star components
+  const stars = Array.from({ length: 5 }, (_, i) => ({
+    id: `star-${i}`,
+    filled: i < starsEarned,
+  }));
+
   return (
     <div className="flex items-center justify-between">
       <Link to="/child/home">
@@ -219,8 +225,8 @@ function GameHeader({ starsEarned }: GameHeaderProps) {
         </Button>
       </Link>
       <div className="flex gap-2">
-        {[...Array(5)].map((_, i) => (
-          <RewardStar key={i} filled={i < starsEarned} size="lg" />
+        {stars.map((star) => (
+          <RewardStar key={star.id} filled={star.filled} size="lg" />
         ))}
       </div>
     </div>
@@ -506,7 +512,6 @@ export function PlayListenType() {
         await queueAttempt(
           profile.id,
           wordId,
-          listId,
           "listen-type",
           correct,
           typedAnswer

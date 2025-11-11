@@ -26,8 +26,12 @@ export function ProtectedRoute({
   }
 
   if (requiredRole && profile?.role !== requiredRole) {
-    // Allow parents to access child views (for testing/preview)
-    if (profile?.role === "parent" && requiredRole === "child") {
+    // Allow parents to access child views in development only (for testing/preview)
+    if (
+      import.meta.env.MODE !== "production" &&
+      profile?.role === "parent" &&
+      requiredRole === "child"
+    ) {
       return <>{children}</>;
     }
 

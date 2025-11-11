@@ -663,13 +663,7 @@ export function PlayNewMode() {
         started_at: new Date().toISOString(),
       });
     } else {
-      await queueAttempt(
-        profile.id,
-        currentWord.id,
-        listId!,
-        "new-mode",
-        correct
-      );
+      await queueAttempt(profile.id, currentWord.id, "new-mode", correct);
     }
 
     // Move to next word

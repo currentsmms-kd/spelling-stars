@@ -46,16 +46,20 @@ Stores individual words in spelling lists.
 
 Stores child spelling attempts.
 
-| Column       | Type      | Description                           |
-| ------------ | --------- | ------------------------------------- |
-| id           | uuid      | Primary key                           |
-| child_id     | uuid      | Foreign key to profiles               |
-| word_id      | uuid      | Foreign key to words                  |
-| list_id      | uuid      | Foreign key to spelling_lists         |
-| is_correct   | boolean   | Whether attempt was correct           |
-| typed_answer | text      | What child typed (for Listen & Type)  |
-| audio_url    | text      | Audio recording URL (for Say & Spell) |
-| created_at   | timestamp | When attempt was made                 |
+| Column       | Type      | Description                                                     |
+| ------------ | --------- | --------------------------------------------------------------- |
+| id           | uuid      | Primary key                                                     |
+| child_id     | uuid      | Foreign key to profiles                                         |
+| word_id      | uuid      | Foreign key to words                                            |
+| mode         | text      | Game mode: 'listen-type', 'say-spell', or 'flash'               |
+| correct      | boolean   | Whether attempt was correct                                     |
+| quality      | integer   | Quality score (0-5) based on correctness, first-try, hints used |
+| typed_answer | text      | What child typed (for Listen & Type)                            |
+| audio_url    | text      | Audio recording path in storage (for Say & Spell)               |
+| duration_ms  | integer   | Duration of attempt in milliseconds                             |
+| started_at   | timestamp | When attempt was started                                        |
+
+**Note:** The `audio_url` field stores the storage path, not a full URL. Signed URLs are generated on-demand for playback using `getSignedAudioUrl()` from `supa.ts`.
 
 ### srs
 
