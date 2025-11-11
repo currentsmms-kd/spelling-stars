@@ -374,6 +374,10 @@ function NoListSelected() {
     [navigate]
   );
 
+  const handleRetry = useCallback(() => {
+    refetch();
+  }, [refetch]);
+
   // Fetch all word lists - children have read access via RLS
   // Use list_words(count) pattern to get counts consistently
   const {
@@ -428,7 +432,7 @@ function NoListSelected() {
                 : "Failed to load spelling lists. Please try again."}
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button size="child" onClick={() => refetch()}>
+              <Button size="child" onClick={handleRetry}>
                 Retry
               </Button>
               <Button size="child" variant="outline" onClick={handleGoHome}>
