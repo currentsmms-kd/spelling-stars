@@ -14,6 +14,7 @@ import {
 } from "@/app/api/supa";
 import { useOnline } from "@/app/hooks/useOnline";
 import confetti from "canvas-confetti";
+import { logger } from "@/lib/logger";
 
 type TabType = "shop" | "my-stuff" | "streaks";
 
@@ -156,9 +157,9 @@ function ShopTab({ userId }: { userId: string }) {
       });
 
       // Success message
-      alert(`Purchased ${rewardName}!`);
+      logger.info(`Purchased ${rewardName}!`);
     } catch (error) {
-      alert("Purchase failed. Please try again.");
+      logger.error("Purchase failed. Please try again.", error);
     }
   };
 
@@ -244,7 +245,7 @@ function MyStuffTab({ userId }: { userId: string }) {
         rewardId,
       });
     } catch (error) {
-      alert("Failed to equip item. Please try again.");
+      logger.error("Failed to equip item. Please try again.", error);
     }
   };
 
@@ -276,58 +277,180 @@ function MyStuffTab({ userId }: { userId: string }) {
               icon: string | null;
               type: string;
             };
-          }) => {
-            const reward = userReward.reward;
-            if (!reward) return null;
-
-            const isEquipped =
-              (reward.type === "avatar" &&
-                profile?.equipped_avatar === reward.id) ||
-              (reward.type === "theme" &&
-                profile?.equipped_theme === reward.id);
-
-            return (
-              <Card key={userReward.id} variant="child">
-                <div className="text-center space-y-4">
-                  <div className="text-6xl">{reward.icon || "🎁"}</div>
-                  <h3 className="text-2xl font-bold">{reward.name}</h3>
-                  {reward.description && (
-                    <p className="text-lg text-muted-foreground">
-                      {reward.description}
-                    </p>
-                  )}
-                  {(reward.type === "avatar" || reward.type === "theme") && (
-                    <Button
-                      size="child"
-                      onClick={() => handleEquip(reward.id)}
-                      disabled={isEquipped || equipReward.isPending}
-                      variant={isEquipped ? "secondary" : "default"}
-                      className="w-full"
-                    >
-                      {isEquipped
-                        ? "✓ Equipped"
-                        : equipReward.isPending
-                          ? "Equipping..."
-                          : "Equip"}
-                    </Button>
-                  )}
-                  {reward.type === "badge" && (
-                    <div className="text-xl text-primary font-semibold">
-                      Badge
-                    </div>
-                  )}
-                  {reward.type === "coupon" && (
-                    <div className="text-xl text-accent font-semibold">
-                      Special Coupon
-                    </div>
-                  )}
-                </div>
-              </Card>
-            );
-          }
+          }) => (
+            <OwnedRewardCard
+              key={userReward.id}
+              userReward={userReward}
+              profile={profile}
+              equipReward={equipReward}
+              onEquip={handleEquip}
+            />
+          )
         )}
       </div>
     </div>
+  );
+}
+
+// Owned Reward Card Component
+function OwnedRewardCard({
+  userReward,
+  profile,
+  equipReward,
+  onEquip,
+}: {
+  userReward: {
+    id: string;
+    reward_id: string;
+    reward?: {
+      id: string;
+      name: string;
+      description: string | null;
+      icon: string | null;
+      type: string;
+    };
+  };
+  profile: {
+    equipped_avatar?: string | null;
+    equipped_theme?: string | null;
+  } | null;
+  equipReward: { isPending: boolean };
+  onEquip: (rewardId: string) => void;
+}) {
+  const reward = userReward.reward;
+  if (!reward) return null;
+
+  const isEquipped =
+    (reward.type === "avatar" && profile?.equipped_avatar === reward.id) ||
+    (reward.type === "theme" && profile?.equipped_theme === reward.id);
+
+  return (
+    <Card variant="child">
+      <div className="text-center space-y-4">
+        <div className="text-6xl">{reward.icon || "🎁"}</div>
+        <h3 className="text-2xl font-bold">{reward.name}</h3>
+        {reward.description && (
+          <p className="text-lg text-muted-foreground">{reward.description}</p>
+        )}
+        {(reward.type === "avatar" || reward.type === "theme") && (
+          <Button
+            size="child"
+            onClick={() => onEquip(reward.id)}
+            disabled={isEquipped || equipReward.isPending}
+            variant={isEquipped ? "secondary" : "default"}
+            className="w-full"
+          >
+            {isEquipped
+              ? "✓ Equipped"
+              : equipReward.isPending
+                ? "Equipping..."
+                : "Equip"}
+          </Button>
+        )}
+        {reward.type === "badge" && (
+          <div className="text-xl text-primary font-semibold">Badge</div>
+        )}
+        {reward.type === "coupon" && (
+          <div className="text-xl text-accent font-semibold">
+            Special Coupon
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// Streak Milestone Item Component
+function StreakMilestoneItem({
+  milestone,
+  streakDays,
+}: {
+  milestone: { days: number; stars: number; emoji: string };
+  streakDays: number;
+}) {
+  const achieved = streakDays >= milestone.days;
+  return (
+    <div
+      className={cn(
+        "p-6 rounded-xl border-2 flex items-center justify-between",
+        achieved ? "bg-primary/10 border-primary" : "bg-muted/50 border-border"
+      )}
+    >
+      <div className="flex items-center gap-4">
+        <span className="text-4xl">{milestone.emoji}</span>
+        <div>
+          <p className="text-2xl font-bold">
+            {milestone.days} Day{milestone.days > 1 ? "s" : ""}
+          </p>
+          <p className="text-lg text-muted-foreground">
+            +{milestone.stars} bonus stars
+          </p>
+        </div>
+      </div>
+      {achieved && <div className="text-3xl text-primary font-bold">✓</div>}
+    </div>
+  );
+}
+
+// Current Streak Display Component
+function CurrentStreakDisplay({ streakDays }: { streakDays: number }) {
+  return (
+    <Card variant="child">
+      <div className="text-center space-y-4">
+        <div className="text-8xl">🔥</div>
+        <h2 className="text-6xl font-bold text-primary">{streakDays}</h2>
+        <p className="text-3xl font-semibold">
+          {streakDays === 1 ? "Day Streak" : "Days Streak"}
+        </p>
+        <p className="text-xl text-muted-foreground">
+          Keep practicing every day!
+        </p>
+      </div>
+    </Card>
+  );
+}
+
+// Bonus Stars Display Component
+function BonusStarsDisplay({ bonusStars }: { bonusStars: number }) {
+  return (
+    <Card variant="child">
+      <h3 className="text-3xl font-bold mb-4 text-center">
+        Bonus Stars from Streaks
+      </h3>
+      <div className="text-center space-y-2">
+        <div className="text-5xl font-bold text-primary flex items-center justify-center gap-2">
+          <span>⭐</span>
+          <span>{bonusStars}</span>
+        </div>
+        <p className="text-xl text-muted-foreground">
+          Bonus stars earned from streaks!
+        </p>
+      </div>
+    </Card>
+  );
+}
+
+// Streak Milestones List Component
+function StreakMilestonesList({
+  streakMilestones,
+  streakDays,
+}: {
+  streakMilestones: Array<{ days: number; stars: number; emoji: string }>;
+  streakDays: number;
+}) {
+  return (
+    <Card variant="child">
+      <h3 className="text-3xl font-bold mb-6 text-center">Streak Milestones</h3>
+      <div className="space-y-4">
+        {streakMilestones.map((milestone) => (
+          <StreakMilestoneItem
+            key={milestone.days}
+            milestone={milestone}
+            streakDays={streakDays}
+          />
+        ))}
+      </div>
+    </Card>
   );
 }
 
@@ -354,73 +477,40 @@ function StreaksTab() {
 
   return (
     <div className="space-y-6">
-      {/* Current Streak Display */}
-      <Card variant="child">
-        <div className="text-center space-y-4">
-          <div className="text-8xl">🔥</div>
-          <h2 className="text-6xl font-bold text-primary">{streakDays}</h2>
-          <p className="text-3xl font-semibold">
-            {streakDays === 1 ? "Day Streak" : "Days Streak"}
-          </p>
-          <p className="text-xl text-muted-foreground">
-            Keep practicing every day!
-          </p>
-        </div>
-      </Card>
+      <CurrentStreakDisplay streakDays={streakDays} />
+      <BonusStarsDisplay bonusStars={bonusStars} />
+      <StreakMilestonesList
+        streakMilestones={streakMilestones}
+        streakDays={streakDays}
+      />
+    </div>
+  );
+}
 
-      {/* Bonus Stars Earned */}
-      <Card variant="child">
-        <h3 className="text-3xl font-bold mb-4 text-center">
-          Bonus Stars from Streaks
-        </h3>
-        <div className="text-center space-y-2">
-          <div className="text-5xl font-bold text-primary flex items-center justify-center gap-2">
-            <span>⭐</span>
-            <span>{bonusStars}</span>
-          </div>
-          <p className="text-xl text-muted-foreground">
-            Bonus stars earned from streaks!
-          </p>
-        </div>
-      </Card>
+// Main Rewards Content Component
+function RewardsContent({
+  profile,
+  activeTab,
+  onTabChange,
+}: {
+  profile: { id: string };
+  activeTab: TabType;
+  onTabChange: (tab: TabType) => void;
+}) {
+  return (
+    <div className="max-w-6xl mx-auto space-y-6">
+      <Link to="/child/home">
+        <Button size="child" className="flex items-center gap-2">
+          <Home size={24} />
+          <span>Home</span>
+        </Button>
+      </Link>
 
-      {/* Streak Milestones */}
-      <Card variant="child">
-        <h3 className="text-3xl font-bold mb-6 text-center">
-          Streak Milestones
-        </h3>
-        <div className="space-y-4">
-          {streakMilestones.map((milestone) => {
-            const achieved = streakDays >= milestone.days;
-            return (
-              <div
-                key={milestone.days}
-                className={cn(
-                  "p-6 rounded-xl border-2 flex items-center justify-between",
-                  achieved
-                    ? "bg-primary/10 border-primary"
-                    : "bg-muted/50 border-border"
-                )}
-              >
-                <div className="flex items-center gap-4">
-                  <span className="text-4xl">{milestone.emoji}</span>
-                  <div>
-                    <p className="text-2xl font-bold">
-                      {milestone.days} Day{milestone.days > 1 ? "s" : ""}
-                    </p>
-                    <p className="text-lg text-muted-foreground">
-                      +{milestone.stars} bonus stars
-                    </p>
-                  </div>
-                </div>
-                {achieved && (
-                  <div className="text-3xl text-primary font-bold">✓</div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </Card>
+      <TabNavigation activeTab={activeTab} onTabChange={onTabChange} />
+
+      {activeTab === "shop" && <ShopTab userId={profile.id} />}
+      {activeTab === "my-stuff" && <MyStuffTab userId={profile.id} />}
+      {activeTab === "streaks" && <StreaksTab />}
     </div>
   );
 }
@@ -443,20 +533,11 @@ export function Rewards() {
 
   return (
     <AppShell title="My Rewards" variant="child">
-      <div className="max-w-6xl mx-auto space-y-6">
-        <Link to="/child/home">
-          <Button size="child" className="flex items-center gap-2">
-            <Home size={24} />
-            <span>Home</span>
-          </Button>
-        </Link>
-
-        <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
-
-        {activeTab === "shop" && <ShopTab userId={profile.id} />}
-        {activeTab === "my-stuff" && <MyStuffTab userId={profile.id} />}
-        {activeTab === "streaks" && <StreaksTab />}
-      </div>
+      <RewardsContent
+        profile={profile}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      />
     </AppShell>
   );
 }

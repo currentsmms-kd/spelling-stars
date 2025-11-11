@@ -386,7 +386,7 @@ export function ChildHome() {
   });
 
   const handleContinueList = (listId: string, mode: string) => {
-    navigate(`/child/play/${mode}?list=${listId}`);
+    navigate(`/child/play/${mode}?listId=${listId}`);
   };
 
   return (

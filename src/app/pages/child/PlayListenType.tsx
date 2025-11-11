@@ -94,8 +94,8 @@ function ListSelector() {
   const { profile } = useAuth();
   const navigate = useNavigate();
 
-  // Fetch all word lists - we need to get parent's lists that child can access
-  // For now, fetch all lists since children have read access via RLS
+  // Fetch all word lists - children have read access via RLS
+  // Use list_words(count) pattern to get counts consistently
   const { data: lists, isLoading: listsLoading } = useQuery({
     queryKey: ["word_lists_for_child"],
     queryFn: async () => {
@@ -104,10 +104,7 @@ function ListSelector() {
         .select(
           `
           *,
-          list_words!inner(
-            word_id,
-            words(id, text)
-          )
+          list_words(count)
         `
         )
         .order("created_at", { ascending: false });
@@ -115,10 +112,22 @@ function ListSelector() {
       if (error) throw error;
 
       // Transform to include word count
-      return (data || []).map((list) => ({
-        ...list,
-        word_count: list.list_words?.length || 0,
-      }));
+      // Supabase returns count as [{ count: N }], extract the count value
+      return (data || []).map((list) => {
+        const listWords = list.list_words as unknown;
+        let wordCount = 0;
+
+        if (Array.isArray(listWords) && listWords.length > 0) {
+          // Supabase count aggregation returns [{ count: N }]
+          const countObj = listWords[0] as { count?: number };
+          wordCount = countObj?.count || 0;
+        }
+
+        return {
+          ...list,
+          word_count: wordCount,
+        };
+      });
     },
     enabled: Boolean(profile?.id),
   });

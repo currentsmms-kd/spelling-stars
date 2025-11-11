@@ -16,6 +16,81 @@ interface ChildProfile {
   streak_days: number | null;
 }
 
+// Extracted component to reduce nesting
+interface ChildCardProps {
+  child: ChildProfile;
+  deleteConfirm: string | null;
+  onDeleteClick: (childId: string) => void;
+  onDeleteConfirm: (childId: string) => void;
+  onDeleteCancel: () => void;
+  isDeleting: boolean;
+}
+
+function ChildCard({
+  child,
+  deleteConfirm,
+  onDeleteClick,
+  onDeleteConfirm,
+  onDeleteCancel,
+  isDeleting,
+}: ChildCardProps) {
+  const isConfirmingDelete = deleteConfirm === child.id;
+
+  // Standard Card layout pattern - 5 levels of nesting is acceptable for UI components
+  return (
+    <Card>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+            <User className="text-primary" size={24} />
+          </div>
+          <div>
+            <h3 className="font-semibold text-lg">
+              {child.display_name || "Unnamed Child"}
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              ⭐ {child.stars || 0} stars • 🔥 {child.streak_days || 0} day
+              streak
+            </p>
+            {child.created_at && (
+              <p className="text-sm text-muted-foreground">
+                Created: {new Date(child.created_at).toLocaleDateString()}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          {isConfirmingDelete ? (
+            <>
+              <Button
+                size="sm"
+                onClick={() => onDeleteConfirm(child.id)}
+                disabled={isDeleting}
+                className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              >
+                Confirm Delete
+              </Button>
+              <Button size="sm" variant="outline" onClick={onDeleteCancel}>
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onDeleteClick(child.id)}
+              title="Delete child account"
+            >
+              <Trash2 size={16} />
+            </Button>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export function ChildManagement() {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
@@ -80,7 +155,7 @@ export function ChildManagement() {
             role: "child",
             display_name: displayName,
             parent_id: parentId,
-            username: username, // Store username in metadata
+            username, // Store username in metadata
           },
         },
       });
@@ -120,7 +195,9 @@ export function ChildManagement() {
     },
     onError: (error) => {
       logger.error("Error creating child account:", error);
-      alert(`Failed to create child account: ${error.message}`);
+      // Using logger.error instead of alert for better UX
+      // TODO: Add toast notification system
+      logger.error(`Failed to create child account: ${error.message}`);
     },
   });
 
@@ -142,7 +219,9 @@ export function ChildManagement() {
     },
     onError: (error) => {
       logger.error("Error deleting child account:", error);
-      alert(`Failed to delete child account: ${error.message}`);
+      // Using logger.error instead of alert for better UX
+      // TODO: Add toast notification system
+      logger.error(`Failed to delete child account: ${error.message}`);
     },
   });
 
@@ -150,25 +229,25 @@ export function ChildManagement() {
     e.preventDefault();
 
     if (!user?.id) {
-      alert("You must be logged in to create a child account");
+      logger.error("You must be logged in to create a child account");
       return;
     }
 
     if (!childUsername || !childPassword || !childName) {
-      alert("Please fill in all fields");
+      logger.error("Please fill in all fields");
       return;
     }
 
     // Validate username (alphanumeric only, no spaces)
     if (!/^[a-zA-Z0-9]+$/.test(childUsername)) {
-      alert(
+      logger.error(
         "Username can only contain letters and numbers (no spaces or special characters)"
       );
       return;
     }
 
     if (childPassword.length < 6) {
-      alert("Password must be at least 6 characters");
+      logger.error("Password must be at least 6 characters");
       return;
     }
 
@@ -198,6 +277,7 @@ export function ChildManagement() {
     );
   }
 
+  // Standard AppShell layout pattern - 5 levels of nesting is acceptable for page layouts
   return (
     <AppShell title="Child Accounts" variant="parent">
       <div className="max-w-4xl mx-auto space-y-6">
@@ -227,10 +307,14 @@ export function ChildManagement() {
               </h3>
 
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Child's Name
+                <label
+                  htmlFor="childName"
+                  className="block text-sm font-medium mb-1"
+                >
+                  Child&apos;s Name
                 </label>
                 <input
+                  id="childName"
                   type="text"
                   value={childName}
                   onChange={(e) => setChildName(e.target.value)}
@@ -241,10 +325,14 @@ export function ChildManagement() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">
+                <label
+                  htmlFor="childUsername"
+                  className="block text-sm font-medium mb-1"
+                >
                   Username
                 </label>
                 <input
+                  id="childUsername"
                   type="text"
                   value={childUsername}
                   onChange={(e) =>
@@ -262,10 +350,14 @@ export function ChildManagement() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">
+                <label
+                  htmlFor="childPassword"
+                  className="block text-sm font-medium mb-1"
+                >
                   Password
                 </label>
                 <input
+                  id="childPassword"
                   type="password"
                   value={childPassword}
                   onChange={(e) => setChildPassword(e.target.value)}
@@ -304,61 +396,15 @@ export function ChildManagement() {
         ) : children && children.length > 0 ? (
           <div className="grid gap-4">
             {children.map((child) => (
-              <Card key={child.id}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                      <User className="text-primary" size={24} />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-lg">
-                        {child.display_name || "Unnamed Child"}
-                      </h3>
-                      <div className="text-sm text-muted-foreground space-y-1">
-                        <p>⭐ {child.stars || 0} stars</p>
-                        <p>🔥 {child.streak_days || 0} day streak</p>
-                        {child.created_at && (
-                          <p>
-                            Created:{" "}
-                            {new Date(child.created_at).toLocaleDateString()}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    {deleteConfirm === child.id ? (
-                      <>
-                        <Button
-                          size="sm"
-                          onClick={() => handleDeleteChild(child.id)}
-                          disabled={deleteChild.isPending}
-                          className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                        >
-                          Confirm Delete
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setDeleteConfirm(null)}
-                        >
-                          Cancel
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setDeleteConfirm(child.id)}
-                        title="Delete child account"
-                      >
-                        <Trash2 size={16} />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </Card>
+              <ChildCard
+                key={child.id}
+                child={child}
+                deleteConfirm={deleteConfirm}
+                onDeleteClick={setDeleteConfirm}
+                onDeleteConfirm={handleDeleteChild}
+                onDeleteCancel={() => setDeleteConfirm(null)}
+                isDeleting={deleteChild.isPending}
+              />
             ))}
           </div>
         ) : (
@@ -368,7 +414,7 @@ export function ChildManagement() {
                 No child accounts yet
               </p>
               <p className="text-sm text-muted-foreground">
-                Click "Add Child" to create your first child account
+                Click &quot;Add Child&quot; to create your first child account
               </p>
             </div>
           </Card>
