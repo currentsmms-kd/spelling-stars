@@ -318,6 +318,7 @@ async function insertAttemptWithRetry(
       const { error } = await supabase.from("attempts").insert({
         child_id: attempt.child_id,
         word_id: attempt.word_id,
+        list_id: attempt.list_id,
         mode: attempt.mode,
         correct: attempt.correct,
         typed_answer: attempt.typed_answer,
@@ -428,6 +429,7 @@ async function syncQueuedAttempts(): Promise<void> {
 export async function queueAttempt(
   childId: string,
   wordId: string,
+  listId: string,
   mode: string,
   correct: boolean,
   typedAnswer?: string,
@@ -436,6 +438,7 @@ export async function queueAttempt(
   await db.queuedAttempts.add({
     child_id: childId,
     word_id: wordId,
+    list_id: listId,
     mode,
     correct,
     typed_answer: typedAnswer,
@@ -447,7 +450,9 @@ export async function queueAttempt(
   });
 
   logger.metrics.attemptQueued();
-  logger.log(`Queued attempt for word ${wordId} (offline mode)`);
+  logger.log(
+    `Queued attempt for word ${wordId} in list ${listId} (offline mode)`
+  );
 }
 
 /**

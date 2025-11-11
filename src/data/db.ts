@@ -4,6 +4,7 @@ export interface QueuedAttempt {
   id?: number;
   child_id: string;
   word_id: string;
+  list_id: string;
   mode: string;
   correct: boolean;
   typed_answer?: string;
@@ -59,6 +60,21 @@ export class SpellStarsDB extends Dexie {
 
   constructor() {
     super("SpellStarsDB");
+
+    // Version 5: Re-add list_id to queuedAttempts (matches schema)
+    this.version(5)
+      .stores({
+        queuedAttempts:
+          "++id, child_id, word_id, list_id, mode, synced, failed, started_at",
+        queuedAudio: "++id, filename, synced, failed, created_at",
+        queuedSrsUpdates: "++id, child_id, word_id, synced, failed, created_at",
+        queuedStarTransactions: "++id, user_id, synced, failed, created_at",
+      })
+      .upgrade(async (_trans) => {
+        // list_id will be added when new attempts are queued
+        // Existing queued attempts without list_id will be synced as-is
+        // (they're already in the queue from before list_id was required)
+      });
 
     // Version 4: Remove list_id from queuedAttempts (not in schema)
     this.version(4)

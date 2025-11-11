@@ -51,6 +51,7 @@ Stores child spelling attempts.
 | id           | uuid      | Primary key                                                     |
 | child_id     | uuid      | Foreign key to profiles                                         |
 | word_id      | uuid      | Foreign key to words                                            |
+| list_id      | uuid      | Foreign key to word_lists (for list-scoped analytics)           |
 | mode         | text      | Game mode: 'listen-type', 'say-spell', or 'flash'               |
 | correct      | boolean   | Whether attempt was correct                                     |
 | quality      | integer   | Quality score (0-5) based on correctness, first-try, hints used |
@@ -59,7 +60,7 @@ Stores child spelling attempts.
 | duration_ms  | integer   | Duration of attempt in milliseconds                             |
 | started_at   | timestamp | When attempt was started                                        |
 
-**Note:** The `audio_url` field stores the storage path, not a full URL. Signed URLs are generated on-demand for playback using `getSignedAudioUrl()` from `supa.ts`.
+**Note:** The `audio_url` field stores the storage path, not a full URL. Signed URLs are generated on-demand for playback using `getSignedAudioUrl()` from `supa.ts`. The `list_id` field is required for list-scoped analytics and tracking which list a word was practiced from.
 
 ### srs
 

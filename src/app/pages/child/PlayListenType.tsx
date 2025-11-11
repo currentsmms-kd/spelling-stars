@@ -523,6 +523,7 @@ export function PlayListenType() {
       const attemptData = {
         child_id: profile.id,
         word_id: wordId,
+        list_id: listId,
         mode: "listen-type",
         correct,
         quality, // Add quality field
@@ -547,6 +548,7 @@ export function PlayListenType() {
         await queueAttempt(
           profile.id,
           wordId,
+          listId,
           "listen-type",
           correct,
           typedAnswer

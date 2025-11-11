@@ -21,6 +21,7 @@ export type Database = {
           correct: boolean;
           duration_ms: number | null;
           id: string;
+          list_id: string;
           mode: string;
           quality: number | null;
           started_at: string | null;
@@ -33,6 +34,7 @@ export type Database = {
           correct: boolean;
           duration_ms?: number | null;
           id?: string;
+          list_id: string;
           mode: string;
           quality?: number | null;
           started_at?: string | null;
@@ -45,6 +47,7 @@ export type Database = {
           correct?: boolean;
           duration_ms?: number | null;
           id?: string;
+          list_id?: string;
           mode?: string;
           quality?: number | null;
           started_at?: string | null;
@@ -57,6 +60,13 @@ export type Database = {
             columns: ["child_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "attempts_list_id_fkey";
+            columns: ["list_id"];
+            isOneToOne: false;
+            referencedRelation: "word_lists";
             referencedColumns: ["id"];
           },
           {

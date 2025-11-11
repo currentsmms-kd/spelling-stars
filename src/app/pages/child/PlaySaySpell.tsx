@@ -667,6 +667,7 @@ export function PlaySaySpell() {
         const { error } = await supabase.from("attempts").insert({
           child_id: profile.id,
           word_id: wordId,
+          list_id: listId,
           mode: "say-spell",
           correct,
           quality, // Add quality field
@@ -690,6 +691,7 @@ export function PlaySaySpell() {
         await queueAttempt(
           profile.id,
           wordId,
+          listId,
           "say-spell",
           correct,
           typedAnswer,
