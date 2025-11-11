@@ -169,6 +169,10 @@ function MasterySection({
   );
 }
 
+// Label formatter for pie chart
+const formatPieLabel = (entry: { list_title: string; mastery_percentage: number }) =>
+  `${entry.list_title}: ${entry.mastery_percentage}%`;
+
 // Pie Chart Component
 function MasteryPieChart({
   masteryData,

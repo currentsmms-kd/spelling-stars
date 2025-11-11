@@ -4,6 +4,7 @@ import { Button } from "@/app/components/Button";
 import { useNavigate } from "react-router-dom";
 import { useCallback } from "react";
 import { ArrowLeft } from "lucide-react";
+import { useCallback } from "react";
 
 export function ChildThemeSettings() {
   const navigate = useNavigate();

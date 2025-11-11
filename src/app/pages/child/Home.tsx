@@ -16,6 +16,7 @@ import { supabase } from "@/app/supabase";
 import { useAuth } from "@/app/hooks/useAuth";
 import { useDueWords, useNextBatch } from "@/app/api/supa";
 import { cn } from "@/lib/utils";
+import { useCallback } from "react";
 
 interface ListProgress {
   id: string;
@@ -104,13 +105,17 @@ function ListProgressCard({
   list: ListProgress;
   onContinue: (listId: string, mode: string) => void;
 }) {
+  const handleContinue = useCallback(() => {
+    onContinue(list.id, list.last_mode as string);
+  }, [list.id, list.last_mode, onContinue]);
+
   return (
     <div className="flex items-center justify-between">
       <ListProgressInfo list={list} />
       {list.last_mode && list.word_count > 0 && (
         <Button
           size="child"
-          onClick={() => onContinue(list.id, list.last_mode as string)}
+          onClick={handleContinue}
           className="ml-4"
         >
           Continue
@@ -377,9 +382,13 @@ export function ChildHome() {
     enabled: Boolean(profile?.id),
   });
 
-  const handleContinueList = (listId: string, mode: string) => {
+  const handleContinueList = useCallback((listId: string, mode: string) => {
     navigate(`/child/play/${mode}?listId=${listId}`);
-  };
+  }, [navigate]);
+
+  const handleBackToParent = useCallback(() => {
+    navigate("/parent/dashboard");
+  }, [navigate]);
 
   return (
     <AppShell title="SpellStars" variant="child">
@@ -388,7 +397,7 @@ export function ChildHome() {
         <div className="flex justify-end">
           <Button
             size="sm"
-            onClick={() => navigate("/parent/dashboard")}
+            onClick={handleBackToParent}
             className="bg-muted hover:bg-muted/90 text-muted-foreground"
           >
             <ArrowLeft size={16} className="mr-2" />

@@ -9,7 +9,7 @@ import {
   useDeleteWordList,
   useDuplicateWordList,
 } from "@/app/api/supa";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { logger } from "@/lib/logger";
 
 type SortField = "title" | "week_start_date" | "word_count" | "created_at";
@@ -120,14 +120,14 @@ function TableHeader({
   sortOrder,
   onSort,
 }: TableHeaderProps) {
-  const handleHeaderClick = () => {
+  const handleClick = useCallback(() => {
     onSort(field);
-  };
+  }, [field, onSort]);
 
   return (
     <th
       className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-muted"
-      onClick={handleHeaderClick}
+      onClick={handleClick}
     >
       <div className="flex items-center gap-2">
         {label}
@@ -148,6 +148,22 @@ function ListRowActions({
   isDuplicating,
   isDeleting,
 }: ListRowActionsProps) {
+  const handleDuplicate = useCallback(() => {
+    onDuplicate(listId);
+  }, [listId, onDuplicate]);
+
+  const handleDelete = useCallback(() => {
+    onDelete(listId);
+  }, [listId, onDelete]);
+
+  const handleDeleteConfirm = useCallback(() => {
+    onDeleteConfirm(listId);
+  }, [listId, onDeleteConfirm]);
+
+  const handleDeleteCancel = useCallback(() => {
+    onDeleteConfirm(null);
+  }, [onDeleteConfirm]);
+
   return (
     <div className="flex items-center justify-end gap-2">
       <Link to={`/parent/lists/${listId}`}>
@@ -157,7 +173,7 @@ function ListRowActions({
       </Link>
       <Button
         size="sm"
-        onClick={() => onDuplicate(listId)}
+        onClick={handleDuplicate}
         disabled={isDuplicating}
         title="Duplicate"
       >
@@ -167,20 +183,20 @@ function ListRowActions({
         <>
           <Button
             size="sm"
-            onClick={() => onDelete(listId)}
+            onClick={handleDelete}
             disabled={isDeleting}
             className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
           >
             Confirm
           </Button>
-          <Button size="sm" onClick={() => onDeleteConfirm(null)}>
+          <Button size="sm" onClick={handleDeleteCancel}>
             Cancel
           </Button>
         </>
       ) : (
         <Button
           size="sm"
-          onClick={() => onDeleteConfirm(listId)}
+          onClick={handleDeleteConfirm}
           title="Delete"
         >
           <Trash2 size={16} />
@@ -344,6 +360,10 @@ function ListsContent({
   isDeleting,
   formatDate,
 }: ListsContentProps) {
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+  }, [setSearchTerm]);
+
   return (
     <>
       {/* Search and filters */}
@@ -358,7 +378,7 @@ function ListsContent({
               type="text"
               placeholder="Search lists..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={handleSearchChange}
               className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
             />
           </div>
