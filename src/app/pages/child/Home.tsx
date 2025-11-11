@@ -358,7 +358,7 @@ export function ChildHome() {
 
           // Get the most recent mode used
           const lastMode =
-            attempts && attempts.length > 0
+            attempts?.length
               ? (attempts[0].mode as "listen-type" | "say-spell")
               : undefined;
 

@@ -448,7 +448,7 @@ function ChildrenOverviewSection({
         </div>
 
         <div className="space-y-4">
-          {children && children.length > 0 ? (
+          {children?.length ? (
             children.map((child) => (
               <ChildRewardsCard key={child.id} childId={child.id} />
             ))
