@@ -58,7 +58,7 @@ export function PinSetupPrompt({
               </li>
               <li className="flex gap-2">
                 <span className="text-primary">✓</span>
-                <span>Keep your child's learning environment consistent</span>
+                <span>Keep your child&apos;s learning environment consistent</span>
               </li>
             </ul>
           </div>
