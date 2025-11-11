@@ -1,14 +1,70 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "../types/database.types";
+import { logger } from "@/lib/logger";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Missing Supabase environment variables");
+/**
+ * Check if Supabase environment variables are configured
+ */
+export function hasSupabaseConfig(): boolean {
+  return !!(supabaseUrl && supabaseAnonKey);
 }
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+/**
+ * Get details about missing Supabase configuration
+ */
+export function getSupabaseConfigErrors(): string[] {
+  const errors: string[] = [];
+
+  if (!supabaseUrl) {
+    errors.push("VITE_SUPABASE_URL is not set");
+  }
+
+  if (!supabaseAnonKey) {
+    errors.push("VITE_SUPABASE_ANON_KEY is not set");
+  }
+
+  return errors;
+}
+
+// Only create client if environment variables are present
+let supabaseClient: ReturnType<typeof createClient<Database>> | null = null;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  const isDev = import.meta.env.DEV;
+  const missingVars = getSupabaseConfigErrors();
+
+  logger.error(
+    "Missing Supabase environment variables. App will not function without proper configuration.",
+    { missingVars, isDev }
+  );
+
+  // In development, throw immediately to catch issues early
+  // In production, we'll handle this in the app component
+  if (isDev) {
+    throw new Error(
+      `Missing required Supabase environment variables:\n${missingVars.join("\n")}\n\n` +
+        `Please create a .env file with:\n` +
+        `VITE_SUPABASE_URL=your_supabase_url\n` +
+        `VITE_SUPABASE_ANON_KEY=your_supabase_anon_key\n\n` +
+        `Or use Doppler: doppler run -- npm run dev\n` +
+        `See docs/DEPLOYMENT.md for setup instructions.`
+    );
+  }
+} else {
+  supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKey);
+}
+
+/**
+ * Supabase client instance.
+ * Will be null if environment variables are not configured.
+ *
+ * @throws {Error} In development if env vars are missing (fails fast)
+ * @returns {null} In production if env vars are missing (graceful degradation)
+ */
+export const supabase = supabaseClient!;
 
 // Export type helpers for easier usage
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];

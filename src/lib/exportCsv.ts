@@ -92,17 +92,7 @@ export async function exportAttempts(
     // Build query
     let query = supabase
       .from("attempts")
-      .select(
-        `
-        started_at,
-        word_id,
-        words (text, phonetic),
-        mode,
-        correct,
-        typed_answer,
-        duration_ms
-      `
-      )
+      .select("started_at, word_id, words (text, phonetic), mode, correct, typed_answer, duration_ms")
       .eq("child_id", childId)
       .order("started_at", { ascending: false });
 
@@ -176,18 +166,7 @@ export async function exportMasteredWords(
     // Query SRS table for mastered words (ease >= 2.5, interval >= 7 days)
     const { data, error } = await supabase
       .from("srs")
-      .select(
-        `
-        word_id,
-        words (text, phonetic),
-        ease,
-        interval_days,
-        reps,
-        lapses,
-        due_date,
-        updated_at
-      `
-      )
+      .select("word_id, words (text, phonetic), ease, interval_days, reps, lapses, due_date, updated_at")
       .eq("child_id", childId)
       .gte("ease", 2.5)
       .gte("interval_days", 7)

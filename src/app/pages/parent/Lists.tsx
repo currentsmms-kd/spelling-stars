@@ -365,7 +365,7 @@ function ListsContent({
         <div className="text-center py-12">
           <p className="text-muted-foreground">Loading lists...</p>
         </div>
-      ) : filteredLists && filteredLists.length > 0 ? (
+      ) : filteredLists?.length ? (
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <ListsTable
