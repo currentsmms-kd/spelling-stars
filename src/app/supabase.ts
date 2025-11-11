@@ -9,7 +9,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
  * Check if Supabase environment variables are configured
  */
 export function hasSupabaseConfig(): boolean {
-  return !!(supabaseUrl && supabaseAnonKey);
+  return Boolean(supabaseUrl && supabaseAnonKey);
 }
 
 /**
