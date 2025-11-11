@@ -15,6 +15,8 @@ module.exports = {
       { allowConstantExport: true },
     ],
     "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+    // Disable no-undef for TypeScript files - TypeScript handles this better
+    "no-undef": "off",
   },
   overrides: [
     {

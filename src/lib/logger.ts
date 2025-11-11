@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * Logger utility with environment-based level control and sampling for PWA
  * Features:
@@ -121,7 +120,6 @@ function captureProductionError(message: string, ...args: unknown[]): void {
 
     // Could store in IndexedDB or send to monitoring endpoint
     // For now, we'll just use console.error as fallback
-    // eslint-disable-next-line no-console
     console.error("[PRODUCTION ERROR]", errorData);
   }
 }
@@ -183,7 +181,7 @@ function notifyMetricsListeners(): void {
     try {
       listener(snapshot);
     } catch (error) {
-      // eslint-disable-next-line no-console
+  
       console.error("[METRICS] Listener error:", error);
     }
   });
@@ -245,7 +243,7 @@ export const logger = {
    */
   debug: (...args: unknown[]) => {
     if (LOG_LEVELS.debug >= currentLevelValue && shouldSample()) {
-      // eslint-disable-next-line no-console
+  
       console.log("[DEBUG]", ...formatArgs(...args));
     }
   },
@@ -255,7 +253,7 @@ export const logger = {
    */
   info: (...args: unknown[]) => {
     if (LOG_LEVELS.info >= currentLevelValue && shouldSample()) {
-      // eslint-disable-next-line no-console
+  
       console.info("[INFO]", ...formatArgs(...args));
     }
   },
@@ -265,7 +263,7 @@ export const logger = {
    */
   warn: (...args: unknown[]) => {
     if (LOG_LEVELS.warn >= currentLevelValue) {
-      // eslint-disable-next-line no-console
+  
       console.warn("[WARN]", ...formatArgs(...args));
     }
   },
@@ -276,7 +274,7 @@ export const logger = {
   error: (...args: unknown[]) => {
     const formattedArgs = formatArgs(...args);
     if (LOG_LEVELS.error >= currentLevelValue) {
-      // eslint-disable-next-line no-console
+  
       console.error("[ERROR]", ...formattedArgs);
     }
 
@@ -292,7 +290,7 @@ export const logger = {
    */
   log: (...args: unknown[]) => {
     if (LOG_LEVELS.debug >= currentLevelValue && shouldSample()) {
-      // eslint-disable-next-line no-console
+  
       console.log("[LOG]", ...formatArgs(...args));
     }
   },
