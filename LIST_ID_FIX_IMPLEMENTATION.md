@@ -46,11 +46,18 @@ This ensures TypeScript compiler enforces `list_id` on all insert operations.
 
 - Added `list_id: string` to `QueuedAttempt` interface (required field)
 - Created version 5 of IndexedDB schema to include `list_id` in store definition:
+
   ```typescript
   "++id, child_id, word_id, list_id, mode, synced, failed, started_at";
   ```
-- Upgrade function allows existing queued attempts without `list_id` to remain as-is
-- New queued attempts will include `list_id` going forward
+
+- **Legacy attempt enrichment:** During version 5 upgrade, the system attempts to enrich queued attempts that are missing `list_id`:
+  - For each attempt where `list_id` is null/undefined, queries Supabase `list_words` table to find matching `list_id` for the `word_id`
+  - If exactly one list is found, sets that `list_id` on the record (enriched)
+  - If zero lists match, marks as `failed=true` with `last_error='Missing list_id; cannot infer (word not in any list)'`
+  - If multiple lists match, marks as `failed=true` with `last_error='Missing list_id; cannot infer (word in multiple lists)'`
+  - Failed attempts are visible in Sync Status UI and can be manually resolved by parents
+- New queued attempts will always include `list_id` going forward
 
 ### 4. Sync Function (`src/lib/sync.ts`)
 
@@ -58,6 +65,7 @@ This ensures TypeScript compiler enforces `list_id` on all insert operations.
 
 - Added `listId: string` parameter (3rd parameter, required)
 - Updated function signature:
+
   ```typescript
   export async function queueAttempt(
     childId: string,
@@ -69,7 +77,23 @@ This ensures TypeScript compiler enforces `list_id` on all insert operations.
     audioBlobId?: number
   ): Promise<void>;
   ```
+
 - Updated IndexedDB insert to include `list_id: listId`
+
+**Added `enrichLegacyAttempts()` function:**
+
+- Called during IndexedDB version 5 upgrade to enrich legacy attempts
+- Queries Supabase `list_words` table to find `list_id` for each `word_id`
+- Enriches attempts where exactly one list is found
+- Marks attempts as failed where zero or multiple lists are found
+- Logs enrichment results: number enriched vs. failed
+
+**Updated `syncQueuedAttempts()` function:**
+
+- Added guard before Supabase insert: checks if `attempt.list_id` is falsy
+- If `list_id` is missing, updates record to `failed=true` with `last_error='Missing list_id; cannot sync'`
+- Skips insert for attempts without `list_id`
+- This prevents NOT NULL constraint violations in the database
 
 **Updated `insertAttemptWithRetry()` helper:**
 
@@ -82,6 +106,7 @@ This ensures TypeScript compiler enforces `list_id` on all insert operations.
 
 - Added `list_id: listId` to `attemptData` object (online insert)
 - Updated offline `queueAttempt()` call to pass `listId` as 3rd parameter:
+
   ```typescript
   await queueAttempt(
     profile.id,
@@ -99,6 +124,7 @@ This ensures TypeScript compiler enforces `list_id` on all insert operations.
 
 - Added `list_id: listId` to Supabase insert statement (online insert)
 - Updated offline `queueAttempt()` call to pass `listId` as 3rd parameter:
+
   ```typescript
   await queueAttempt(
     profile.id,
@@ -215,6 +241,47 @@ WHERE a.word_id = lw.word_id
 2. **Test analytics:** Verify parent dashboard shows list-scoped reports
 3. **Monitor errors:** Check for any foreign key constraint violations
 4. **User testing:** Confirm games work in both online/offline modes
+
+## Future Enhancement: Manual List Assignment for Failed Attempts
+
+**Status:** Optional enhancement (not implemented)
+
+**Problem:** Legacy queued attempts that fail enrichment (zero or multiple lists) are marked as permanently failed and visible in the Sync Status UI. Parents cannot resolve these failed attempts without developer intervention.
+
+**Proposed Solution:** Extend `SyncStatusBadge` component to allow manual list assignment:
+
+1. **UI Changes:**
+   - Show failed attempts with "Missing list_id" error in Sync Status details
+   - Add "Assign List" button next to each failed attempt
+   - Display modal with dropdown of parent's word lists
+   - Parent selects the correct list for the attempt
+
+2. **Backend Changes:**
+   - Add function: `assignListToFailedAttempt(attemptId: number, listId: string)`
+   - Update the queued attempt record:
+
+     ```typescript
+     await db.queuedAttempts.update(attemptId, {
+       list_id: listId,
+       failed: false,
+       retry_count: 0,
+       last_error: undefined,
+     });
+     ```
+
+   - Re-queue the attempt for sync on next network connection
+
+3. **Benefits:**
+   - Parents can resolve failed attempts without losing practice data
+   - No developer intervention needed for edge cases
+   - Improved user experience for offline-first workflow
+
+4. **Implementation Files:**
+   - `src/app/components/SyncStatusBadge.tsx` - Add "Assign List" UI
+   - `src/lib/sync.ts` - Export `assignListToFailedAttempt()` helper
+   - `src/app/api/supa.ts` - Query hook for parent's word lists (already exists: `useWordLists()`)
+
+**Note:** This enhancement is optional and can be implemented later if users report issues with failed attempts. The current implementation (enrichment + guard) handles the majority of cases automatically.
 
 ## Notes
 

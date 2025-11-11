@@ -9,6 +9,109 @@ import { logger } from "@/lib/logger";
 const MAX_RETRY_ATTEMPTS = 5;
 
 /**
+ * Enrich legacy queued attempts with list_id by querying Supabase
+ * Called during IndexedDB version 5 upgrade
+ *
+ * @param attempts - Array of queued attempts from IndexedDB
+ * @param trans - Dexie transaction for updating records (typed as any to avoid circular dependency)
+ */
+export async function enrichLegacyAttempts(
+  attempts: QueuedAttempt[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  trans: any
+): Promise<void> {
+  logger.log(
+    `Enriching ${attempts.length} legacy queued attempts with list_id...`
+  );
+
+  let enriched = 0;
+  let failed = 0;
+
+  for (const attempt of attempts) {
+    // Skip if already has list_id
+    if (attempt.list_id) {
+      continue;
+    }
+
+    try {
+      // Query Supabase to find list_id for this word_id
+      const { data: listWords, error } = await supabase
+        .from("list_words")
+        .select("list_id")
+        .eq("word_id", attempt.word_id);
+
+      if (error) {
+        logger.error(
+          `Failed to query list_id for word ${attempt.word_id}:`,
+          error
+        );
+        // Mark as failed
+        if (attempt.id !== undefined) {
+          await trans.table("queuedAttempts").update(attempt.id, {
+            failed: true,
+            last_error: `Failed to enrich list_id: ${error.message}`,
+          });
+        }
+        failed++;
+        continue;
+      }
+
+      // Check if we found exactly one list
+      if (!listWords || listWords.length === 0) {
+        logger.warn(`No list found for word ${attempt.word_id}`);
+        if (attempt.id !== undefined) {
+          await trans.table("queuedAttempts").update(attempt.id, {
+            failed: true,
+            last_error: "Missing list_id; cannot infer (word not in any list)",
+          });
+        }
+        failed++;
+        continue;
+      }
+
+      if (listWords.length > 1) {
+        logger.warn(`Multiple lists found for word ${attempt.word_id}`);
+        if (attempt.id !== undefined) {
+          await trans.table("queuedAttempts").update(attempt.id, {
+            failed: true,
+            last_error:
+              "Missing list_id; cannot infer (word in multiple lists)",
+          });
+        }
+        failed++;
+        continue;
+      }
+
+      // Exactly one list found - enrich the attempt
+      const listId = listWords[0].list_id;
+      if (attempt.id !== undefined) {
+        await trans.table("queuedAttempts").update(attempt.id, {
+          list_id: listId,
+        });
+        logger.log(`Enriched attempt ${attempt.id} with list_id ${listId}`);
+        enriched++;
+      }
+    } catch (error) {
+      logger.error(`Error enriching attempt ${attempt.id}:`, error);
+      if (attempt.id !== undefined) {
+        await trans.table("queuedAttempts").update(attempt.id, {
+          failed: true,
+          last_error:
+            error instanceof Error
+              ? error.message
+              : "Unknown error during enrichment",
+        });
+      }
+      failed++;
+    }
+  }
+
+  logger.log(
+    `Legacy attempt enrichment complete: ${enriched} enriched, ${failed} failed`
+  );
+}
+
+/**
  * Base delay for exponential backoff (in milliseconds)
  */
 const BASE_DELAY_MS = 1000;
@@ -392,6 +495,21 @@ async function syncQueuedAttempts(): Promise<void> {
 
   for (const attempt of queuedAttempts) {
     try {
+      // Guard: Check if list_id is present (required field in database)
+      if (!attempt.list_id) {
+        logger.error(
+          `Attempt ${attempt.id} missing list_id, marking as failed`
+        );
+        if (attempt.id !== undefined) {
+          await db.queuedAttempts.update(attempt.id, {
+            failed: true,
+            last_error: "Missing list_id; cannot sync",
+          });
+        }
+        logger.metrics.attemptFailed();
+        continue; // Skip this attempt
+      }
+
       // Get audio path if this attempt has audio
       const audioPath = await getAudioPathForAttempt(attempt);
 

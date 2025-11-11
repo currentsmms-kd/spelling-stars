@@ -70,10 +70,13 @@ export class SpellStarsDB extends Dexie {
         queuedSrsUpdates: "++id, child_id, word_id, synced, failed, created_at",
         queuedStarTransactions: "++id, user_id, synced, failed, created_at",
       })
-      .upgrade(async (_trans) => {
-        // list_id will be added when new attempts are queued
-        // Existing queued attempts without list_id will be synced as-is
-        // (they're already in the queue from before list_id was required)
+      .upgrade(async (trans) => {
+        // Enrich legacy queued attempts with list_id where possible
+        const attempts = await trans.table("queuedAttempts").toArray();
+
+        // Lazy import to avoid circular dependency
+        const { enrichLegacyAttempts } = await import("@/lib/sync");
+        await enrichLegacyAttempts(attempts, trans);
       });
 
     // Version 4: Remove list_id from queuedAttempts (not in schema)

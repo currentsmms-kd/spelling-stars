@@ -1,9 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { RouterProvider } from "react-router-dom";
-import { QueryClientProvider } from "@tanstack/react-query";
-import { router } from "./router";
-import { queryClient } from "./queryClient";
+import { App } from "./App";
 import {
   syncQueuedData,
   hasPendingSync,
@@ -40,6 +37,10 @@ const initializeTheme = () => {
 // Initialize theme immediately
 initializeTheme();
 
+// Check for force update flag (for critical releases)
+const FORCE_UPDATE_ON_ACTIVATION =
+  import.meta.env.VITE_FORCE_UPDATE === "true" || false;
+
 // Register service worker for PWA
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
@@ -63,11 +64,19 @@ if ("serviceWorker" in navigator) {
                 newWorker.state === "activated" &&
                 navigator.serviceWorker.controller
               ) {
-                // New service worker activated - automatically reload to get updates
-                // Note: In production, consider implementing a custom update banner
-                // For now, auto-reload to ensure users get latest features/fixes
-                logger.info("New service worker activated, reloading page");
-                window.location.reload();
+                // New service worker activated
+                logger.info("New service worker activated");
+
+                if (FORCE_UPDATE_ON_ACTIVATION) {
+                  // Critical release: force immediate reload
+                  logger.info("Force update enabled, reloading immediately");
+                  window.location.reload();
+                } else {
+                  // Standard update: show banner for user control
+                  logger.info("Update available, showing banner");
+                  // Trigger re-render to show banner
+                  window.dispatchEvent(new CustomEvent("sw-update-available"));
+                }
               }
             });
           }
@@ -85,35 +94,9 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-// Export function to manually clear caches
-export async function clearAppCaches(): Promise<void> {
-  try {
-    // Clear all cache storage
-    const cacheNames = await caches.keys();
-    await Promise.all(
-      cacheNames.map((cacheName) => {
-        logger.info(`Deleting cache: ${cacheName}`);
-        return caches.delete(cacheName);
-      })
-    );
-
-    // Clear React Query cache
-    queryClient.clear();
-
-    logger.info("All caches cleared successfully");
-  } catch (error) {
-    logger.error("Failed to clear caches:", error);
-    throw error;
-  }
-}
-
-// Expose clearAppCaches globally for debugging
-if (typeof window !== "undefined") {
-  interface WindowWithCache extends Window {
-    clearAppCaches: typeof clearAppCaches;
-  }
-  (window as unknown as WindowWithCache).clearAppCaches = clearAppCaches;
-}
+// Import clearAppCaches side effect to expose it globally
+// The cacheUtils module registers window.clearAppCaches for debugging
+import "@/lib/cacheUtils";
 
 // Periodic sync fallback for browsers without Background Sync API
 let periodicSyncInterval: NodeJS.Timeout | null = null;
@@ -244,6 +227,7 @@ window.addEventListener("offline", () => {
   stopPeriodicSyncFallback();
 });
 
+// Render the application
 const rootElement = document.getElementById("root");
 if (rootElement) {
   // Check for Supabase configuration in production
@@ -262,9 +246,7 @@ if (rootElement) {
   } else {
     createRoot(rootElement).render(
       <StrictMode>
-        <QueryClientProvider client={queryClient}>
-          <RouterProvider router={router} />
-        </QueryClientProvider>
+        <App />
       </StrictMode>
     );
   }
