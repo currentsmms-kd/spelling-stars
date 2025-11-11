@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useSyncStatus } from "../hooks/useSyncStatus";
 import { Button } from "./Button";
 import {
@@ -155,6 +155,19 @@ function FailedItems({
 }: FailedItemsProps) {
   const [showClearConfirmation, setShowClearConfirmation] = useState(false);
 
+  const handleClearClick = useCallback(() => {
+    setShowClearConfirmation(true);
+  }, []);
+
+  const handleCancelClear = useCallback(() => {
+    setShowClearConfirmation(false);
+  }, []);
+
+  const handleConfirmClear = useCallback(() => {
+    onClearFailed();
+    setShowClearConfirmation(false);
+  }, [onClearFailed]);
+
   if (failedCount === 0) return null;
 
   const warningMessage =
@@ -165,12 +178,9 @@ function FailedItems({
       <FailedItemsHeader
         failedCount={failedCount}
         showClearConfirmation={showClearConfirmation}
-        onClearClick={() => setShowClearConfirmation(true)}
-        onCancelClear={() => setShowClearConfirmation(false)}
-        onConfirmClear={() => {
-          onClearFailed();
-          setShowClearConfirmation(false);
-        }}
+        onClearClick={handleClearClick}
+        onCancelClear={handleCancelClear}
+        onConfirmClear={handleConfirmClear}
       />
 
       {showClearConfirmation && (
@@ -261,18 +271,41 @@ function FailedAttemptsList({
     <div className="space-y-1">
       <h4 className="text-xs font-medium text-muted-foreground">Attempts</h4>
       {attempts.map((attempt) => (
-        <FailedItemCard
+        <FailedAttemptItem
           key={attempt.id}
-          id={attempt.id}
-          type="attempt"
-          displayText={`#${attempt.id}`}
-          lastError={attempt.lastError}
-          retryCount={attempt.retryCount}
+          attempt={attempt}
           isOnline={isOnline}
-          onRetry={() => onRetryItem("attempt", attempt.id)}
+          onRetryItem={onRetryItem}
         />
       ))}
     </div>
+  );
+}
+
+// Wrapper to handle individual attempt retry with useCallback
+function FailedAttemptItem({
+  attempt,
+  isOnline,
+  onRetryItem,
+}: {
+  attempt: { id: number; lastError?: string; retryCount: number };
+  isOnline: boolean;
+  onRetryItem: (type: "attempt" | "audio", id: number) => void;
+}) {
+  const handleRetry = useCallback(() => {
+    onRetryItem("attempt", attempt.id);
+  }, [attempt.id, onRetryItem]);
+
+  return (
+    <FailedItemCard
+      id={attempt.id}
+      type="attempt"
+      displayText={`#${attempt.id}`}
+      lastError={attempt.lastError}
+      retryCount={attempt.retryCount}
+      isOnline={isOnline}
+      onRetry={handleRetry}
+    />
   );
 }
 
@@ -296,18 +329,46 @@ function FailedAudioList({
     <div className="space-y-1">
       <h4 className="text-xs font-medium text-muted-foreground">Audio</h4>
       {audio.map((item) => (
-        <FailedItemCard
+        <FailedAudioItem
           key={item.id}
-          id={item.id}
-          type="audio"
-          displayText={item.filename}
-          lastError={item.lastError}
-          retryCount={item.retryCount}
+          item={item}
           isOnline={isOnline}
-          onRetry={() => onRetryItem("audio", item.id)}
+          onRetryItem={onRetryItem}
         />
       ))}
     </div>
+  );
+}
+
+// Wrapper to handle individual audio retry with useCallback
+function FailedAudioItem({
+  item,
+  isOnline,
+  onRetryItem,
+}: {
+  item: {
+    id: number;
+    filename: string;
+    lastError?: string;
+    retryCount: number;
+  };
+  isOnline: boolean;
+  onRetryItem: (type: "attempt" | "audio", id: number) => void;
+}) {
+  const handleRetry = useCallback(() => {
+    onRetryItem("audio", item.id);
+  }, [item.id, onRetryItem]);
+
+  return (
+    <FailedItemCard
+      id={item.id}
+      type="audio"
+      displayText={item.filename}
+      lastError={item.lastError}
+      retryCount={item.retryCount}
+      isOnline={isOnline}
+      onRetry={handleRetry}
+    />
   );
 }
 
@@ -410,7 +471,7 @@ export function SyncStatusBadge({ variant = "parent" }: SyncStatusBadgeProps) {
 
   const badgeStatus = getBadgeStatus();
 
-  const handleManualSync = async () => {
+  const handleManualSync = useCallback(async () => {
     try {
       setIsSyncing(true);
       await actions.manualSync();
@@ -420,29 +481,33 @@ export function SyncStatusBadge({ variant = "parent" }: SyncStatusBadgeProps) {
     } finally {
       setIsSyncing(false);
     }
-  };
+  }, [actions]);
 
-  const handleClearFailed = async () => {
+  const handleClearFailed = useCallback(async () => {
     try {
       await actions.clearFailed();
     } catch (error) {
       logger.error("Failed to clear items:", error);
     }
-  };
+  }, [actions]);
 
-  const handleRetryItem = async (type: "attempt" | "audio", id: number) => {
+  const handleRetryItem = useCallback(async (type: "attempt" | "audio", id: number) => {
     try {
       await actions.retryItem(type, id);
     } catch (error) {
       logger.error(`Failed to retry ${type} ${id}:`, error);
     }
-  };
+  }, [actions]);
+
+  const handleToggleExpand = useCallback(() => {
+    setIsExpanded(!isExpanded);
+  }, [isExpanded]);
 
   return (
     <div className="relative">
       {/* Badge Button */}
       <button
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={handleToggleExpand}
         className={`
           flex items-center gap-2 px-3 py-2 rounded-lg
           transition-all duration-200
