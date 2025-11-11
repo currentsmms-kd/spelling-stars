@@ -135,6 +135,14 @@ function ListSelector() {
     staleTime: 1000 * 60 * 5, // 5 minutes to reduce flicker
   });
 
+  const handleRetry = useCallback(() => {
+    refetch();
+  }, [refetch]);
+
+  const handleSelectList = useCallback((listId: string) => {
+    navigate(`?listId=${listId}`);
+  }, [navigate]);
+
   if (error) {
     return (
       <Card variant="child">
@@ -148,7 +156,7 @@ function ListSelector() {
               : "Failed to load spelling lists. Please try again."}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="child" onClick={() => refetch()}>
+            <Button size="child" onClick={handleRetry}>
               Retry
             </Button>
             <Link to="/child/home">
@@ -203,7 +211,7 @@ function ListSelector() {
             key={list.id}
             variant="child"
             className="cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => navigate(`?listId=${list.id}`)}
+            onClick={() => handleSelectList(list.id)}
           >
             <div className="text-center space-y-4">
               <h4 className="text-2xl font-bold">{list.title}</h4>
@@ -358,17 +366,23 @@ function AnswerSection({
   onRetry,
   onNextWord,
 }: AnswerSectionProps) {
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onAnswerChange(e.target.value);
+  }, [onAnswerChange]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && answer.trim() && feedback === null) {
+      onCheckAnswer();
+    }
+  }, [answer, feedback, onCheckAnswer]);
+
   return (
     <div className="space-y-4">
       <input
         type="text"
         value={answer}
-        onChange={(e) => onAnswerChange(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && answer.trim() && feedback === null) {
-            onCheckAnswer();
-          }
-        }}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
         className="w-full text-4xl text-center px-6 py-4 border-4 border-primary rounded-2xl focus:ring-4 focus:ring-ring focus:border-primary font-bold bg-input"
         placeholder="Type here..."
         disabled={feedback === "correct"}
