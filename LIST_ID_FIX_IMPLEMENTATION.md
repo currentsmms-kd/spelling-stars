@@ -56,6 +56,9 @@ This ensures TypeScript compiler enforces `list_id` on all insert operations.
   - If exactly one list is found, sets that `list_id` on the record (enriched)
   - If zero lists match, marks as `failed=true` with `last_error='Missing list_id; cannot infer (word not in any list)'`
   - If multiple lists match, marks as `failed=true` with `last_error='Missing list_id; cannot infer (word in multiple lists)'`
+  - **Network/Supabase errors during enrichment:** Updates `last_error` but does NOT mark as `failed`, allowing retry during sync
+  - Enrichment is retried during sync for attempts with missing `list_id` via `inferListIdForAttempt()` helper
+  - Only permanently fails for non-unique or missing list mappings (data integrity issues)
   - Failed attempts are visible in Sync Status UI and can be manually resolved by parents
 - New queued attempts will always include `list_id` going forward
 
@@ -80,6 +83,18 @@ This ensures TypeScript compiler enforces `list_id` on all insert operations.
 
 - Updated IndexedDB insert to include `list_id: listId`
 
+**Added `inferListIdForAttempt()` helper function:**
+
+- Shared logic for inferring `list_id` from `word_id` via `list_words` table
+- Used by both `enrichLegacyAttempts()` (upgrade) and `syncQueuedAttempts()` (sync)
+- Returns `InferListIdResult` with:
+  - `success: boolean` - Whether inference succeeded
+  - `listId?: string` - The inferred list_id if successful
+  - `error?: string` - Error message if failed
+  - `retriable?: boolean` - Whether the error is retriable (network/Supabase errors) vs. non-retriable (data integrity issues)
+- Distinguishes between retriable errors (offline, Supabase errors) and permanent failures (zero or multiple list matches)
+- Enables consistent retry logic across upgrade and sync operations
+
 **Added `enrichLegacyAttempts()` function:**
 
 - Called during IndexedDB version 5 upgrade to enrich legacy attempts
@@ -91,9 +106,12 @@ This ensures TypeScript compiler enforces `list_id` on all insert operations.
 **Updated `syncQueuedAttempts()` function:**
 
 - Added guard before Supabase insert: checks if `attempt.list_id` is falsy
-- If `list_id` is missing, updates record to `failed=true` with `last_error='Missing list_id; cannot sync'`
-- Skips insert for attempts without `list_id`
-- This prevents NOT NULL constraint violations in the database
+- **If `list_id` is missing, attempts inference using `inferListIdForAttempt()` helper:**
+  - Queries Supabase `list_words` table to find matching `list_id` for `word_id`
+  - If exactly one match found, updates attempt record with `list_id` via `db.queuedAttempts.update()` and continues with insert
+  - If zero or multiple matches (non-retriable data issue), marks as `failed=true` with specific `last_error` message and skips
+  - If inference query errors (e.g., offline, network issue), updates `last_error` but does NOT mark as failed, skips this cycle for later retry
+- This prevents NOT NULL constraint violations in the database and enables automatic recovery from transient failures
 
 **Updated `insertAttemptWithRetry()` helper:**
 

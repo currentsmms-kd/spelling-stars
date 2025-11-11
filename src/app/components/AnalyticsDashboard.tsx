@@ -1,4 +1,3 @@
-import React from "react";
 import { Card } from "./Card";
 import { TrendingUp, Target, Award, Clock } from "lucide-react";
 import {
@@ -62,6 +61,22 @@ interface ParentOverviewData {
     last_seen: string;
   }>;
 }
+
+// Add type for Recharts pie label props
+interface PieLabelProps {
+  payload?: {
+    list_title: string;
+    mastery_percentage: number;
+  };
+  list_title?: string;
+  mastery_percentage?: number;
+}
+
+// Add formatter function outside components - Updated to match Recharts types
+const formatPieLabel = (props: PieLabelProps) => {
+  const entry = props.payload || props;
+  return `${entry.list_title}: ${entry.mastery_percentage}%`;
+};
 
 // Extracted Summary Card Component
 function SummaryCard({
@@ -176,10 +191,13 @@ function MasteryPieChart({
           cx="50%"
           cy="50%"
           outerRadius={100}
-          label={(entry) => `${entry.list_title}: ${entry.mastery_percentage}%`}
+          label={formatPieLabel}
         >
           {masteryData.map((entry, index: number) => (
-            <Cell key={`cell-${entry.list_id}`} fill={colors[index % colors.length]} />
+            <Cell
+              key={`cell-${entry.list_id}`}
+              fill={colors[index % colors.length]}
+            />
           ))}
         </Pie>
         <Tooltip

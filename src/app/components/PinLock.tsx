@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "./Button";
 import { Card } from "./Card";
 import { Lock, X, AlertTriangle } from "lucide-react";
@@ -41,12 +41,29 @@ function NumberPad({
   onClear: () => void;
   onBackspace: () => void;
 }) {
+  const handleNumber1 = useCallback(() => onNumberClick(1), [onNumberClick]);
+  const handleNumber2 = useCallback(() => onNumberClick(2), [onNumberClick]);
+  const handleNumber3 = useCallback(() => onNumberClick(3), [onNumberClick]);
+  const handleNumber4 = useCallback(() => onNumberClick(4), [onNumberClick]);
+  const handleNumber5 = useCallback(() => onNumberClick(5), [onNumberClick]);
+  const handleNumber6 = useCallback(() => onNumberClick(6), [onNumberClick]);
+  const handleNumber7 = useCallback(() => onNumberClick(7), [onNumberClick]);
+  const handleNumber8 = useCallback(() => onNumberClick(8), [onNumberClick]);
+  const handleNumber9 = useCallback(() => onNumberClick(9), [onNumberClick]);
+  const handleNumber0 = useCallback(() => onNumberClick(0), [onNumberClick]);
+
+  const handlers = [
+    handleNumber1, handleNumber2, handleNumber3,
+    handleNumber4, handleNumber5, handleNumber6,
+    handleNumber7, handleNumber8, handleNumber9
+  ];
+
   return (
     <div className="grid grid-cols-3 gap-3">
-      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num, index) => (
         <Button
           key={num}
-          onClick={() => onNumberClick(num)}
+          onClick={handlers[index]}
           variant="outline"
           className="h-16 text-2xl font-bold"
           aria-label={`Number ${num}`}
@@ -63,7 +80,7 @@ function NumberPad({
         Clear
       </Button>
       <Button
-        onClick={() => onNumberClick(0)}
+        onClick={handleNumber0}
         variant="outline"
         className="h-16 text-2xl font-bold"
         aria-label="Number 0"
@@ -154,7 +171,7 @@ function PinLockContent({
                 Reset PIN and Continue
               </Button>
               <p className="text-xs text-muted-foreground text-center">
-                You'll be taken to Settings where you can set a new PIN
+                You&apos;ll be taken to Settings where you can set a new PIN
               </p>
             </div>
           </div>
@@ -334,32 +351,35 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
     }
   };
 
-  const handleNumberClick = (num: number) => {
-    if (isVerifying || isLockedOut()) return;
+  const handleNumberClick = useCallback(
+    (num: number) => {
+      if (isVerifying || isLockedOut()) return;
 
-    if (pin.length < 4) {
-      const newPin = pin + num;
-      setPin(newPin);
-      setError("");
+      if (pin.length < 4) {
+        const newPin = pin + num;
+        setPin(newPin);
+        setError("");
 
-      // Auto-submit when 4 digits entered
-      if (newPin.length === 4) {
-        setTimeout(() => validatePin(newPin), 100);
+        // Auto-submit when 4 digits entered
+        if (newPin.length === 4) {
+          setTimeout(() => validatePin(newPin), 100);
+        }
       }
-    }
-  };
+    },
+    [pin, isVerifying, isLockedOut]
+  );
 
-  const handleBackspace = () => {
+  const handleBackspace = useCallback(() => {
     if (isVerifying || isLockedOut()) return;
     setPin(pin.slice(0, -1));
     setError("");
-  };
+  }, [pin, isVerifying, isLockedOut]);
 
-  const handleClear = () => {
+  const handleClear = useCallback(() => {
     if (isVerifying || isLockedOut()) return;
     setPin("");
     setError("");
-  };
+  }, [isVerifying, isLockedOut]);
 
   if (!pinCode) {
     return null; // Don't show lock if no PIN set

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { RouterProvider } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { router } from "./router";
@@ -26,15 +26,15 @@ export function App() {
     };
   }, []);
 
-  const handleUpdate = () => {
+  const handleUpdate = useCallback(() => {
     logger.info("Applying update, reloading page");
     window.location.reload();
-  };
+  }, []);
 
-  const handleDismiss = () => {
+  const handleDismiss = useCallback(() => {
     setShowBanner(false);
     logger.info("Update deferred by user");
-  };
+  }, []);
 
   return (
     <>

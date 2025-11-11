@@ -2,7 +2,7 @@ import { Palette, Sun, Moon } from "lucide-react";
 import { useThemeStore } from "@/app/store/theme";
 import { colorThemes } from "@/app/lib/themes";
 import { Card } from "./Card";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 
 interface ColorThemePickerProps {
   showLabel?: boolean;
@@ -66,10 +66,18 @@ function ModeToggle({
   isChildMode: boolean;
   onThemeChange: (group: ThemeGroup, mode: "light" | "dark") => void;
 }) {
+  const handleLightClick = useCallback(() => {
+    onThemeChange(group, "light");
+  }, [group, onThemeChange]);
+
+  const handleDarkClick = useCallback(() => {
+    onThemeChange(group, "dark");
+  }, [group, onThemeChange]);
+
   return (
     <div className="flex gap-2">
       <button
-        onClick={() => onThemeChange(group, "light")}
+        onClick={handleLightClick}
         className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg transition-all ${
           activeMode === "light" && isActive
             ? "bg-primary text-primary-foreground shadow-md"
@@ -84,7 +92,7 @@ function ModeToggle({
 
       {group.darkTheme && (
         <button
-          onClick={() => onThemeChange(group, "dark")}
+          onClick={handleDarkClick}
           className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg transition-all ${
             activeMode === "dark" && isActive
               ? "bg-primary text-primary-foreground shadow-md"

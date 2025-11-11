@@ -369,6 +369,46 @@ function ChildRewardsCard({ childId }: { childId: string }) {
   );
 }
 
+// Filter Buttons Component
+function FilterButtons({
+  filterType,
+  setFilterType,
+}: {
+  filterType: "all" | "avatar" | "theme" | "coupon" | "badge";
+  setFilterType: (
+    type: "all" | "avatar" | "theme" | "coupon" | "badge"
+  ) => void;
+}) {
+  const filterTypes: Array<"all" | "avatar" | "theme" | "coupon" | "badge"> = [
+    "all",
+    "avatar",
+    "theme",
+    "coupon",
+    "badge",
+  ];
+
+  const handleFilterClick = (
+    type: "all" | "avatar" | "theme" | "coupon" | "badge"
+  ) => {
+    setFilterType(type);
+  };
+
+  return (
+    <div className="flex flex-wrap gap-2 mb-4">
+      {filterTypes.map((type) => (
+        <Button
+          key={type}
+          size="sm"
+          variant={filterType === type ? "default" : "outline"}
+          onClick={() => handleFilterClick(type)}
+        >
+          {type.charAt(0).toUpperCase() + type.slice(1)}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
 // Rewards Catalog Section Component
 function RewardsCatalogSection({
   filterType,
@@ -394,22 +434,7 @@ function RewardsCatalogSection({
         </div>
 
         {/* Filter Buttons */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          {["all", "avatar", "theme", "coupon", "badge"].map((type) => (
-            <Button
-              key={type}
-              size="sm"
-              variant={filterType === type ? "default" : "outline"}
-              onClick={() =>
-                setFilterType(
-                  type as "all" | "avatar" | "theme" | "coupon" | "badge"
-                )
-              }
-            >
-              {type.charAt(0).toUpperCase() + type.slice(1)}
-            </Button>
-          ))}
-        </div>
+        <FilterButtons filterType={filterType} setFilterType={setFilterType} />
 
         {/* Rewards List */}
         <div className="space-y-3">
@@ -472,7 +497,7 @@ function RewardsManagementContent({
   setFilterType,
   filteredRewards,
   toggleActiveMutation,
-  children,
+  childrenProfiles,
 }: {
   showCreateCoupon: boolean;
   setShowCreateCoupon: (show: boolean) => void;
@@ -493,7 +518,7 @@ function RewardsManagementContent({
     { rewardId: string; isActive: boolean },
     unknown
   >;
-  children: ProfileData[] | undefined;
+  childrenProfiles: ProfileData[] | undefined;
 }) {
   return (
     <div className="space-y-8">
@@ -535,7 +560,7 @@ function RewardsManagementContent({
         />
 
         {/* Children Overview Section */}
-        <ChildrenOverviewSection children={children} />
+        <ChildrenOverviewSection children={childrenProfiles} />
       </div>
     </div>
   );
@@ -649,7 +674,7 @@ export function RewardsManagement() {
         setFilterType={setFilterType}
         filteredRewards={filteredRewards}
         toggleActiveMutation={toggleActiveMutation}
-        children={children}
+        childrenProfiles={children}
       />
     </AppShell>
   );

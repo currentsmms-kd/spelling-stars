@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { AppShell } from "@/app/components/AppShell";
 import { Card } from "@/app/components/Card";
 import { Button } from "@/app/components/Button";
@@ -153,6 +153,14 @@ function ChildCard({
 }: ChildCardProps) {
   const isConfirmingDelete = deleteConfirm === child.id;
 
+  const handleDeleteClick = () => {
+    onDeleteClick(child.id);
+  };
+
+  const handleConfirmDelete = () => {
+    onDeleteConfirm(child.id);
+  };
+
   // Standard Card layout pattern - 5 levels of nesting is acceptable for UI components
   return (
     <Card>
@@ -182,7 +190,7 @@ function ChildCard({
             <>
               <Button
                 size="sm"
-                onClick={() => onDeleteConfirm(child.id)}
+                onClick={handleConfirmDelete}
                 disabled={isDeleting}
                 className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
               >
@@ -196,7 +204,7 @@ function ChildCard({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => onDeleteClick(child.id)}
+              onClick={handleDeleteClick}
               title="Delete child account"
             >
               <Trash2 size={16} />
@@ -218,6 +226,56 @@ export function ChildManagement() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+
+  // Handler for toggling the add form
+  const handleToggleAddForm = () => {
+    setShowAddForm(!showAddForm);
+  };
+
+  // Handler for child name change
+  const handleChildNameChange = (value: string) => {
+    setChildName(value);
+  };
+
+  // Handler wrapper for child name input onChange
+  const handleChildNameInputChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    handleChildNameChange(e.target.value);
+  };
+
+  // Handler for child password change
+  const handleChildPasswordChange = (value: string) => {
+    setChildPassword(value);
+  };
+
+  // Handler wrapper for child password input onChange
+  const handleChildPasswordInputChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    handleChildPasswordChange(e.target.value);
+  };
+
+  // Handler wrapper for username input onChange
+  const handleUsernameInputChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    handleUsernameChange(e.target.value);
+  };
+
+  // Handler for cancel button
+  const handleCancelAddForm = () => {
+    setShowAddForm(false);
+    setUsernameError(null);
+    setChildUsername("");
+    setChildPassword("");
+    setChildName("");
+  };
+
+  // Handler for clearing delete confirmation
+  const handleClearDeleteConfirm = () => {
+    setDeleteConfirm(null);
+  };
 
   // Fetch children for current parent
   const { data: children, isLoading } = useQuery({
@@ -511,7 +569,7 @@ export function ChildManagement() {
             </p>
           </div>
           <Button
-            onClick={() => setShowAddForm(!showAddForm)}
+            onClick={handleToggleAddForm}
             className="flex items-center gap-2"
           >
             <Plus size={20} />
@@ -538,8 +596,8 @@ export function ChildManagement() {
                   id="childName"
                   type="text"
                   value={childName}
-                  onChange={(e) => setChildName(e.target.value)}
-                  placeholder="Enter child&apos;s name"
+                  onChange={handleChildNameInputChange}
+                  placeholder="Enter child's name"
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
                   required
                 />
@@ -557,7 +615,7 @@ export function ChildManagement() {
                     id="childUsername"
                     type="text"
                     value={childUsername}
-                    onChange={(e) => handleUsernameChange(e.target.value)}
+                    onChange={handleUsernameInputChange}
                     onBlur={handleUsernameBlur}
                     placeholder="e.g., sally, tommy, alex"
                     className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input ${
@@ -602,7 +660,7 @@ export function ChildManagement() {
                   id="childPassword"
                   type="password"
                   value={childPassword}
-                  onChange={(e) => setChildPassword(e.target.value)}
+                  onChange={handleChildPasswordInputChange}
                   placeholder="At least 6 characters"
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
                   required
@@ -628,13 +686,7 @@ export function ChildManagement() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => {
-                    setShowAddForm(false);
-                    setUsernameError(null);
-                    setChildUsername("");
-                    setChildPassword("");
-                    setChildName("");
-                  }}
+                  onClick={handleCancelAddForm}
                 >
                   Cancel
                 </Button>
@@ -659,7 +711,7 @@ export function ChildManagement() {
                 deleteConfirm={deleteConfirm}
                 onDeleteClick={setDeleteConfirm}
                 onDeleteConfirm={handleDeleteChild}
-                onDeleteCancel={() => setDeleteConfirm(null)}
+                onDeleteCancel={handleClearDeleteConfirm}
                 isDeleting={deleteChild.isPending}
               />
             ))}

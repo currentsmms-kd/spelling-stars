@@ -62,8 +62,11 @@ function MistakePatternTable({ patterns }: { patterns: NgramErrorPattern[] }) {
       <table className="w-full">
         <MistakePatternTableHeader />
         <tbody>
-          {patterns.slice(0, 10).map((pattern, idx) => (
-            <MistakePatternRow key={idx} pattern={pattern} />
+          {patterns.slice(0, 10).map((pattern) => (
+            <MistakePatternRow
+              key={`${pattern.pattern}-${pattern.common_error}-${pattern.last_seen}`}
+              pattern={pattern}
+            />
           ))}
         </tbody>
       </table>
@@ -206,7 +209,7 @@ function QuickActionsGrid({ navigate }: { navigate: (path: string) => void }) {
           icon={<TrendingUp className="text-secondary" size={24} />}
           iconBgClass="bg-secondary/20"
           title="Progress"
-          description="View your child&apos;s spelling progress"
+          description="View your child's spelling progress"
           buttonLabel="Coming Soon"
           buttonProps={{ disabled: true }}
         />

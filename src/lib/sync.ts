@@ -9,6 +9,89 @@ import { logger } from "@/lib/logger";
 const MAX_RETRY_ATTEMPTS = 5;
 
 /**
+ * Inference result for list_id lookup
+ */
+interface InferListIdResult {
+  /** Whether inference succeeded */
+  success: boolean;
+  /** Inferred list_id if successful */
+  listId?: string;
+  /** Error message if failed */
+  error?: string;
+  /** Whether the error is retriable (e.g., network error vs. data issue) */
+  retriable?: boolean;
+}
+
+/**
+ * Attempt to infer list_id for an attempt by querying list_words table
+ * Shared between upgrade enrichment and sync inference
+ *
+ * @param wordId - The word_id to look up
+ * @returns InferListIdResult with success status, listId, or error details
+ */
+async function inferListIdForAttempt(
+  wordId: string
+): Promise<InferListIdResult> {
+  try {
+    // Query Supabase to find list_id for this word_id
+    const { data: listWords, error } = await supabase
+      .from("list_words")
+      .select("list_id")
+      .eq("word_id", wordId);
+
+    if (error) {
+      logger.error(`Failed to query list_id for word ${wordId}:`, error);
+      // Network/Supabase errors are retriable
+      return {
+        success: false,
+        error: `Failed to query list_id: ${error.message}`,
+        retriable: true,
+      };
+    }
+
+    // Check if we found exactly one list
+    if (!listWords || listWords.length === 0) {
+      logger.warn(`No list found for word ${wordId}`);
+      // Data issue: word not in any list - not retriable
+      return {
+        success: false,
+        error: "Missing list_id; cannot infer (word not in any list)",
+        retriable: false,
+      };
+    }
+
+    if (listWords.length > 1) {
+      logger.warn(`Multiple lists found for word ${wordId}`);
+      // Data issue: ambiguous mapping - not retriable
+      return {
+        success: false,
+        error: "Missing list_id; cannot infer (word in multiple lists)",
+        retriable: false,
+      };
+    }
+
+    // Exactly one list found - success!
+    const listId = listWords[0].list_id;
+    logger.log(`Inferred list_id ${listId} for word ${wordId}`);
+    return {
+      success: true,
+      listId,
+    };
+  } catch (error) {
+    logger.error(`Error inferring list_id for word ${wordId}:`, error);
+    // Unexpected errors are retriable (might be transient)
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unknown error during list_id inference",
+      retriable: true,
+    };
+  }
+}
+
+/**
  * Enrich legacy queued attempts with list_id by querying Supabase
  * Called during IndexedDB version 5 upgrade
  *
@@ -25,6 +108,7 @@ export async function enrichLegacyAttempts(
   );
 
   let enriched = 0;
+  let deferred = 0;
   let failed = 0;
 
   for (const attempt of attempts) {
@@ -33,81 +117,49 @@ export async function enrichLegacyAttempts(
       continue;
     }
 
-    try {
-      // Query Supabase to find list_id for this word_id
-      const { data: listWords, error } = await supabase
-        .from("list_words")
-        .select("list_id")
-        .eq("word_id", attempt.word_id);
+    // Attempt inference using shared helper
+    const result = await inferListIdForAttempt(attempt.word_id);
 
-      if (error) {
-        logger.error(
-          `Failed to query list_id for word ${attempt.word_id}:`,
-          error
-        );
-        // Mark as failed
-        if (attempt.id !== undefined) {
-          await trans.table("queuedAttempts").update(attempt.id, {
-            failed: true,
-            last_error: `Failed to enrich list_id: ${error.message}`,
-          });
-        }
-        failed++;
-        continue;
-      }
-
-      // Check if we found exactly one list
-      if (!listWords || listWords.length === 0) {
-        logger.warn(`No list found for word ${attempt.word_id}`);
-        if (attempt.id !== undefined) {
-          await trans.table("queuedAttempts").update(attempt.id, {
-            failed: true,
-            last_error: "Missing list_id; cannot infer (word not in any list)",
-          });
-        }
-        failed++;
-        continue;
-      }
-
-      if (listWords.length > 1) {
-        logger.warn(`Multiple lists found for word ${attempt.word_id}`);
-        if (attempt.id !== undefined) {
-          await trans.table("queuedAttempts").update(attempt.id, {
-            failed: true,
-            last_error:
-              "Missing list_id; cannot infer (word in multiple lists)",
-          });
-        }
-        failed++;
-        continue;
-      }
-
-      // Exactly one list found - enrich the attempt
-      const listId = listWords[0].list_id;
+    if (result.success && result.listId) {
+      // Successfully inferred - update record
       if (attempt.id !== undefined) {
         await trans.table("queuedAttempts").update(attempt.id, {
-          list_id: listId,
+          list_id: result.listId,
         });
-        logger.log(`Enriched attempt ${attempt.id} with list_id ${listId}`);
+        logger.log(
+          `Enriched attempt ${attempt.id} with list_id ${result.listId}`
+        );
         enriched++;
       }
-    } catch (error) {
-      logger.error(`Error enriching attempt ${attempt.id}:`, error);
+    } else if (result.retriable) {
+      // Network/transient error - update last_error but don't mark as failed
+      // This allows retry during sync
+      if (attempt.id !== undefined) {
+        await trans.table("queuedAttempts").update(attempt.id, {
+          last_error: result.error,
+        });
+        logger.warn(
+          `Deferred enrichment for attempt ${attempt.id}: ${result.error}`
+        );
+        deferred++;
+      }
+    } else {
+      // Non-retriable data issue - mark as permanently failed
       if (attempt.id !== undefined) {
         await trans.table("queuedAttempts").update(attempt.id, {
           failed: true,
-          last_error:
-            error instanceof Error
-              ? error.message
-              : "Unknown error during enrichment",
+          last_error: result.error,
         });
+        logger.error(
+          `Permanently failed enrichment for attempt ${attempt.id}: ${result.error}`
+        );
+        failed++;
       }
-      failed++;
     }
   }
 
   logger.log(
-    `Legacy attempt enrichment complete: ${enriched} enriched, ${failed} failed`
+    `Legacy attempt enrichment complete: ${enriched} enriched, ${deferred} deferred for retry, ${failed} permanently failed`
   );
 }
 
@@ -497,17 +549,48 @@ async function syncQueuedAttempts(): Promise<void> {
     try {
       // Guard: Check if list_id is present (required field in database)
       if (!attempt.list_id) {
-        logger.error(
-          `Attempt ${attempt.id} missing list_id, marking as failed`
+        logger.warn(
+          `Attempt ${attempt.id} missing list_id, attempting inference...`
         );
-        if (attempt.id !== undefined) {
+
+        // Attempt to infer list_id using shared helper
+        const result = await inferListIdForAttempt(attempt.word_id);
+
+        if (result.success && result.listId && attempt.id !== undefined) {
+          // Successfully inferred - update record and continue with sync
           await db.queuedAttempts.update(attempt.id, {
-            failed: true,
-            last_error: "Missing list_id; cannot sync",
+            list_id: result.listId,
+            last_error: undefined, // Clear any previous error
           });
+          attempt.list_id = result.listId; // Update in-memory object
+          logger.log(
+            `Inferred list_id ${result.listId} for attempt ${attempt.id}`
+          );
+        } else if (result.retriable) {
+          // Retriable error (e.g., offline, Supabase error) - skip for now, retry later
+          logger.warn(
+            `Attempt ${attempt.id}: Deferring inference due to retriable error: ${result.error}`
+          );
+          if (attempt.id !== undefined) {
+            await db.queuedAttempts.update(attempt.id, {
+              last_error: result.error,
+            });
+          }
+          continue; // Skip this attempt, leave it for next sync cycle
+        } else {
+          // Non-retriable data issue - mark as permanently failed
+          logger.error(
+            `Attempt ${attempt.id}: Permanently failed - ${result.error}`
+          );
+          if (attempt.id !== undefined) {
+            await db.queuedAttempts.update(attempt.id, {
+              failed: true,
+              last_error: result.error,
+            });
+          }
+          logger.metrics.attemptFailed();
+          continue; // Skip this attempt
         }
-        logger.metrics.attemptFailed();
-        continue; // Skip this attempt
       }
 
       // Get audio path if this attempt has audio

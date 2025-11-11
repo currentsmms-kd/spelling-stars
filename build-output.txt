@@ -1,0 +1,8 @@
+
+> spellstars@0.1.0 build
+> doppler run -- tsc && vite build
+
+src/app/components/AnalyticsDashboard.tsx(194,11): error TS2322: Type '(props: PieLabelProps) => string' is not assignable to type 'PieLabel | undefined'.
+  Type '(props: PieLabelProps) => string' is not assignable to type '(props: PieLabelRenderProps) => ReactNode | ReactElement<SVGElement, string | JSXElementConstructor<any>>'.
+    Types of parameters 'props' and 'props' are incompatible.
+      Type 'PieLabelRenderProps' has no properties in common with type 'PieLabelProps'.
