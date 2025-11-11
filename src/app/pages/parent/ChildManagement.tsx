@@ -539,7 +539,7 @@ export function ChildManagement() {
                   type="text"
                   value={childName}
                   onChange={(e) => setChildName(e.target.value)}
-                  placeholder="Enter child's name"
+                  placeholder="Enter child&apos;s name"
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
                   required
                 />
