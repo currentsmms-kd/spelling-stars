@@ -3,6 +3,9 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 
+// Cache version for invalidation - increment to force cache refresh
+const CACHE_VERSION = "v1";
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
@@ -35,23 +38,26 @@ export default defineConfig({
         ],
       },
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/auth\/.*/i,
             handler: "NetworkOnly",
             options: {
-              cacheName: "supabase-auth-cache",
+              cacheName: `supabase-auth-${CACHE_VERSION}`,
             },
           },
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/.*/i,
             handler: "NetworkFirst",
             options: {
-              cacheName: "supabase-api-cache",
+              cacheName: `supabase-api-${CACHE_VERSION}`,
               expiration: {
                 maxEntries: 50,
-                maxAgeSeconds: 60 * 5, // 5 minutes for API data
+                maxAgeSeconds: 60 * 3, // 3 minutes for API data (reduced from 5)
               },
               cacheableResponse: {
                 statuses: [0, 200],
@@ -73,7 +79,7 @@ export default defineConfig({
             },
             handler: "NetworkOnly",
             options: {
-              cacheName: "private-audio-cache",
+              cacheName: `private-audio-${CACHE_VERSION}`,
               // NetworkOnly ignores cache entirely
             },
           },
@@ -83,7 +89,7 @@ export default defineConfig({
               /^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/public\/word-audio\/.*/i,
             handler: "CacheFirst",
             options: {
-              cacheName: "public-audio-cache",
+              cacheName: `public-audio-${CACHE_VERSION}`,
               expiration: {
                 maxEntries: 100,
                 maxAgeSeconds: 60 * 60 * 24 * 2, // 2 days (reduced from 7)
@@ -98,10 +104,10 @@ export default defineConfig({
             urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/.*/i,
             handler: "NetworkFirst",
             options: {
-              cacheName: "supabase-storage-fallback",
+              cacheName: `supabase-storage-${CACHE_VERSION}`,
               expiration: {
                 maxEntries: 50,
-                maxAgeSeconds: 60 * 30, // 30 minutes
+                maxAgeSeconds: 60 * 15, // 15 minutes (reduced from 30)
               },
               cacheableResponse: {
                 statuses: [0, 200],
@@ -113,10 +119,10 @@ export default defineConfig({
             urlPattern: /\/child\/.*/,
             handler: "NetworkFirst",
             options: {
-              cacheName: "child-routes-cache",
+              cacheName: `child-routes-${CACHE_VERSION}`,
               expiration: {
                 maxEntries: 20,
-                maxAgeSeconds: 60 * 60 * 24, // 24 hours (reduced from 7 days)
+                maxAgeSeconds: 60 * 60 * 12, // 12 hours (reduced from 24)
               },
               networkTimeoutSeconds: 3,
               // Fallback to cache if network fails, but try network first
@@ -126,17 +132,15 @@ export default defineConfig({
             urlPattern: /\/parent\/.*/,
             handler: "NetworkFirst",
             options: {
-              cacheName: "parent-routes-cache",
+              cacheName: `parent-routes-${CACHE_VERSION}`,
               expiration: {
                 maxEntries: 20,
-                maxAgeSeconds: 60 * 60, // 1 hour for parent routes
+                maxAgeSeconds: 60 * 30, // 30 minutes (reduced from 1 hour)
               },
               networkTimeoutSeconds: 3,
             },
           },
         ],
-        // Clean up caches on activation
-        cleanupOutdatedCaches: true,
       },
       devOptions: {
         enabled: true,

@@ -567,6 +567,8 @@ export function PlaySaySpell() {
         let audioPath: string | undefined;
         if (audioBlob && profile?.id) {
           const timestamp = Date.now();
+          // CRITICAL: Path format must be {child_id}/{list_id}/{word_id}_{timestamp}.webm
+          // This format is required by RLS policies: (storage.foldername(name))[1] = child_id
           const fileName = `${profile.id}/${listId}/${wordId}_${timestamp}.webm`;
 
           const { data, error } = await supabase.storage
@@ -579,6 +581,7 @@ export function PlaySaySpell() {
           if (!error && data) {
             // Store the path, not a URL
             // Signed URLs will be generated on-demand when audio needs to be played
+            // Use getSignedAudioUrl() from supa.ts or useAttempts() hook for playback
             audioPath = data.path;
           }
         }
@@ -653,6 +656,8 @@ export function PlaySaySpell() {
       // Queue audio offline
       if (!isOnline) {
         const timestamp = Date.now();
+        // CRITICAL: Path format must match online format for RLS policy compliance
+        // Format: {child_id}/{list_id}/{word_id}_{timestamp}.webm
         const fileName = `${profile?.id}/${listId}/${currentWord?.id}_${timestamp}.webm`;
         queueAudio(recordedBlob, fileName).then((id) => {
           setAudioBlobId(id);

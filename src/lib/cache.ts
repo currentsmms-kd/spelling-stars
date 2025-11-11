@@ -6,20 +6,28 @@
  */
 
 import { logger } from "./logger";
+import type { QueryClient } from "@tanstack/react-query";
+
+/**
+ * Cache version for invalidation - should match CACHE_VERSION in vite.config.ts
+ * Increment to force cache refresh across all users
+ */
+const CACHE_VERSION = "v1";
 
 /**
  * Cache names used by the application
  * These should match the cacheName values in vite.config.ts
+ * Versioned to enable cache invalidation on updates
  */
 export const CACHE_NAMES = {
-  AUTH: "supabase-auth-cache",
-  API: "supabase-api-cache",
+  AUTH: `supabase-auth-${CACHE_VERSION}`,
+  API: `supabase-api-${CACHE_VERSION}`,
   STORAGE: "supabase-storage-cache", // DEPRECATED - kept for backwards compatibility
-  PRIVATE_AUDIO: "private-audio-cache",
-  PUBLIC_AUDIO: "public-audio-cache",
-  STORAGE_FALLBACK: "supabase-storage-fallback",
-  CHILD_ROUTES: "child-routes-cache",
-  PARENT_ROUTES: "parent-routes-cache",
+  PRIVATE_AUDIO: `private-audio-${CACHE_VERSION}`,
+  PUBLIC_AUDIO: `public-audio-${CACHE_VERSION}`,
+  STORAGE_FALLBACK: `supabase-storage-${CACHE_VERSION}`,
+  CHILD_ROUTES: `child-routes-${CACHE_VERSION}`,
+  PARENT_ROUTES: `parent-routes-${CACHE_VERSION}`,
 } as const;
 
 /**
@@ -217,5 +225,53 @@ export async function hardRefresh(): Promise<void> {
     logger.error("Failed to perform hard refresh:", error);
     // Reload anyway
     window.location.reload();
+  }
+}
+
+/**
+ * Clear all app data caches including React Query and PWA caches
+ * This is a comprehensive refresh that clears both in-memory and persistent caches
+ */
+export async function clearAllAppData(
+  reactQueryClient?: QueryClient
+): Promise<void> {
+  try {
+    // Clear PWA caches
+    await clearAllCaches();
+
+    // Clear React Query cache if client provided
+    if (reactQueryClient) {
+      reactQueryClient.clear();
+      logger.info("React Query cache cleared");
+    }
+
+    logger.info("All app data cleared successfully");
+  } catch (error) {
+    logger.error("Failed to clear all app data:", error);
+    throw error;
+  }
+}
+
+/**
+ * Refresh all data by clearing caches and invalidating React Query
+ * Does not reload the page - useful for manual "refresh data" action
+ */
+export async function refreshAllData(
+  reactQueryClient?: QueryClient
+): Promise<void> {
+  try {
+    // Clear user-specific caches but keep static assets
+    await clearUserCaches();
+
+    // Invalidate (refetch) all React Query data
+    if (reactQueryClient) {
+      await reactQueryClient.invalidateQueries();
+      logger.info("React Query data invalidated and refetching");
+    }
+
+    logger.info("All data refreshed successfully");
+  } catch (error) {
+    logger.error("Failed to refresh data:", error);
+    throw error;
   }
 }

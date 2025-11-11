@@ -16,6 +16,123 @@ interface ChildProfile {
   streak_days: number | null;
 }
 
+// Reserved usernames that cannot be used
+const RESERVED_USERNAMES = [
+  "admin",
+  "administrator",
+  "root",
+  "system",
+  "spellstars",
+  "support",
+  "help",
+  "info",
+  "contact",
+  "noreply",
+  "no-reply",
+  "postmaster",
+  "hostmaster",
+  "webmaster",
+  "parent",
+  "child",
+  "user",
+  "guest",
+  "test",
+  "demo",
+];
+
+// Username validation constraints
+const USERNAME_MIN_LENGTH = 3;
+const USERNAME_MAX_LENGTH = 30;
+
+/**
+ * Validates username format and checks against reserved names.
+ * Returns error message if invalid, null if valid.
+ */
+function validateUsername(username: string): string | null {
+  if (!username) {
+    return "Username is required";
+  }
+
+  if (username.length < USERNAME_MIN_LENGTH) {
+    return `Username must be at least ${USERNAME_MIN_LENGTH} characters`;
+  }
+
+  if (username.length > USERNAME_MAX_LENGTH) {
+    return `Username must be no more than ${USERNAME_MAX_LENGTH} characters`;
+  }
+
+  // Alphanumeric only (no special characters, no spaces)
+  if (!/^[a-zA-Z0-9]+$/.test(username)) {
+    return "Username can only contain letters and numbers (no spaces or special characters)";
+  }
+
+  // Must start with a letter
+  if (!/^[a-zA-Z]/.test(username)) {
+    return "Username must start with a letter";
+  }
+
+  // Check against reserved names (case-insensitive)
+  if (RESERVED_USERNAMES.includes(username.toLowerCase())) {
+    return "This username is reserved and cannot be used";
+  }
+
+  return null; // Valid
+}
+
+/**
+ * Checks if a username is already taken by attempting a sign-in with the generated email.
+ * Since we cannot query auth.users directly from the client, we use a clever workaround:
+ * 1. Try to sign in with a dummy password
+ * 2. If we get "Invalid login credentials", the user exists (username taken)
+ * 3. If we get "Email not confirmed", the user exists (username taken)
+ * 4. If we get any other auth error, assume username is available
+ *
+ * This is a client-side workaround since Supabase doesn't expose auth.users to the client.
+ */
+async function checkUsernameAvailability(username: string): Promise<{
+  available: boolean;
+  message?: string;
+}> {
+  const generatedEmail = `${username}@spellstars.app`;
+
+  // Attempt sign-in with a dummy password that's guaranteed to fail
+  // We're only checking if the email exists in the auth system
+  const { error } = await supabase.auth.signInWithPassword({
+    email: generatedEmail,
+    password: "__DUMMY_PASSWORD_CHECK_ONLY__", // Will never match any real password
+  });
+
+  if (!error) {
+    // This should never happen (we're using a dummy password)
+    logger.warn("Unexpected successful login during username check");
+    return { available: false, message: "Username already exists" };
+  }
+
+  // Check error types
+  if (
+    error.message.toLowerCase().includes("invalid login credentials") ||
+    error.message.toLowerCase().includes("invalid email or password")
+  ) {
+    // User exists (wrong password) - username is taken
+    return { available: false, message: "Username already taken" };
+  }
+
+  if (error.message.toLowerCase().includes("email not confirmed")) {
+    // User exists but not confirmed - username is taken
+    return { available: false, message: "Username already taken" };
+  }
+
+  if (error.message.toLowerCase().includes("user not found")) {
+    // User doesn't exist - username is available
+    return { available: true };
+  }
+
+  // For any other error, we assume the username is available
+  // (better to allow creation and let signUp fail with a proper error)
+  logger.debug("Username availability check returned unexpected error", error);
+  return { available: true };
+}
+
 // Extracted component to reduce nesting
 interface ChildCardProps {
   child: ChildProfile;
@@ -99,6 +216,8 @@ export function ChildManagement() {
   const [childPassword, setChildPassword] = useState("");
   const [childName, setChildName] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
 
   // Fetch children for current parent
   const { data: children, isLoading } = useQuery({
@@ -191,13 +310,36 @@ export function ChildManagement() {
       setChildUsername("");
       setChildPassword("");
       setChildName("");
+      setUsernameError(null);
       logger.info("Child account created successfully");
     },
     onError: (error) => {
       logger.error("Error creating child account:", error);
-      // Using logger.error instead of alert for better UX
-      // TODO: Add toast notification system
-      logger.error(`Failed to create child account: ${error.message}`);
+
+      // Provide user-friendly error messages
+      let errorMessage = "Failed to create child account";
+
+      if (error instanceof Error) {
+        if (
+          error.message.toLowerCase().includes("user already registered") ||
+          error.message.toLowerCase().includes("email already exists")
+        ) {
+          errorMessage =
+            "This username is already taken. Please choose a different username.";
+          setUsernameError("Username already taken");
+        } else if (error.message.toLowerCase().includes("password")) {
+          errorMessage =
+            "Password does not meet requirements (min 6 characters)";
+        } else if (error.message.toLowerCase().includes("email")) {
+          errorMessage =
+            "Invalid username format. Please use only letters and numbers.";
+        } else {
+          errorMessage = `Failed to create account: ${error.message}`;
+        }
+      }
+
+      logger.error(errorMessage);
+      // TODO: Add toast notification system for better UX
     },
   });
 
@@ -225,7 +367,7 @@ export function ChildManagement() {
     },
   });
 
-  const handleCreateChild = (e: React.FormEvent) => {
+  const handleCreateChild = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!user?.id) {
@@ -238,11 +380,11 @@ export function ChildManagement() {
       return;
     }
 
-    // Validate username (alphanumeric only, no spaces)
-    if (!/^[a-zA-Z0-9]+$/.test(childUsername)) {
-      logger.error(
-        "Username can only contain letters and numbers (no spaces or special characters)"
-      );
+    // Validate username format and reserved names
+    const validationError = validateUsername(childUsername);
+    if (validationError) {
+      setUsernameError(validationError);
+      logger.error(validationError);
       return;
     }
 
@@ -251,16 +393,95 @@ export function ChildManagement() {
       return;
     }
 
-    createChild.mutate({
-      username: childUsername,
-      password: childPassword,
-      displayName: childName,
-      parentId: user.id,
-    });
+    // Check username availability before attempting to create account
+    setIsCheckingUsername(true);
+    setUsernameError(null);
+
+    try {
+      const { available, message } =
+        await checkUsernameAvailability(childUsername);
+
+      if (!available) {
+        setUsernameError(message || "Username is not available");
+        logger.error(
+          message ||
+            "This username is already taken. Please choose a different username."
+        );
+        setIsCheckingUsername(false);
+        return;
+      }
+
+      // Username is available, proceed with account creation
+      setIsCheckingUsername(false);
+      createChild.mutate({
+        username: childUsername,
+        password: childPassword,
+        displayName: childName,
+        parentId: user.id,
+      });
+    } catch (error) {
+      logger.error("Error checking username availability:", error);
+      setIsCheckingUsername(false);
+      // Proceed anyway and let signUp handle the error
+      createChild.mutate({
+        username: childUsername,
+        password: childPassword,
+        displayName: childName,
+        parentId: user.id,
+      });
+    }
   };
 
   const handleDeleteChild = (childId: string) => {
     deleteChild.mutate(childId);
+  };
+
+  /**
+   * Validates username on blur (when user leaves the field).
+   * Provides immediate feedback about username validity.
+   */
+  const handleUsernameBlur = async () => {
+    if (!childUsername) {
+      setUsernameError(null);
+      return;
+    }
+
+    // First, validate format and reserved names
+    const validationError = validateUsername(childUsername);
+    if (validationError) {
+      setUsernameError(validationError);
+      return;
+    }
+
+    // Then check availability
+    setIsCheckingUsername(true);
+    setUsernameError(null);
+
+    try {
+      const { available, message } =
+        await checkUsernameAvailability(childUsername);
+
+      if (!available) {
+        setUsernameError(message || "Username is not available");
+      } else {
+        setUsernameError(null); // Clear any previous errors
+      }
+    } catch (error) {
+      logger.error("Error checking username availability:", error);
+      // Don't show error to user - we'll check again on submit
+      setUsernameError(null);
+    } finally {
+      setIsCheckingUsername(false);
+    }
+  };
+
+  /**
+   * Handles username input changes.
+   * Converts to lowercase and clears errors.
+   */
+  const handleUsernameChange = (value: string) => {
+    setChildUsername(value.toLowerCase());
+    setUsernameError(null); // Clear error when user types
   };
 
   if (!profile || profile.role !== "parent") {
@@ -331,22 +552,43 @@ export function ChildManagement() {
                 >
                   Username
                 </label>
-                <input
-                  id="childUsername"
-                  type="text"
-                  value={childUsername}
-                  onChange={(e) =>
-                    setChildUsername(e.target.value.toLowerCase())
-                  }
-                  placeholder="e.g., sally, tommy, alex"
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
-                  required
-                  pattern="[a-zA-Z0-9]+"
-                  title="Only letters and numbers, no spaces"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Letters and numbers only (no spaces or special characters)
-                </p>
+                <div className="relative">
+                  <input
+                    id="childUsername"
+                    type="text"
+                    value={childUsername}
+                    onChange={(e) => handleUsernameChange(e.target.value)}
+                    onBlur={handleUsernameBlur}
+                    placeholder="e.g., sally, tommy, alex"
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input ${
+                      usernameError
+                        ? "border-destructive focus:ring-destructive"
+                        : ""
+                    }`}
+                    required
+                    minLength={USERNAME_MIN_LENGTH}
+                    maxLength={USERNAME_MAX_LENGTH}
+                    pattern="^[a-zA-Z][a-zA-Z0-9]*$"
+                    title="Must start with a letter, followed by letters and numbers only"
+                    disabled={isCheckingUsername}
+                  />
+                  {isCheckingUsername && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                </div>
+                {usernameError ? (
+                  <p className="text-xs text-destructive mt-1">
+                    {usernameError}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {USERNAME_MIN_LENGTH}-{USERNAME_MAX_LENGTH} characters,
+                    letters and numbers only, must start with a letter. This
+                    creates a login username (no email needed).
+                  </p>
+                )}
               </div>
 
               <div>
@@ -369,15 +611,30 @@ export function ChildManagement() {
               </div>
 
               <div className="flex gap-3">
-                <Button type="submit" disabled={createChild.isPending}>
-                  {createChild.isPending
-                    ? "Creating..."
-                    : "Create Child Account"}
+                <Button
+                  type="submit"
+                  disabled={
+                    createChild.isPending ||
+                    isCheckingUsername ||
+                    Boolean(usernameError)
+                  }
+                >
+                  {isCheckingUsername
+                    ? "Checking username..."
+                    : createChild.isPending
+                      ? "Creating..."
+                      : "Create Child Account"}
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setShowAddForm(false)}
+                  onClick={() => {
+                    setShowAddForm(false);
+                    setUsernameError(null);
+                    setChildUsername("");
+                    setChildPassword("");
+                    setChildName("");
+                  }}
                 >
                   Cancel
                 </Button>

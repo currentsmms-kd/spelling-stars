@@ -27,6 +27,38 @@ This will create:
 
 ## Usage
 
+### Creating Child Accounts
+
+Parents can create child accounts with simple username-based authentication:
+
+1. Navigate to `/parent/children` (Child Accounts page)
+2. Click "Add Child" button
+3. Fill in the form:
+   - **Child's Name**: Display name shown in the app
+   - **Username**: Unique login username (3-30 characters)
+     - Must start with a letter
+     - Can contain only letters and numbers (no spaces or special characters)
+     - Cannot use reserved names (admin, root, system, etc.)
+   - **Password**: At least 6 characters
+
+**How Username Authentication Works:**
+
+- Child usernames are internally converted to email format (`username@spellstars.app`)
+- Children login with just their username (no email needed)
+- The `.app` domain is valid and satisfies Supabase email validation
+- Parents use their real email addresses for login
+
+**Username Validation:**
+
+- Real-time validation checks format, length, and reserved names
+- Availability check happens when you leave the username field (on blur)
+- Duplicate username detection before account creation
+- Clear error messages guide you to choose a valid username
+
+**Reserved Usernames:**
+
+The following usernames cannot be used: admin, administrator, root, system, spellstars, support, help, info, contact, noreply, no-reply, postmaster, hostmaster, webmaster, parent, child, user, guest, test, demo
+
 ### Creating a List
 
 1. Navigate to `/parent/lists`

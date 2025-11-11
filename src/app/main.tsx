@@ -44,6 +44,35 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker
       .register("/sw.js")
       .then((registration) => {
+        // Check for updates periodically
+        setInterval(
+          () => {
+            registration.update();
+          },
+          60 * 60 * 1000
+        ); // Check every hour
+
+        // Listen for updates
+        registration.addEventListener("updatefound", () => {
+          const newWorker = registration.installing;
+          if (newWorker) {
+            newWorker.addEventListener("statechange", () => {
+              if (
+                newWorker.state === "activated" &&
+                navigator.serviceWorker.controller
+              ) {
+                // New service worker activated - prompt user to refresh
+                const shouldRefresh = confirm(
+                  "A new version of SpellStars is available. Refresh now to get the latest updates?"
+                );
+                if (shouldRefresh) {
+                  window.location.reload();
+                }
+              }
+            });
+          }
+        });
+
         // Listen for background sync
         if ("sync" in registration) {
           // Background sync is supported
@@ -54,6 +83,36 @@ if ("serviceWorker" in navigator) {
         logger.error("SW registration failed:", error);
       });
   });
+}
+
+// Export function to manually clear caches
+export async function clearAppCaches(): Promise<void> {
+  try {
+    // Clear all cache storage
+    const cacheNames = await caches.keys();
+    await Promise.all(
+      cacheNames.map((cacheName) => {
+        logger.info(`Deleting cache: ${cacheName}`);
+        return caches.delete(cacheName);
+      })
+    );
+
+    // Clear React Query cache
+    queryClient.clear();
+
+    logger.info("All caches cleared successfully");
+  } catch (error) {
+    logger.error("Failed to clear caches:", error);
+    throw error;
+  }
+}
+
+// Expose clearAppCaches globally for debugging
+if (typeof window !== "undefined") {
+  interface WindowWithCache extends Window {
+    clearAppCaches: typeof clearAppCaches;
+  }
+  (window as unknown as WindowWithCache).clearAppCaches = clearAppCaches;
 }
 
 // Handle background sync for queued attempts

@@ -9,8 +9,14 @@ import { useAuth } from "@/app/hooks/useAuth";
 import { supabase } from "@/app/supabase";
 import { Lock, Save, Settings, Trash2, RefreshCw } from "lucide-react";
 import { isValidPinFormat } from "@/lib/crypto";
-import { clearUserCaches, clearAllCaches, getCacheInfo } from "@/lib/cache";
+import {
+  clearUserCaches,
+  getCacheInfo,
+  refreshAllData,
+  clearAllAppData,
+} from "@/lib/cache";
 import { logger } from "@/lib/logger";
+import { queryClient } from "@/app/queryClient";
 
 // Extracted PIN Settings Component
 function PinSettings({
@@ -263,15 +269,32 @@ function CacheManagement() {
     loadCacheInfo();
   }, []);
 
+  const handleRefreshData = async () => {
+    setIsClearing(true);
+    setMessage(null);
+    try {
+      await refreshAllData(queryClient);
+      setMessage("Data refreshed successfully - latest content loaded");
+      await loadCacheInfo();
+    } catch (error) {
+      setMessage("Failed to refresh data");
+      logger.error("Refresh data error:", error);
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
   const handleClearUserCaches = async () => {
     setIsClearing(true);
     setMessage(null);
     try {
       await clearUserCaches();
+      queryClient.clear();
       setMessage("User caches cleared successfully");
       await loadCacheInfo();
     } catch (error) {
       setMessage("Failed to clear user caches");
+      logger.error("Clear user caches error:", error);
     } finally {
       setIsClearing(false);
     }
@@ -282,11 +305,12 @@ function CacheManagement() {
     setMessage(null);
     setShowClearAllConfirmation(false);
     try {
-      await clearAllCaches();
-      setMessage("All caches cleared successfully");
+      await clearAllAppData(queryClient);
+      setMessage("All caches cleared successfully - you may need to reload");
       await loadCacheInfo();
     } catch (error) {
       setMessage("Failed to clear all caches");
+      logger.error("Clear all caches error:", error);
     } finally {
       setIsClearing(false);
     }
@@ -299,10 +323,10 @@ function CacheManagement() {
 
   return (
     <Card>
-      <h2 className="text-xl font-bold mb-4">Cache Management</h2>
+      <h2 className="text-xl font-bold mb-4">Cache & Data Management</h2>
       <p className="text-muted-foreground mb-4">
-        Clear cached data to free up space or fix issues. User caches are
-        automatically cleared when you sign out.
+        Refresh data to get the latest content, or clear caches to free up space
+        and fix issues.
       </p>
 
       {message && (
@@ -353,7 +377,16 @@ function CacheManagement() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <Button
+            onClick={handleRefreshData}
+            disabled={isClearing}
+            variant="default"
+            className="flex items-center justify-center gap-2"
+          >
+            <RefreshCw size={18} aria-hidden="true" />
+            Refresh Data
+          </Button>
           <Button
             onClick={handleClearUserCaches}
             disabled={isClearing}
@@ -374,13 +407,20 @@ function CacheManagement() {
           </Button>
         </div>
 
-        <p className="text-xs text-muted-foreground">
-          <strong>Clear User Data:</strong> Removes personal content caches
-          (routes and API data). Safe for regular use.
-          <br />
-          <strong>Clear All Caches:</strong> Removes everything including
-          downloaded assets. Use if experiencing issues.
-        </p>
+        <div className="text-xs text-muted-foreground space-y-1">
+          <p>
+            <strong>Refresh Data:</strong> Fetches latest content from server
+            without clearing static assets. Safe for regular use.
+          </p>
+          <p>
+            <strong>Clear User Data:</strong> Removes personal content caches
+            (routes and API data).
+          </p>
+          <p>
+            <strong>Clear All Caches:</strong> Removes everything including
+            downloaded assets. Use if experiencing issues.
+          </p>
+        </div>
       </div>
     </Card>
   );

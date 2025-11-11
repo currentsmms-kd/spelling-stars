@@ -498,6 +498,80 @@ export async function getAttemptsForWord(
   return data || [];
 }
 
+/**
+ * Enhanced attempt type with signed URL for audio playback
+ * IMPORTANT: attempts.audio_url stores STORAGE PATHS, not URLs
+ * This type includes the generated signed URL for immediate playback
+ */
+export interface AttemptWithSignedAudio extends Attempt {
+  audio_signed_url?: string | null;
+}
+
+/**
+ * Transform attempts array to include signed URLs for audio playback
+ * @param attempts - Array of attempts (with audio_url as storage path)
+ * @param expiresIn - Time in seconds until URLs expire (default: 3600 = 1 hour)
+ * @returns Attempts with audio_signed_url field populated for playback
+ *
+ * CRITICAL: Never cache signed URLs - they expire after 1 hour
+ * Always call this function fresh when displaying attempts
+ *
+ * @example
+ * // Manual usage (not recommended - use hooks instead):
+ * const attempts = await getAttempts(childId);
+ * const attemptsWithAudio = await getAttemptsWithSignedUrls(attempts);
+ *
+ * // Play audio in component:
+ * {attemptsWithAudio.map(attempt => (
+ *   <div key={attempt.id}>
+ *     {attempt.audio_signed_url && (
+ *       <audio src={attempt.audio_signed_url} controls />
+ *     )}
+ *   </div>
+ * ))}
+ *
+ * @example
+ * // Recommended: Use React Query hooks (auto-generates signed URLs):
+ * const { data: attempts } = useAttempts(childId);
+ *
+ * // attempts now includes audio_signed_url field for each attempt
+ * {attempts?.map(attempt => (
+ *   <div key={attempt.id}>
+ *     {attempt.audio_signed_url && (
+ *       <audio src={attempt.audio_signed_url} controls />
+ *     )}
+ *   </div>
+ * ))}
+ */
+export async function getAttemptsWithSignedUrls(
+  attempts: Attempt[],
+  expiresIn = 3600
+): Promise<AttemptWithSignedAudio[]> {
+  // Extract unique audio paths that need signed URLs
+  const audioPaths = attempts
+    .map((a) => a.audio_url)
+    .filter((path): path is string => Boolean(path && path.length > 0));
+
+  if (audioPaths.length === 0) {
+    // No audio to sign, return attempts as-is with null signed URLs
+    return attempts.map((attempt) => ({
+      ...attempt,
+      audio_signed_url: null,
+    }));
+  }
+
+  // Batch generate signed URLs
+  const signedUrlMap = await getSignedAudioUrls(audioPaths, expiresIn);
+
+  // Map signed URLs back to attempts
+  return attempts.map((attempt) => ({
+    ...attempt,
+    audio_signed_url: attempt.audio_url
+      ? signedUrlMap[attempt.audio_url]
+      : null,
+  }));
+}
+
 // ============================================
 // SRS Functions
 // ============================================
@@ -1345,6 +1419,48 @@ export function useUpdateSrs() {
       queryClient.invalidateQueries({ queryKey: ["hardest_words"] });
       queryClient.invalidateQueries({ queryKey: ["most_lapsed_words"] });
     },
+  });
+}
+
+// ============================================================================
+// ATTEMPTS & AUDIO PLAYBACK
+// ============================================================================
+
+/**
+ * Hook to get all attempts for a child with signed audio URLs for playback
+ * IMPORTANT: This automatically generates fresh signed URLs (1hr TTL) for audio playback
+ * Never cache the returned audio_signed_url - always refetch when needed
+ */
+export function useAttempts(childId?: string) {
+  return useQuery({
+    queryKey: ["attempts", childId],
+    queryFn: async () => {
+      if (!childId) return [];
+      const attempts = await getAttempts(childId);
+      return getAttemptsWithSignedUrls(attempts);
+    },
+    enabled: Boolean(childId),
+    staleTime: 0, // Always fetch fresh to avoid expired signed URLs
+    gcTime: 1000 * 60 * 30, // Cache for 30 min (well within 1hr signed URL TTL)
+  });
+}
+
+/**
+ * Hook to get attempts for a specific word with signed audio URLs for playback
+ * IMPORTANT: This automatically generates fresh signed URLs (1hr TTL) for audio playback
+ * Never cache the returned audio_signed_url - always refetch when needed
+ */
+export function useAttemptsForWord(childId?: string, wordId?: string) {
+  return useQuery({
+    queryKey: ["attempts", childId, wordId],
+    queryFn: async () => {
+      if (!childId || !wordId) return [];
+      const attempts = await getAttemptsForWord(childId, wordId);
+      return getAttemptsWithSignedUrls(attempts);
+    },
+    enabled: Boolean(childId && wordId),
+    staleTime: 0, // Always fetch fresh to avoid expired signed URLs
+    gcTime: 1000 * 60 * 30, // Cache for 30 min (well within 1hr signed URL TTL)
   });
 }
 

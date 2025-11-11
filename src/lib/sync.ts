@@ -454,6 +454,13 @@ export async function queueAttempt(
 
 /**
  * Queue audio for later upload
+ *
+ * CRITICAL: filename must follow the format: {child_id}/{list_id}/{word_id}_{timestamp}.webm
+ * This format is required by RLS policies which check (storage.foldername(name))[1] = child_id
+ *
+ * @param blob - Audio blob to upload
+ * @param filename - Storage path in format: {child_id}/{list_id}/{word_id}_{timestamp}.webm
+ * @returns The queued audio record ID for reference in attempts
  */
 export async function queueAudio(
   blob: Blob,
