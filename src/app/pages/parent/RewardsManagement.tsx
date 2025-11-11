@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { AppShell } from "@/app/components/AppShell";
 import { Card } from "@/app/components/Card";
 import { Button } from "@/app/components/Button";
@@ -448,7 +448,7 @@ function ChildrenOverviewSection({
         </div>
 
         <div className="space-y-4">
-          {children && children.length > 0 ? (
+          {children?.length ? (
             children.map((child) => (
               <ChildRewardsCard key={child.id} childId={child.id} />
             ))

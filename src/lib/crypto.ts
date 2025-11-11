@@ -1,7 +1,7 @@
 /**
  * Secure PIN hashing and verification using PBKDF2 with Web Crypto API
  *
- * Storage format: `salt:hash` where both are base64-encoded
+ * Storage format: "salt:hash" where both are base64-encoded
  * - salt: 16 bytes random data
  * - hash: PBKDF2-HMAC-SHA256 with 100,000 iterations
  */
@@ -65,7 +65,7 @@ async function deriveKey(pin: string, salt: Uint8Array): Promise<ArrayBuffer> {
   const derivedBits = await crypto.subtle.deriveBits(
     {
       name: "PBKDF2",
-      salt: salt as BufferSource,
+      salt: salt as Uint8Array & BufferSource,
       iterations: ITERATIONS,
       hash: "SHA-256",
     },

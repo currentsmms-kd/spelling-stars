@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { AppShell } from "@/app/components/AppShell";
 import { Card } from "@/app/components/Card";
 import { Button } from "@/app/components/Button";
@@ -605,7 +605,7 @@ export function ParentalSettings() {
           .eq("parent_id", profile.id)
           .single();
 
-        if (error && error.code !== "PGRST116") {
+        if (error?.code !== "PGRST116") {
           logger.error("Error loading settings:", error);
           return;
         }

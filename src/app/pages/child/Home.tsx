@@ -314,15 +314,7 @@ export function ChildHome() {
       // Get all lists with word count
       const { data: listsData, error: listsError } = await supabase
         .from("word_lists")
-        .select(
-          `
-          id,
-          title,
-          list_words (
-            word_id
-          )
-        `
-        )
+        .select("id, title, list_words (word_id)")
         .order("created_at", { ascending: false });
 
       if (listsError) throw listsError;
@@ -366,7 +358,7 @@ export function ChildHome() {
 
           // Get the most recent mode used
           const lastMode =
-            attempts && attempts.length > 0
+            attempts?.length
               ? (attempts[0].mode as "listen-type" | "say-spell")
               : undefined;
 

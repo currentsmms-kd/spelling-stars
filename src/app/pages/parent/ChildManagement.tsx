@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { AppShell } from "@/app/components/AppShell";
 import { Card } from "@/app/components/Card";
 import { Button } from "@/app/components/Button";
@@ -650,7 +650,7 @@ export function ChildManagement() {
               Loading children...
             </p>
           </Card>
-        ) : children && children.length > 0 ? (
+        ) : children?.length ? (
           <div className="grid gap-4">
             {children.map((child) => (
               <ChildCard
