@@ -127,6 +127,7 @@ function MasterySection({
   colors,
 }: {
   masteryData: Array<{
+    list_id: string;
     list_title: string;
     mastered_count: number;
     total_words: number;
@@ -158,6 +159,7 @@ function MasteryPieChart({
   colors,
 }: {
   masteryData: Array<{
+    list_id: string;
     list_title: string;
     mastery_percentage: number;
   }>;
@@ -175,8 +177,8 @@ function MasteryPieChart({
           outerRadius={100}
           label={(entry) => `${entry.list_title}: ${entry.mastery_percentage}%`}
         >
-          {masteryData.map((_entry: unknown, index: number) => (
-            <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+          {masteryData.map((entry, index: number) => (
+            <Cell key={`cell-${entry.list_id}`} fill={colors[index % colors.length]} />
           ))}
         </Pie>
         <Tooltip
@@ -197,6 +199,7 @@ function MasteryTableView({
   colors,
 }: {
   masteryData: Array<{
+    list_id: string;
     list_title: string;
     mastered_count: number;
     total_words: number;
@@ -210,6 +213,7 @@ function MasteryTableView({
       {masteryData.map(
         (
           list: {
+            list_id: string;
             list_title: string;
             mastered_count: number;
             total_words: number;
@@ -218,7 +222,7 @@ function MasteryTableView({
           index: number
         ) => (
           <MasteryListDetail
-            key={index}
+            key={list.list_id}
             list={list}
             index={index}
             colors={colors}

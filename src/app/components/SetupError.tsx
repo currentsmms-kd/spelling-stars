@@ -27,8 +27,8 @@ export function SetupError({ message, details }: SetupErrorProps) {
                   Required Setup:
                 </h2>
                 <ul className="list-disc list-inside space-y-2 text-muted-foreground">
-                  {details.map((detail, index) => (
-                    <li key={index}>{detail}</li>
+                  {details.map((detail) => (
+                    <li key={detail}>{detail}</li>
                   ))}
                 </ul>
               </div>
