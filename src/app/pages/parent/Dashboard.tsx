@@ -206,7 +206,7 @@ function QuickActionsGrid({ navigate }: { navigate: (path: string) => void }) {
           icon={<TrendingUp className="text-secondary" size={24} />}
           iconBgClass="bg-secondary/20"
           title="Progress"
-          description="View your child's spelling progress"
+          description="View your child&apos;s spelling progress"
           buttonLabel="Coming Soon"
           buttonProps={{ disabled: true }}
         />
