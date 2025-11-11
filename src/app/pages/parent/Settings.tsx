@@ -7,7 +7,15 @@ import { useParentalSettingsStore } from "@/app/store/parentalSettings";
 import { useThemeStore } from "@/app/store/theme";
 import { useAuth } from "@/app/hooks/useAuth";
 import { supabase } from "@/app/supabase";
-import { Lock, Save, Settings, Trash2, RefreshCw } from "lucide-react";
+import {
+  Lock,
+  Save,
+  Settings,
+  Trash2,
+  RefreshCw,
+  AlertTriangle,
+  X,
+} from "lucide-react";
 import { isValidPinFormat } from "@/lib/crypto";
 import {
   clearUserCaches,
@@ -17,6 +25,7 @@ import {
 } from "@/lib/cache";
 import { logger } from "@/lib/logger";
 import { queryClient } from "@/app/queryClient";
+import { useLocation } from "react-router-dom";
 
 // Extracted PIN Settings Component
 function PinSettings({
@@ -544,6 +553,7 @@ function CacheManagement() {
 }
 
 export function ParentalSettings() {
+  const location = useLocation();
   const { profile } = useAuth();
   const {
     pinCode,
@@ -573,6 +583,16 @@ export function ParentalSettings() {
     type: "success" | "error";
     text: string;
   } | null>(null);
+  const [showResetPinBanner, setShowResetPinBanner] = useState(false);
+
+  // Check if redirected here for PIN reset
+  useEffect(() => {
+    if (location.state?.resetPinRequested) {
+      setShowResetPinBanner(true);
+      // Clear the state so banner doesn't show on subsequent visits
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   useEffect(() => {
     const load = async () => {
@@ -710,6 +730,32 @@ export function ParentalSettings() {
           <Settings className="text-primary" size={32} />
           <h1 className="text-3xl font-bold">Parental Settings</h1>
         </div>
+
+        {/* PIN Reset Banner */}
+        {showResetPinBanner && (
+          <div className="p-4 bg-yellow-500/10 border-2 border-yellow-500 rounded-lg flex gap-3">
+            <AlertTriangle
+              className="text-yellow-600 flex-shrink-0"
+              size={24}
+            />
+            <div className="flex-1">
+              <p className="font-medium text-yellow-900 dark:text-yellow-100 mb-1">
+                PIN Reset Required
+              </p>
+              <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                You've requested to reset your PIN. Please set a new 4-digit PIN
+                below and save your settings.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowResetPinBanner(false)}
+              className="text-yellow-600 hover:text-yellow-800"
+              aria-label="Dismiss"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        )}
 
         {message && (
           <div

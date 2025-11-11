@@ -4,9 +4,102 @@ This guide covers deploying SpellStars to various hosting platforms.
 
 ## Prerequisites
 
-1. ✅ Supabase project set up with database tables
-2. ✅ Environment variables configured
-3. ✅ App tested locally
+### 1. Supabase Project Setup
+
+Before deploying, ensure your Supabase project is configured:
+
+1. ✅ Supabase account created at [supabase.com](https://supabase.com)
+2. ✅ New project created in Supabase Dashboard
+3. ✅ Database migrations applied (see below)
+4. ✅ RLS policies enabled
+5. ✅ Storage buckets created (`audio-recordings`, `word-audio`)
+
+### 2. Environment Variables
+
+SpellStars requires two environment variables to function:
+
+#### Required Variables
+
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+#### How to Get Your Credentials
+
+1. Open [Supabase Dashboard](https://supabase.com/dashboard)
+2. Select your project
+3. Navigate to **Settings** > **API**
+4. Copy **Project URL** → use as `VITE_SUPABASE_URL`
+5. Copy **Project API keys** > **anon public** → use as `VITE_SUPABASE_ANON_KEY`
+
+⚠️ **Important**: Use the `anon public` key, NOT the `service_role` key. The service role key should never be exposed in client-side code.
+
+#### Local Development Setup
+
+**Option A: Using .env file (Simple)**
+
+```bash
+# 1. Copy the example file
+cp .env.example .env
+
+# 2. Edit .env and add your credentials
+# 3. Start dev server
+npm run dev
+```
+
+**Option B: Using Doppler (Recommended for teams)**
+
+```bash
+# 1. Install Doppler CLI
+scoop install doppler  # Windows
+brew install doppler   # macOS
+
+# 2. Login and setup
+doppler login
+doppler setup
+
+# 3. Run with Doppler
+doppler run -- npm run dev
+```
+
+#### Error Handling
+
+If environment variables are missing:
+
+- **Development**: App throws immediately with helpful error message
+- **Production**: Shows user-friendly setup error page with instructions
+
+This prevents silent failures and guides developers/deployers to fix configuration issues.
+
+### 3. Database Migrations
+
+Apply all database migrations before first deployment:
+
+```powershell
+# Requires SUPABASE_ACCESS_TOKEN (get from https://supabase.com/dashboard/account/tokens)
+.\push-migration.ps1
+```
+
+Verify migrations applied:
+
+```powershell
+.\check-migrations.ps1
+.\check-tables.ps1
+```
+
+### 4. Local Testing
+
+Test the app locally before deploying:
+
+```bash
+# Development mode
+npm run dev
+
+# Production build (test locally)
+npm run build
+npm run preview
+```
 
 ## Deployment Options
 
@@ -193,6 +286,37 @@ Consider adding:
 - Web Vitals tracking
 
 ## Troubleshooting
+
+### Environment Variable Issues
+
+**Problem**: "Missing Supabase environment variables" error
+
+**Solutions**:
+
+1. Verify `.env` file exists in project root (for local development)
+2. Check both `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are set
+3. Ensure variable names start with `VITE_` prefix (required by Vite)
+4. No spaces or quotes around values in `.env` file
+5. Restart dev server after creating/modifying `.env`
+6. For Doppler: Run `doppler secrets` to verify secrets are set
+
+**Problem**: "Invalid API key" or authentication errors
+
+**Solutions**:
+
+1. Verify you're using the `anon public` key, not `service_role` key
+2. Check for extra spaces or line breaks when copying the key
+3. Ensure key is from the correct Supabase project
+4. Regenerate key in Supabase dashboard if compromised
+
+**Problem**: Configuration error in production but not locally
+
+**Solutions**:
+
+1. Verify environment variables are set in hosting platform dashboard
+2. Check for typos in variable names in hosting platform
+3. Redeploy after setting/updating environment variables
+4. Review hosting platform logs for specific error messages
 
 ### Service Worker Issues
 

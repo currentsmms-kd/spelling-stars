@@ -12,6 +12,7 @@ import { useOnline } from "@/app/hooks/useOnline";
 import { useAudioRecorder } from "@/app/hooks/useAudioRecorder";
 import { useTtsVoices } from "@/app/hooks/useTtsVoices";
 import { queueAttempt, queueAudio } from "@/lib/sync";
+import { logger } from "@/lib/logger";
 import {
   useUpdateSrs,
   useAwardStars,
@@ -375,7 +376,12 @@ function NoListSelected() {
 
   // Fetch all word lists - children have read access via RLS
   // Use list_words(count) pattern to get counts consistently
-  const { data: lists, isLoading: listsLoading } = useQuery({
+  const {
+    data: lists,
+    isLoading: listsLoading,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ["word_lists_for_child"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -409,7 +415,36 @@ function NoListSelected() {
       });
     },
     enabled: Boolean(profile?.id),
+    retry: 1,
+    staleTime: 1000 * 60 * 5, // 5 minutes to reduce flicker
   });
+
+  if (error) {
+    return (
+      <AppShell title="Say & Spell" variant="child">
+        <Card variant="child" className="max-w-3xl mx-auto">
+          <div className="text-center space-y-6">
+            <h3 className="text-3xl font-bold text-destructive">
+              Error Loading Lists
+            </h3>
+            <p className="text-xl text-muted-foreground">
+              {error instanceof Error
+                ? error.message
+                : "Failed to load spelling lists. Please try again."}
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button size="child" onClick={() => refetch()}>
+                Retry
+              </Button>
+              <Button size="child" variant="outline" onClick={handleGoHome}>
+                Go to Home
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </AppShell>
+    );
+  }
 
   if (listsLoading) {
     return (
@@ -516,7 +551,7 @@ export function PlaySaySpell() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const isOnline = useOnline();
-  const { getVoiceByName } = useTtsVoices();
+  const { getVoiceWithFallback, isLoading: voicesLoading } = useTtsVoices();
 
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [step, setStep] = useState<"record" | "type">("record");
@@ -674,12 +709,25 @@ export function PlaySaySpell() {
   const playWord = useCallback(() => {
     if (!currentWord) return;
 
-    const utterance = new SpeechSynthesisUtterance(currentWord.text);
-    if (currentWord.tts_voice) {
-      utterance.voice = getVoiceByName(currentWord.tts_voice);
+    // Wait for voices to load before using TTS
+    if (voicesLoading) {
+      logger.warn("TTS voices still loading, will retry after delay");
+      // Retry after a short delay when voices are loading
+      setTimeout(() => playWord(), 100);
+      return;
     }
+
+    const utterance = new SpeechSynthesisUtterance(currentWord.text);
+
+    // Get voice with fallback - ensures we always have a voice when loaded
+    const voice = getVoiceWithFallback(currentWord.tts_voice || undefined);
+    if (voice) {
+      utterance.voice = voice;
+    }
+    // If voice is null, browser will use default voice
+
     speechSynthesis.speak(utterance);
-  }, [currentWord, getVoiceByName]);
+  }, [currentWord, getVoiceWithFallback, voicesLoading]);
 
   // Auto-play on word change
   useEffect(() => {

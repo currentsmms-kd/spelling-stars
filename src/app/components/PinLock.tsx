@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { Button } from "./Button";
 import { Card } from "./Card";
-import { Lock, X } from "lucide-react";
+import { Lock, X, AlertTriangle } from "lucide-react";
 import { useParentalSettingsStore } from "../store/parentalSettings";
-import { verifyPin } from "@/lib/crypto";
+import { verifyPin, isValidStoredPinFormat } from "@/lib/crypto";
 import { logger } from "@/lib/logger";
+import { useNavigate } from "react-router-dom";
 
 interface PinLockProps {
   onUnlock: () => void;
@@ -84,14 +85,20 @@ function NumberPad({
 function PinLockContent({
   pin,
   error,
+  isPinCorrupted,
   onCancel,
+  onResetPin,
+  onForgotPin,
   onNumberClick,
   onClear,
   onBackspace,
 }: {
   pin: string;
   error: string;
+  isPinCorrupted: boolean;
   onCancel?: () => void;
+  onResetPin: () => void;
+  onForgotPin: () => void;
   onNumberClick: (num: number) => void;
   onClear: () => void;
   onBackspace: () => void;
@@ -101,7 +108,9 @@ function PinLockContent({
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <Lock className="text-primary" size={24} />
-          <h2 className="text-2xl font-bold">Enter PIN</h2>
+          <h2 className="text-2xl font-bold">
+            {isPinCorrupted ? "PIN Reset Required" : "Enter PIN"}
+          </h2>
         </div>
         {onCancel && (
           <button
@@ -115,41 +124,104 @@ function PinLockContent({
       </div>
 
       <div className="space-y-6">
-        <PinDisplay pin={pin} />
+        {isPinCorrupted ? (
+          // Show corruption warning and reset option
+          <div className="space-y-4">
+            <div className="p-4 bg-destructive/10 border-2 border-destructive rounded-lg flex gap-3">
+              <AlertTriangle
+                className="text-destructive flex-shrink-0"
+                size={24}
+              />
+              <div>
+                <p className="font-medium text-destructive-foreground mb-1">
+                  PIN Configuration Error
+                </p>
+                <p className="text-sm text-destructive-foreground/80">
+                  Your PIN appears to be corrupted or in an invalid format. This
+                  can happen after a browser update or if the PIN was manually
+                  edited.
+                </p>
+              </div>
+            </div>
 
-        {error && (
-          <div className="p-3 bg-destructive/10 border border-destructive rounded-lg text-destructive text-center">
-            {error}
+            <div className="space-y-3">
+              <Button
+                onClick={onResetPin}
+                variant="default"
+                className="w-full"
+                size="lg"
+              >
+                Reset PIN and Continue
+              </Button>
+              <p className="text-xs text-muted-foreground text-center">
+                You'll be taken to Settings where you can set a new PIN
+              </p>
+            </div>
           </div>
-        )}
+        ) : (
+          // Normal PIN entry UI
+          <>
+            <PinDisplay pin={pin} />
 
-        <NumberPad
-          onNumberClick={onNumberClick}
-          onClear={onClear}
-          onBackspace={onBackspace}
-        />
+            {error && (
+              <div className="p-3 bg-destructive/10 border border-destructive rounded-lg text-destructive text-center">
+                {error}
+              </div>
+            )}
+
+            <NumberPad
+              onNumberClick={onNumberClick}
+              onClear={onClear}
+              onBackspace={onBackspace}
+            />
+
+            {/* Forgot PIN Link */}
+            <div className="text-center">
+              <button
+                onClick={onForgotPin}
+                className="text-sm text-muted-foreground hover:text-primary underline transition-colors"
+              >
+                Forgot PIN?
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </>
   );
 }
 
 export function PinLock({ onUnlock, onCancel }: PinLockProps) {
+  const navigate = useNavigate();
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const [lockoutSecondsRemaining, setLockoutSecondsRemaining] = useState(0);
+  const [isPinCorrupted, setIsPinCorrupted] = useState(false);
   const {
     pinCode,
     recordFailedAttempt,
     isLockedOut,
     getLockoutTimeRemaining,
     failedAttempts,
+    setPinCode,
+    unlock: storeUnlock,
   } = useParentalSettingsStore();
 
   useEffect(() => {
     // If no PIN is set, auto-unlock
     if (!pinCode) {
       onUnlock();
+      return;
+    }
+
+    // Check if PIN format is valid (should be "salt:hash" format)
+    if (!isValidStoredPinFormat(pinCode)) {
+      logger.error("PIN is corrupted or invalid format", { pinCode });
+      setIsPinCorrupted(true);
+      setError(
+        "PIN configuration error detected. Please reset your PIN to continue."
+      );
     }
   }, [pinCode, onUnlock]);
 
@@ -169,7 +241,27 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
     return () => clearInterval(interval);
   }, [isLockedOut, getLockoutTimeRemaining, failedAttempts]);
 
+  const handleResetPin = () => {
+    // Clear the corrupted PIN and unlock
+    setPinCode(null);
+    storeUnlock();
+    logger.info("User reset corrupted PIN");
+    navigate("/parent/settings");
+  };
+
+  const handleForgotPin = () => {
+    logger.info("User requested PIN reset via Forgot PIN");
+    navigate("/parent/settings", {
+      state: { resetPinRequested: true },
+    });
+  };
+
   const validatePin = async (pinToValidate: string) => {
+    // Don't validate if PIN is corrupted
+    if (isPinCorrupted) {
+      return;
+    }
+
     // Check lockout status
     if (isLockedOut()) {
       const remaining = getLockoutTimeRemaining();
@@ -187,7 +279,18 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
     try {
       // Use constant-time verification with PBKDF2
       if (!pinCode) {
-        setError("PIN not configured.");
+        setError("PIN not configured. Please set a PIN in Settings.");
+        setPin("");
+        return;
+      }
+
+      // Verify PIN format before attempting verification
+      if (!isValidStoredPinFormat(pinCode)) {
+        logger.error("PIN format invalid during verification");
+        setIsPinCorrupted(true);
+        setError(
+          "PIN configuration error detected. Please reset your PIN to continue."
+        );
         setPin("");
         return;
       }
@@ -224,7 +327,7 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
       }
     } catch (err) {
       logger.error("PIN verification error:", err);
-      setError("An error occurred. Please try again.");
+      setError("An error occurred verifying your PIN. Please try again.");
       setPin("");
     } finally {
       setIsVerifying(false);
@@ -272,7 +375,10 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
               ? `Too many failed attempts. Please wait ${lockoutSecondsRemaining} second${lockoutSecondsRemaining !== 1 ? "s" : ""}.`
               : error
           }
+          isPinCorrupted={isPinCorrupted}
           onCancel={onCancel}
+          onResetPin={handleResetPin}
+          onForgotPin={handleForgotPin}
           onNumberClick={handleNumberClick}
           onClear={handleClear}
           onBackspace={handleBackspace}

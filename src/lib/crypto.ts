@@ -149,3 +149,35 @@ export async function verifyPin(
 export function isValidPinFormat(pin: string): boolean {
   return /^\d{4}$/.test(pin);
 }
+
+/**
+ * Validate stored PIN hash format (must be "salt:hash" with base64 encoding)
+ *
+ * @param storedHash - The stored hash string to validate
+ * @returns true if format is valid, false otherwise
+ */
+export function isValidStoredPinFormat(storedHash: string | null): boolean {
+  if (!storedHash) return false;
+
+  try {
+    const parts = storedHash.split(":");
+    if (parts.length !== 2) {
+      return false;
+    }
+
+    const [saltB64, hashB64] = parts;
+
+    // Check if both parts are valid base64
+    if (!saltB64 || !hashB64) {
+      return false;
+    }
+
+    // Attempt to decode to verify valid base64
+    base64ToArrayBuffer(saltB64);
+    base64ToArrayBuffer(hashB64);
+
+    return true;
+  } catch {
+    return false;
+  }
+}

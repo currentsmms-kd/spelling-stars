@@ -10,6 +10,8 @@ import {
   migrateSyncedFieldToBoolean,
 } from "@/lib/sync";
 import { logger } from "@/lib/logger";
+import { hasSupabaseConfig, getSupabaseConfigErrors } from "./supabase";
+import { SetupError } from "./components/SetupError";
 import "../styles/index.css";
 
 // Run one-time migration to normalize synced field types
@@ -113,14 +115,113 @@ if (typeof window !== "undefined") {
   (window as unknown as WindowWithCache).clearAppCaches = clearAppCaches;
 }
 
-// Handle background sync for queued attempts
-if ("serviceWorker" in navigator && "SyncManager" in window) {
-  navigator.serviceWorker.ready.then(() => {
-    // The actual sync will be triggered when network is back
-  });
+// Periodic sync fallback for browsers without Background Sync API
+let periodicSyncInterval: NodeJS.Timeout | null = null;
+
+/**
+ * Start periodic sync as fallback when Background Sync API is not available
+ */
+function startPeriodicSyncFallback(): void {
+  // Clear existing interval if any
+  if (periodicSyncInterval) {
+    clearInterval(periodicSyncInterval);
+  }
+
+  // Check for pending data every 30 seconds when online
+  periodicSyncInterval = setInterval(async () => {
+    if (!navigator.onLine) {
+      return;
+    }
+
+    try {
+      const hasPending = await hasPendingSync();
+      if (hasPending) {
+        logger.info("Periodic sync: syncing queued data");
+        await syncQueuedData();
+      }
+    } catch (error) {
+      logger.error("Periodic sync failed:", error);
+    }
+  }, 30000); // 30 seconds
+
+  logger.info("Periodic sync fallback started");
 }
 
-// Listen for online/offline events
+/**
+ * Stop periodic sync fallback
+ */
+function stopPeriodicSyncFallback(): void {
+  if (periodicSyncInterval) {
+    clearInterval(periodicSyncInterval);
+    periodicSyncInterval = null;
+    logger.info("Periodic sync fallback stopped");
+  }
+}
+
+/**
+ * Check if Background Sync API is supported
+ */
+async function isBackgroundSyncSupported(): Promise<boolean> {
+  if (!("serviceWorker" in navigator)) {
+    return false;
+  }
+
+  if (!("SyncManager" in window)) {
+    return false;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    // Check if sync property exists and is usable
+    const syncRegistration = registration as ServiceWorkerRegistration & {
+      sync?: { register: (tag: string) => Promise<void> };
+    };
+
+    if (
+      !syncRegistration.sync ||
+      typeof syncRegistration.sync.register !== "function"
+    ) {
+      return false;
+    }
+    return true;
+  } catch (error) {
+    logger.warn("Background Sync capability check failed:", error);
+    return false;
+  }
+}
+
+/**
+ * Register background sync with proper error handling
+ */
+async function registerBackgroundSync(): Promise<boolean> {
+  try {
+    const isSupported = await isBackgroundSyncSupported();
+
+    if (!isSupported) {
+      logger.info("Background Sync API not supported, using periodic fallback");
+      startPeriodicSyncFallback();
+      return false;
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+    const syncRegistration = registration as ServiceWorkerRegistration & {
+      sync: { register: (tag: string) => Promise<void> };
+    };
+
+    await syncRegistration.sync.register("attempt-sync");
+    logger.info("Background sync registered successfully");
+
+    // Stop periodic fallback since Background Sync is working
+    stopPeriodicSyncFallback();
+    return true;
+  } catch (error) {
+    logger.error("Failed to register background sync:", error);
+    // Fallback to periodic sync on failure
+    logger.info("Falling back to periodic sync");
+    startPeriodicSyncFallback();
+    return false;
+  }
+} // Listen for online/offline events
 window.addEventListener("online", async () => {
   // Check if there's data to sync
   const hasPending = await hasPendingSync();
@@ -133,26 +234,38 @@ window.addEventListener("online", async () => {
     }
   }
 
-  // Register background sync as backup
-  if ("serviceWorker" in navigator && "SyncManager" in window) {
-    navigator.serviceWorker.ready.then((registration) => {
-      // @ts-expect-error - sync API may not be available in all browsers
-      return registration.sync.register("attempt-sync");
-    });
-  }
+  // Register background sync with proper error handling and fallback
+  await registerBackgroundSync();
 });
 
 window.addEventListener("offline", () => {
   // App is offline - operations will be queued
+  // Stop periodic sync to save resources
+  stopPeriodicSyncFallback();
 });
 
 const rootElement = document.getElementById("root");
 if (rootElement) {
-  createRoot(rootElement).render(
-    <StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>
-    </StrictMode>
-  );
+  // Check for Supabase configuration in production
+  // In development, the error is thrown immediately in supabase.ts
+  if (!hasSupabaseConfig() && !import.meta.env.DEV) {
+    const configErrors = getSupabaseConfigErrors();
+
+    createRoot(rootElement).render(
+      <StrictMode>
+        <SetupError
+          message="SpellStars requires Supabase configuration to function."
+          details={configErrors}
+        />
+      </StrictMode>
+    );
+  } else {
+    createRoot(rootElement).render(
+      <StrictMode>
+        <QueryClientProvider client={queryClient}>
+          <RouterProvider router={router} />
+        </QueryClientProvider>
+      </StrictMode>
+    );
+  }
 }

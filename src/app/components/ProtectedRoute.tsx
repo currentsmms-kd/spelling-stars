@@ -26,7 +26,8 @@ export function ProtectedRoute({
   }
 
   if (requiredRole && profile?.role !== requiredRole) {
-    // Allow parents to access child views in development only (for testing/preview)
+    // Allow parents to access child views in development (for testing/preview)
+    // NOTE: This is disabled in production for security - parents cannot access child routes
     if (
       import.meta.env.MODE !== "production" &&
       profile?.role === "parent" &&
