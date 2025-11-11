@@ -374,10 +374,6 @@ function NoListSelected() {
     [navigate]
   );
 
-  const handleRetry = useCallback(() => {
-    refetch();
-  }, [refetch]);
-
   // Fetch all word lists - children have read access via RLS
   // Use list_words(count) pattern to get counts consistently
   const {
@@ -417,6 +413,10 @@ function NoListSelected() {
     retry: 1,
     staleTime: 1000 * 60 * 5, // 5 minutes to reduce flicker
   });
+
+  const handleRetry = useCallback(() => {
+    refetch();
+  }, [refetch]);
 
   if (error) {
     return (

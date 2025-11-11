@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react";
-import { useState, useCallback } from "react";
 import { Button } from "./Button";
 import { Card } from "./Card";
 import { Download, FileText, Activity, Award, X } from "lucide-react";
@@ -128,7 +127,6 @@ function ExportModal({
         <div className="space-y-3">
           <ExportOption
             onClick={handleExportAttempts}
-            onClick={handleExportAttempts}
             disabled={isExporting}
             icon={FileText}
             title="Practice Attempts"
@@ -136,7 +134,6 @@ function ExportModal({
           />
 
           <ExportOption
-            onClick={handleExportMastered}
             onClick={handleExportMastered}
             disabled={isExporting}
             icon={Award}
@@ -146,7 +143,6 @@ function ExportModal({
 
           <ExportOption
             onClick={handleExportSessions}
-            onClick={handleExportSessions}
             disabled={isExporting}
             icon={Activity}
             title="Session Analytics"
@@ -154,7 +150,6 @@ function ExportModal({
           />
 
           <ExportOption
-            onClick={handleExportAll}
             onClick={handleExportAll}
             disabled={isExporting}
             icon={Download}

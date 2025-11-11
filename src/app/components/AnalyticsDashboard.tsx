@@ -62,22 +62,6 @@ interface ParentOverviewData {
   }>;
 }
 
-// Add type for Recharts pie label props
-interface PieLabelProps {
-  payload?: {
-    list_title: string;
-    mastery_percentage: number;
-  };
-  list_title?: string;
-  mastery_percentage?: number;
-}
-
-// Add formatter function outside components - Updated to match Recharts types
-const formatPieLabel = (props: PieLabelProps) => {
-  const entry = props.payload || props;
-  return `${entry.list_title}: ${entry.mastery_percentage}%`;
-};
-
 // Extracted Summary Card Component
 function SummaryCard({
   icon,
@@ -169,10 +153,6 @@ function MasterySection({
   );
 }
 
-// Label formatter for pie chart
-const formatPieLabel = (entry: { list_title: string; mastery_percentage: number }) =>
-  `${entry.list_title}: ${entry.mastery_percentage}%`;
-
 // Pie Chart Component
 function MasteryPieChart({
   masteryData,
@@ -195,7 +175,7 @@ function MasteryPieChart({
           cx="50%"
           cy="50%"
           outerRadius={100}
-          label={formatPieLabel}
+          label
         >
           {masteryData.map((entry, index: number) => (
             <Cell
@@ -211,6 +191,7 @@ function MasteryPieChart({
             borderRadius: "8px",
           }}
         />
+        <Legend />
       </PieChart>
     </ResponsiveContainer>
   );

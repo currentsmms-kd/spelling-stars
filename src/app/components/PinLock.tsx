@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { useState, useEffect, useCallback } from "react";
 import { Button } from "./Button";
 import { Card } from "./Card";
 import { Lock, X, AlertTriangle } from "lucide-react";
@@ -54,9 +53,15 @@ function NumberPad({
   const handleNumber0 = useCallback(() => onNumberClick(0), [onNumberClick]);
 
   const handlers = [
-    handleNumber1, handleNumber2, handleNumber3,
-    handleNumber4, handleNumber5, handleNumber6,
-    handleNumber7, handleNumber8, handleNumber9
+    handleNumber1,
+    handleNumber2,
+    handleNumber3,
+    handleNumber4,
+    handleNumber5,
+    handleNumber6,
+    handleNumber7,
+    handleNumber8,
+    handleNumber9,
   ];
 
   return (
@@ -274,83 +279,93 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
     });
   }, [navigate]);
 
-  const validatePin = useCallback(async (pinToValidate: string) => {
-    // Don't validate if PIN is corrupted
-    if (isPinCorrupted) {
-      return;
-    }
-
-    // Check lockout status
-    if (isLockedOut()) {
-      const remaining = getLockoutTimeRemaining();
-      setLockoutSecondsRemaining(remaining);
-      setError(
-        `Too many failed attempts. Please wait ${remaining} second${remaining !== 1 ? "s" : ""}.`
-      );
-      setPin("");
-      return;
-    }
-
-    setIsVerifying(true);
-    setError("");
-
-    try {
-      // Use constant-time verification with PBKDF2
-      if (!pinCode) {
-        setError("PIN not configured. Please set a PIN in Settings.");
-        setPin("");
+  const validatePin = useCallback(
+    async (pinToValidate: string) => {
+      // Don't validate if PIN is corrupted
+      if (isPinCorrupted) {
         return;
       }
 
-      // Verify PIN format before attempting verification
-      if (!isValidStoredPinFormat(pinCode)) {
-        logger.error("PIN format invalid during verification");
-        setIsPinCorrupted(true);
+      // Check lockout status
+      if (isLockedOut()) {
+        const remaining = getLockoutTimeRemaining();
+        setLockoutSecondsRemaining(remaining);
         setError(
-          "PIN configuration error detected. Please reset your PIN to continue."
+          `Too many failed attempts. Please wait ${remaining} second${remaining !== 1 ? "s" : ""}.`
         );
         setPin("");
         return;
       }
 
-      const isValid = await verifyPin(pinToValidate, pinCode);
+      setIsVerifying(true);
+      setError("");
 
-      if (isValid) {
-        onUnlock();
-      } else {
-        recordFailedAttempt();
-        const attempts = useParentalSettingsStore.getState().failedAttempts;
-
-        // Show progressively stronger warnings
-        if (attempts >= 6) {
-          setError(
-            "Multiple failed attempts detected. You will be locked out for 5 minutes after the next failure."
-          );
-        } else if (attempts >= 3) {
-          const nextLockout =
-            attempts === 3
-              ? "30 seconds"
-              : attempts === 4
-                ? "1 minute"
-                : "2 minutes";
-          setError(
-            `Incorrect PIN. ${attempts} failed attempts. Next failure will lock you out for ${nextLockout}.`
-          );
-        } else {
-          setError(
-            `Incorrect PIN. ${attempts} failed attempt${attempts !== 1 ? "s" : ""}.`
-          );
+      try {
+        // Use constant-time verification with PBKDF2
+        if (!pinCode) {
+          setError("PIN not configured. Please set a PIN in Settings.");
+          setPin("");
+          return;
         }
+
+        // Verify PIN format before attempting verification
+        if (!isValidStoredPinFormat(pinCode)) {
+          logger.error("PIN format invalid during verification");
+          setIsPinCorrupted(true);
+          setError(
+            "PIN configuration error detected. Please reset your PIN to continue."
+          );
+          setPin("");
+          return;
+        }
+
+        const isValid = await verifyPin(pinToValidate, pinCode);
+
+        if (isValid) {
+          onUnlock();
+        } else {
+          recordFailedAttempt();
+          const attempts = useParentalSettingsStore.getState().failedAttempts;
+
+          // Show progressively stronger warnings
+          if (attempts >= 6) {
+            setError(
+              "Multiple failed attempts detected. You will be locked out for 5 minutes after the next failure."
+            );
+          } else if (attempts >= 3) {
+            const nextLockout =
+              attempts === 3
+                ? "30 seconds"
+                : attempts === 4
+                  ? "1 minute"
+                  : "2 minutes";
+            setError(
+              `Incorrect PIN. ${attempts} failed attempts. Next failure will lock you out for ${nextLockout}.`
+            );
+          } else {
+            setError(
+              `Incorrect PIN. ${attempts} failed attempt${attempts !== 1 ? "s" : ""}.`
+            );
+          }
+          setPin("");
+        }
+      } catch (err) {
+        logger.error("PIN verification error:", err);
+        setError("An error occurred verifying your PIN. Please try again.");
         setPin("");
+      } finally {
+        setIsVerifying(false);
       }
-    } catch (err) {
-      logger.error("PIN verification error:", err);
-      setError("An error occurred verifying your PIN. Please try again.");
-      setPin("");
-    } finally {
-      setIsVerifying(false);
-    }
-  }, [isPinCorrupted, isLockedOut, getLockoutTimeRemaining, pinCode, onUnlock, recordFailedAttempt]);
+    },
+    [
+      isPinCorrupted,
+      isLockedOut,
+      getLockoutTimeRemaining,
+      pinCode,
+      onUnlock,
+      recordFailedAttempt,
+    ]
+  );
 
   const handleNumberClick = useCallback(
     (num: number) => {
@@ -367,23 +382,19 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
         }
       }
     },
-    [pin, isVerifying, isLockedOut]
+    [pin, isVerifying, isLockedOut, validatePin]
   );
 
-  const handleBackspace = useCallback(() => {
   const handleBackspace = useCallback(() => {
     if (isVerifying || isLockedOut()) return;
     setPin(pin.slice(0, -1));
     setError("");
   }, [pin, isVerifying, isLockedOut]);
-  }, [pin, isVerifying, isLockedOut]);
 
-  const handleClear = useCallback(() => {
   const handleClear = useCallback(() => {
     if (isVerifying || isLockedOut()) return;
     setPin("");
     setError("");
-  }, [isVerifying, isLockedOut]);
   }, [isVerifying, isLockedOut]);
 
   if (!pinCode) {
