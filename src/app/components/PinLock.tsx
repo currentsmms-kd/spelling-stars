@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "./Button";
 import { Card } from "./Card";
 import { Lock, X, AlertTriangle } from "lucide-react";
@@ -241,22 +241,22 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
     return () => clearInterval(interval);
   }, [isLockedOut, getLockoutTimeRemaining, failedAttempts]);
 
-  const handleResetPin = () => {
+  const handleResetPin = useCallback(() => {
     // Clear the corrupted PIN and unlock
     setPinCode(null);
     storeUnlock();
     logger.info("User reset corrupted PIN");
     navigate("/parent/settings");
-  };
+  }, [setPinCode, storeUnlock, navigate]);
 
-  const handleForgotPin = () => {
+  const handleForgotPin = useCallback(() => {
     logger.info("User requested PIN reset via Forgot PIN");
     navigate("/parent/settings", {
       state: { resetPinRequested: true },
     });
-  };
+  }, [navigate]);
 
-  const validatePin = async (pinToValidate: string) => {
+  const validatePin = useCallback(async (pinToValidate: string) => {
     // Don't validate if PIN is corrupted
     if (isPinCorrupted) {
       return;
@@ -332,9 +332,9 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
     } finally {
       setIsVerifying(false);
     }
-  };
+  }, [isPinCorrupted, isLockedOut, getLockoutTimeRemaining, pinCode, onUnlock, recordFailedAttempt]);
 
-  const handleNumberClick = (num: number) => {
+  const handleNumberClick = useCallback((num: number) => {
     if (isVerifying || isLockedOut()) return;
 
     if (pin.length < 4) {
@@ -347,19 +347,19 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
         setTimeout(() => validatePin(newPin), 100);
       }
     }
-  };
+  }, [pin, isVerifying, isLockedOut, validatePin]);
 
-  const handleBackspace = () => {
+  const handleBackspace = useCallback(() => {
     if (isVerifying || isLockedOut()) return;
     setPin(pin.slice(0, -1));
     setError("");
-  };
+  }, [pin, isVerifying, isLockedOut]);
 
-  const handleClear = () => {
+  const handleClear = useCallback(() => {
     if (isVerifying || isLockedOut()) return;
     setPin("");
     setError("");
-  };
+  }, [isVerifying, isLockedOut]);
 
   if (!pinCode) {
     return null; // Don't show lock if no PIN set

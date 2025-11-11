@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { AppShell } from "@/app/components/AppShell";
 import { Card } from "@/app/components/Card";
 import { Button } from "@/app/components/Button";
@@ -164,7 +164,7 @@ function QuickActionCard({
 }
 
 // Component for Child View Preview Card
-function ChildViewPreview({ navigate }: { navigate: (path: string) => void }) {
+function ChildViewPreview({ onSwitch }: { onSwitch: () => void }) {
   return (
     <Card className="bg-muted border-primary">
       <div className="flex items-start gap-4">
@@ -178,7 +178,7 @@ function ChildViewPreview({ navigate }: { navigate: (path: string) => void }) {
           </p>
           <Button
             size="sm"
-            onClick={() => navigate("/child/home")}
+            onClick={onSwitch}
             variant="secondary"
           >
             Switch to Child View
@@ -190,7 +190,7 @@ function ChildViewPreview({ navigate }: { navigate: (path: string) => void }) {
 }
 
 // Component for Quick Actions Grid
-function QuickActionsGrid({ navigate }: { navigate: (path: string) => void }) {
+function QuickActionsGrid({ onSwitchToChild }: { onSwitchToChild: () => void }) {
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -220,7 +220,7 @@ function QuickActionsGrid({ navigate }: { navigate: (path: string) => void }) {
         />
       </div>
 
-      <ChildViewPreview navigate={navigate} />
+      <ChildViewPreview onSwitch={onSwitchToChild} />
     </>
   );
 }
@@ -228,13 +228,13 @@ function QuickActionsGrid({ navigate }: { navigate: (path: string) => void }) {
 // Component for Analytics Filters
 function AnalyticsFilters({
   timeRange,
-  setTimeRange,
+  onTimeRangeChange,
   selectedChildId,
   dateFrom,
   dateTo,
 }: {
   timeRange: "7d" | "30d" | "90d" | "all";
-  setTimeRange: (range: "7d" | "30d" | "90d" | "all") => void;
+  onTimeRangeChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
   selectedChildId: string;
   dateFrom: Date;
   dateTo: Date;
@@ -244,7 +244,7 @@ function AnalyticsFilters({
       <h3 className="text-xl font-bold mb-4">Analytics Filters</h3>
       <FiltersContent
         timeRange={timeRange}
-        setTimeRange={setTimeRange}
+        onTimeRangeChange={onTimeRangeChange}
         selectedChildId={selectedChildId}
         dateFrom={dateFrom}
         dateTo={dateTo}
@@ -256,13 +256,13 @@ function AnalyticsFilters({
 // Content for filters
 function FiltersContent({
   timeRange,
-  setTimeRange,
+  onTimeRangeChange,
   selectedChildId,
   dateFrom,
   dateTo,
 }: {
   timeRange: "7d" | "30d" | "90d" | "all";
-  setTimeRange: (range: "7d" | "30d" | "90d" | "all") => void;
+  onTimeRangeChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
   selectedChildId: string;
   dateFrom: Date;
   dateTo: Date;
@@ -281,7 +281,7 @@ function FiltersContent({
         <select
           id="time-range-select"
           value={timeRange}
-          onChange={(e) => setTimeRange(e.target.value as typeof timeRange)}
+          onChange={onTimeRangeChange}
           className="w-full px-3 py-2 bg-background border-2 border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="7d">Last 7 Days</option>
@@ -319,6 +319,16 @@ export function Dashboard() {
     return date;
   });
   const [dateTo, setDateTo] = useState<Date>(new Date());
+
+  // Handler for switching to child view
+  const handleSwitchToChild = useCallback(() => {
+    navigate("/child/home");
+  }, [navigate]);
+
+  // Handler for time range change
+  const handleTimeRangeChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    setTimeRange(e.target.value as typeof timeRange);
+  }, []);
 
   // Auto-select parent ID for testing (in production would use actual child selector)
   useEffect(() => {
@@ -381,12 +391,12 @@ export function Dashboard() {
         </div>
 
         {/* Quick Actions */}
-        <QuickActionsGrid navigate={navigate} />
+        <QuickActionsGrid onSwitchToChild={handleSwitchToChild} />
 
         {/* Filters Section */}
         <AnalyticsFilters
           timeRange={timeRange}
-          setTimeRange={setTimeRange}
+          onTimeRangeChange={handleTimeRangeChange}
           selectedChildId={selectedChildId}
           dateFrom={dateFrom}
           dateTo={dateTo}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "./Button";
 import { Card } from "./Card";
 import { Download, FileText, Activity, Award, X } from "lucide-react";
@@ -79,6 +79,22 @@ function ExportModal({
   onClose,
   onExport,
 }: ExportModalProps) {
+  const handleExportAttempts = useCallback(() => {
+    onExport("attempts");
+  }, [onExport]);
+
+  const handleExportMastered = useCallback(() => {
+    onExport("mastered");
+  }, [onExport]);
+
+  const handleExportSessions = useCallback(() => {
+    onExport("sessions");
+  }, [onExport]);
+
+  const handleExportAll = useCallback(() => {
+    onExport("all");
+  }, [onExport]);
+
   if (!isOpen) return null;
 
   return (
@@ -112,7 +128,7 @@ function ExportModal({
 
         <div className="space-y-3">
           <ExportOption
-            onClick={() => onExport("attempts")}
+            onClick={handleExportAttempts}
             disabled={isExporting}
             icon={FileText}
             title="Practice Attempts"
@@ -120,7 +136,7 @@ function ExportModal({
           />
 
           <ExportOption
-            onClick={() => onExport("mastered")}
+            onClick={handleExportMastered}
             disabled={isExporting}
             icon={Award}
             title="Mastered Words"
@@ -128,7 +144,7 @@ function ExportModal({
           />
 
           <ExportOption
-            onClick={() => onExport("sessions")}
+            onClick={handleExportSessions}
             disabled={isExporting}
             icon={Activity}
             title="Session Analytics"
@@ -136,7 +152,7 @@ function ExportModal({
           />
 
           <ExportOption
-            onClick={() => onExport("all")}
+            onClick={handleExportAll}
             disabled={isExporting}
             icon={Download}
             title="Export All"
@@ -177,7 +193,7 @@ export function ExportButton({
 
   const buttonSize = variant === "child" ? "child" : "default";
 
-  const handleExport = async (type: ExportType) => {
+  const handleExport = useCallback(async (type: ExportType) => {
     try {
       setIsExporting(true);
 
@@ -206,14 +222,22 @@ export function ExportButton({
     } finally {
       setIsExporting(false);
     }
-  };
+  }, [childId, dateFrom, dateTo]);
+
+  const handleOpen = useCallback(() => {
+    setIsOpen(true);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    setIsOpen(false);
+  }, []);
 
   return (
     <>
       <Button
         size={buttonSize}
         variant="secondary"
-        onClick={() => setIsOpen(true)}
+        onClick={handleOpen}
         disabled={!childId}
       >
         <Download className="w-4 h-4 mr-2" />
@@ -226,7 +250,7 @@ export function ExportButton({
         buttonSize={buttonSize}
         dateFrom={dateFrom}
         dateTo={dateTo}
-        onClose={() => setIsOpen(false)}
+        onClose={handleClose}
         onExport={handleExport}
       />
     </>
