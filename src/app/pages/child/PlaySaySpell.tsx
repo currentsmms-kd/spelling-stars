@@ -115,6 +115,22 @@ function TypeStep({
   nextWord: () => void;
   showConfetti: boolean;
 }) {
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setAnswer(e.target.value);
+    },
+    [setAnswer]
+  );
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter" && answer.trim() && feedback === null) {
+        checkAnswer();
+      }
+    },
+    [answer, feedback, checkAnswer]
+  );
+
   return (
     <div className="space-y-4">
       <p className="text-2xl text-muted-foreground">Now type the spelling:</p>
@@ -122,12 +138,8 @@ function TypeStep({
       <input
         type="text"
         value={answer}
-        onChange={(e) => setAnswer(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && answer.trim() && feedback === null) {
-            checkAnswer();
-          }
-        }}
+        onChange={handleInputChange}
+        onKeyDown={handleKeyDown}
         className="w-full text-4xl text-center px-6 py-4 border-4 border-primary rounded-2xl focus:ring-4 focus:ring-ring focus:border-primary font-bold bg-input"
         placeholder="Type here..."
         disabled={feedback === "correct"}
@@ -201,6 +213,12 @@ function TypeStep({
 }
 
 function GameHeader({ starsEarned }: { starsEarned: number }) {
+  // Generate stable keys for star components
+  const stars = Array.from({ length: 5 }, (_, i) => ({
+    id: `star-${i}`,
+    filled: i < starsEarned,
+  }));
+
   return (
     <div className="flex items-center justify-between">
       <Link to="/child/home">
@@ -210,8 +228,8 @@ function GameHeader({ starsEarned }: { starsEarned: number }) {
         </Button>
       </Link>
       <div className="flex gap-2">
-        {[...Array(5)].map((_, i) => (
-          <RewardStar key={i} filled={i < starsEarned} size="lg" />
+        {stars.map((star) => (
+          <RewardStar key={star.id} filled={star.filled} size="lg" />
         ))}
       </div>
     </div>
@@ -344,6 +362,17 @@ function NoListSelected() {
   const navigate = useNavigate();
   const { profile } = useAuth();
 
+  const handleGoHome = useCallback(() => {
+    navigate("/child/home");
+  }, [navigate]);
+
+  const handleSelectList = useCallback(
+    (listId: string) => {
+      navigate(`?listId=${listId}`);
+    },
+    [navigate]
+  );
+
   // Fetch all word lists - children have read access via RLS
   // Use list_words(count) pattern to get counts consistently
   const { data: lists, isLoading: listsLoading } = useQuery({
@@ -403,7 +432,7 @@ function NoListSelected() {
             <p className="text-xl text-muted-foreground">
               Ask your parent to create some spelling lists first!
             </p>
-            <Button size="child" onClick={() => navigate("/child/home")}>
+            <Button size="child" onClick={handleGoHome}>
               Go to Home
             </Button>
           </div>
@@ -423,37 +452,51 @@ function NoListSelected() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {lists.map((list) => (
-            <Card
-              key={list.id}
-              variant="child"
-              className="cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => navigate(`?listId=${list.id}`)}
-            >
-              <div className="text-center space-y-4">
-                <h4 className="text-2xl font-bold">{list.title}</h4>
-                <p className="text-xl text-muted-foreground">
-                  {list.word_count} {list.word_count === 1 ? "word" : "words"}
-                </p>
-                <Button size="child" className="w-full">
-                  Practice This List
-                </Button>
-              </div>
-            </Card>
-          ))}
+          {lists.map((list) => {
+            return (
+              <ListCard key={list.id} list={list} onSelect={handleSelectList} />
+            );
+          })}
         </div>
 
         <div className="text-center">
-          <Button
-            size="child"
-            variant="outline"
-            onClick={() => navigate("/child/home")}
-          >
+          <Button size="child" variant="outline" onClick={handleGoHome}>
             Back to Home
           </Button>
         </div>
       </div>
     </AppShell>
+  );
+}
+
+// Separate component to avoid inline arrow functions
+function ListCard({
+  list,
+  onSelect,
+}: {
+  list: { id: string; title: string; word_count: number };
+  onSelect: (id: string) => void;
+}) {
+  const handleClick = useCallback(() => {
+    onSelect(list.id);
+  }, [list.id, onSelect]);
+
+  return (
+    <Card
+      variant="child"
+      className="cursor-pointer hover:shadow-lg transition-shadow"
+      onClick={handleClick}
+    >
+      <div className="text-center space-y-4">
+        <h4 className="text-2xl font-bold">{list.title}</h4>
+        <p className="text-xl text-muted-foreground">
+          {list.word_count} {list.word_count === 1 ? "word" : "words"}
+        </p>
+        <Button size="child" className="w-full">
+          Practice This List
+        </Button>
+      </div>
+    </Card>
   );
 }
 
@@ -669,13 +712,13 @@ export function PlaySaySpell() {
     }
   }, [recordedBlob, step, isOnline, profile?.id, listId, currentWord?.id]);
 
-  const handleStartRecording = async () => {
+  const handleStartRecording = useCallback(async () => {
     await startRecording();
     // Auto-stop after 3 seconds
     setTimeout(() => {
       stopRecording();
     }, 3000);
-  };
+  }, [startRecording, stopRecording]);
 
   const normalizeAnswer = (text: string) => {
     return text
@@ -792,17 +835,17 @@ export function PlaySaySpell() {
     nextWord,
   ]);
 
-  const retry = () => {
+  const retry = useCallback(() => {
     setAnswer("");
     setFeedback(null);
-  };
+  }, []);
 
-  const redoRecording = () => {
+  const redoRecording = useCallback(() => {
     setStep("record");
     setAudioBlob(null);
     setAudioBlobId(null);
     clearRecording();
-  };
+  }, [clearRecording]);
 
   if (!listId) {
     return <NoListSelected />;

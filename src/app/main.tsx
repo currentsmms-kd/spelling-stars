@@ -61,13 +61,11 @@ if ("serviceWorker" in navigator) {
                 newWorker.state === "activated" &&
                 navigator.serviceWorker.controller
               ) {
-                // New service worker activated - prompt user to refresh
-                const shouldRefresh = confirm(
-                  "A new version of SpellStars is available. Refresh now to get the latest updates?"
-                );
-                if (shouldRefresh) {
-                  window.location.reload();
-                }
+                // New service worker activated - automatically reload to get updates
+                // Note: In production, consider implementing a custom update banner
+                // For now, auto-reload to ensure users get latest features/fixes
+                logger.info("New service worker activated, reloading page");
+                window.location.reload();
               }
             });
           }

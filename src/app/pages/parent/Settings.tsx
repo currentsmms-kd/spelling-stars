@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { AppShell } from "@/app/components/AppShell";
 import { Card } from "@/app/components/Card";
 import { Button } from "@/app/components/Button";
@@ -30,6 +30,20 @@ function PinSettings({
   confirmPin: string;
   setConfirmPin: (pin: string) => void;
 }) {
+  const handlePinChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setLocalPin(e.target.value.replace(/\D/g, ""));
+    },
+    [setLocalPin]
+  );
+
+  const handleConfirmChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setConfirmPin(e.target.value.replace(/\D/g, ""));
+    },
+    [setConfirmPin]
+  );
+
   return (
     <Card>
       <div className="flex items-center gap-3 mb-4">
@@ -54,7 +68,7 @@ function PinSettings({
             inputMode="numeric"
             maxLength={4}
             value={localPin}
-            onChange={(e) => setLocalPin(e.target.value.replace(/\D/g, ""))}
+            onChange={handlePinChange}
             className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
             placeholder="Enter 4 digits"
           />
@@ -72,7 +86,7 @@ function PinSettings({
             inputMode="numeric"
             maxLength={4}
             value={confirmPin}
-            onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ""))}
+            onChange={handleConfirmChange}
             className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
             placeholder="Confirm PIN"
           />
@@ -96,13 +110,20 @@ function CheckboxSetting({
   checked: boolean;
   onChange: (checked: boolean) => void;
 }) {
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      onChange(e.target.checked);
+    },
+    [onChange]
+  );
+
   return (
     <div className="flex items-start gap-3">
       <input
         id={id}
         type="checkbox"
         checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
+        onChange={handleChange}
         className="mt-1 w-5 h-5 text-primary rounded focus:ring-2 focus:ring-ring cursor-pointer"
       />
       <label htmlFor={id} className="cursor-pointer">
@@ -135,6 +156,34 @@ function GameSettings({
     }>
   ) => void;
 }) {
+  const handleHintsChange = useCallback(
+    (checked: boolean) => {
+      onSettingsChange({ showHintsOnFirstMiss: checked });
+    },
+    [onSettingsChange]
+  );
+
+  const handleCaseSensitivityChange = useCallback(
+    (checked: boolean) => {
+      onSettingsChange({ enforceCaseSensitivity: checked });
+    },
+    [onSettingsChange]
+  );
+
+  const handleReadbackChange = useCallback(
+    (checked: boolean) => {
+      onSettingsChange({ autoReadbackSpelling: checked });
+    },
+    [onSettingsChange]
+  );
+
+  const handleStrictModeChange = useCallback(
+    (checked: boolean) => {
+      onSettingsChange({ strictSpacedMode: checked });
+    },
+    [onSettingsChange]
+  );
+
   return (
     <Card>
       <h2 className="text-xl font-bold mb-4">Game Settings</h2>
@@ -144,36 +193,28 @@ function GameSettings({
           label="Show hints on first miss"
           description="Display hints after the child misses a word once"
           checked={settings.showHintsOnFirstMiss}
-          onChange={(checked) =>
-            onSettingsChange({ showHintsOnFirstMiss: checked })
-          }
+          onChange={handleHintsChange}
         />
         <CheckboxSetting
           id="case-sensitivity"
           label="Enforce case sensitivity"
           description="Require correct capitalization for answers"
           checked={settings.enforceCaseSensitivity}
-          onChange={(checked) =>
-            onSettingsChange({ enforceCaseSensitivity: checked })
-          }
+          onChange={handleCaseSensitivityChange}
         />
         <CheckboxSetting
           id="auto-readback"
           label="Auto read-back correct spelling"
           description="Automatically read the correct spelling after each answer"
           checked={settings.autoReadbackSpelling}
-          onChange={(checked) =>
-            onSettingsChange({ autoReadbackSpelling: checked })
-          }
+          onChange={handleReadbackChange}
         />
         <CheckboxSetting
           id="strict-spaced-mode"
           label="Strict Spaced Repetition Mode"
           description="Only show due words and words that need work (leeches). Disables review and new words in practice."
           checked={settings.strictSpacedMode}
-          onChange={(checked) =>
-            onSettingsChange({ strictSpacedMode: checked })
-          }
+          onChange={handleStrictModeChange}
         />
       </div>
     </Card>
@@ -188,6 +229,13 @@ function SessionLimits({
   dailySessionLimitMinutes: number;
   onLimitChange: (minutes: number) => void;
 }) {
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      onLimitChange(parseInt(e.target.value) || 20);
+    },
+    [onLimitChange]
+  );
+
   return (
     <Card>
       <h2 className="text-xl font-bold mb-4">Session Limits</h2>
@@ -204,7 +252,7 @@ function SessionLimits({
           min="5"
           max="60"
           value={dailySessionLimitMinutes}
-          onChange={(e) => onLimitChange(parseInt(e.target.value) || 20)}
+          onChange={handleChange}
           className="w-full md:w-48 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
         />
         <p className="text-sm text-muted-foreground mt-2">
@@ -223,6 +271,13 @@ function TtsSettings({
   defaultTtsVoice: string;
   onVoiceChange: (voice: string) => void;
 }) {
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      onVoiceChange(e.target.value);
+    },
+    [onVoiceChange]
+  );
+
   return (
     <Card>
       <h2 className="text-xl font-bold mb-4">Text-to-Speech</h2>
@@ -236,7 +291,7 @@ function TtsSettings({
         <select
           id="default-voice"
           value={defaultTtsVoice}
-          onChange={(e) => onVoiceChange(e.target.value)}
+          onChange={handleChange}
           className="w-full md:w-64 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
         >
           <option value="en-US">English (US)</option>
@@ -252,6 +307,131 @@ function TtsSettings({
   );
 }
 
+// Cache Info Display Component
+function CacheInfoDisplay({ cacheInfo }: { cacheInfo: Map<string, number> }) {
+  const totalCachedItems = Array.from(cacheInfo.values()).reduce(
+    (sum, count) => sum + count,
+    0
+  );
+
+  return (
+    <div className="p-3 bg-muted/50 rounded-lg">
+      <div className="text-sm text-muted-foreground mb-2">Cache Status</div>
+      <div className="font-medium">
+        {totalCachedItems} item{totalCachedItems !== 1 ? "s" : ""} cached
+      </div>
+      {cacheInfo.size > 0 && (
+        <div className="mt-2 text-sm text-muted-foreground space-y-1">
+          {Array.from(cacheInfo.entries()).map(([name, count]) => (
+            <div key={name}>
+              {name}: {count} item{count !== 1 ? "s" : ""}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Cache Action Buttons Component
+function CacheActionButtons({
+  onRefresh,
+  onClearUser,
+  onClearAll,
+  isClearing,
+  showConfirmation,
+}: {
+  onRefresh: () => void;
+  onClearUser: () => void;
+  onClearAll: () => void;
+  isClearing: boolean;
+  showConfirmation: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <Button
+        onClick={onRefresh}
+        disabled={isClearing}
+        variant="default"
+        className="flex items-center justify-center gap-2"
+      >
+        <RefreshCw size={18} aria-hidden="true" />
+        Refresh Data
+      </Button>
+      <Button
+        onClick={onClearUser}
+        disabled={isClearing}
+        variant="outline"
+        className="flex items-center justify-center gap-2"
+      >
+        <Trash2 size={18} aria-hidden="true" />
+        Clear User Data
+      </Button>
+      <Button
+        onClick={onClearAll}
+        disabled={isClearing || showConfirmation}
+        variant="outline"
+        className="flex items-center justify-center gap-2"
+      >
+        <RefreshCw size={18} aria-hidden="true" />
+        Clear All Caches
+      </Button>
+    </div>
+  );
+}
+
+// Cache Help Text Component
+function CacheHelpText() {
+  return (
+    <div className="text-xs text-muted-foreground space-y-1">
+      <p>
+        <strong>Refresh Data:</strong> Fetches latest content from server
+        without clearing static assets. Safe for regular use.
+      </p>
+      <p>
+        <strong>Clear User Data:</strong> Removes personal content caches
+        (routes and API data).
+      </p>
+      <p>
+        <strong>Clear All Caches:</strong> Removes everything including
+        downloaded assets. Use if experiencing issues.
+      </p>
+    </div>
+  );
+}
+
+// Confirmation Dialog Component
+function ClearAllConfirmation({
+  onCancel,
+  onConfirm,
+  isClearing,
+}: {
+  onCancel: () => void;
+  onConfirm: () => void;
+  isClearing: boolean;
+}) {
+  return (
+    <div className="p-3 mb-4 rounded-lg bg-destructive/10 border border-destructive text-destructive-foreground">
+      <p className="font-medium mb-2">
+        This will clear ALL caches, including downloaded content. Continue?
+      </p>
+      <div className="flex gap-2">
+        <Button onClick={onCancel} variant="outline" size="sm">
+          Cancel
+        </Button>
+        <Button
+          onClick={onConfirm}
+          variant="danger"
+          size="sm"
+          disabled={isClearing}
+        >
+          Clear All Caches
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // Cache Management Component
 function CacheManagement() {
   const [cacheInfo, setCacheInfo] = useState<Map<string, number>>(new Map());
@@ -260,16 +440,16 @@ function CacheManagement() {
   const [showClearAllConfirmation, setShowClearAllConfirmation] =
     useState(false);
 
-  const loadCacheInfo = async () => {
+  const loadCacheInfo = useCallback(async () => {
     const info = await getCacheInfo();
     setCacheInfo(info);
-  };
+  }, []);
 
   useEffect(() => {
     loadCacheInfo();
-  }, []);
+  }, [loadCacheInfo]);
 
-  const handleRefreshData = async () => {
+  const handleRefreshData = useCallback(async () => {
     setIsClearing(true);
     setMessage(null);
     try {
@@ -282,9 +462,9 @@ function CacheManagement() {
     } finally {
       setIsClearing(false);
     }
-  };
+  }, [loadCacheInfo]);
 
-  const handleClearUserCaches = async () => {
+  const handleClearUserCaches = useCallback(async () => {
     setIsClearing(true);
     setMessage(null);
     try {
@@ -298,9 +478,9 @@ function CacheManagement() {
     } finally {
       setIsClearing(false);
     }
-  };
+  }, [loadCacheInfo]);
 
-  const handleClearAllCaches = async () => {
+  const handleClearAllCaches = useCallback(async () => {
     setIsClearing(true);
     setMessage(null);
     setShowClearAllConfirmation(false);
@@ -314,12 +494,15 @@ function CacheManagement() {
     } finally {
       setIsClearing(false);
     }
-  };
+  }, [loadCacheInfo]);
 
-  const totalCachedItems = Array.from(cacheInfo.values()).reduce(
-    (sum, count) => sum + count,
-    0
-  );
+  const handleCancelConfirmation = useCallback(() => {
+    setShowClearAllConfirmation(false);
+  }, []);
+
+  const handleShowConfirmation = useCallback(() => {
+    setShowClearAllConfirmation(true);
+  }, []);
 
   return (
     <Card>
@@ -336,91 +519,25 @@ function CacheManagement() {
       )}
 
       {showClearAllConfirmation && (
-        <div className="p-3 mb-4 rounded-lg bg-destructive/10 border border-destructive text-destructive-foreground">
-          <p className="font-medium mb-2">
-            This will clear ALL caches, including downloaded content. Continue?
-          </p>
-          <div className="flex gap-2">
-            <Button
-              onClick={() => setShowClearAllConfirmation(false)}
-              variant="outline"
-              size="sm"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleClearAllCaches}
-              variant="danger"
-              size="sm"
-              disabled={isClearing}
-            >
-              Clear All Caches
-            </Button>
-          </div>
-        </div>
+        <ClearAllConfirmation
+          onCancel={handleCancelConfirmation}
+          onConfirm={handleClearAllCaches}
+          isClearing={isClearing}
+        />
       )}
 
       <div className="space-y-4">
-        <div className="p-3 bg-muted/50 rounded-lg">
-          <div className="text-sm text-muted-foreground mb-2">Cache Status</div>
-          <div className="font-medium">
-            {totalCachedItems} item{totalCachedItems !== 1 ? "s" : ""} cached
-          </div>
-          {cacheInfo.size > 0 && (
-            <div className="mt-2 text-sm text-muted-foreground space-y-1">
-              {Array.from(cacheInfo.entries()).map(([name, count]) => (
-                <div key={name}>
-                  {name}: {count} item{count !== 1 ? "s" : ""}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <CacheInfoDisplay cacheInfo={cacheInfo} />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Button
-            onClick={handleRefreshData}
-            disabled={isClearing}
-            variant="default"
-            className="flex items-center justify-center gap-2"
-          >
-            <RefreshCw size={18} aria-hidden="true" />
-            Refresh Data
-          </Button>
-          <Button
-            onClick={handleClearUserCaches}
-            disabled={isClearing}
-            variant="outline"
-            className="flex items-center justify-center gap-2"
-          >
-            <Trash2 size={18} aria-hidden="true" />
-            Clear User Data
-          </Button>
-          <Button
-            onClick={() => setShowClearAllConfirmation(true)}
-            disabled={isClearing || showClearAllConfirmation}
-            variant="outline"
-            className="flex items-center justify-center gap-2"
-          >
-            <RefreshCw size={18} aria-hidden="true" />
-            Clear All Caches
-          </Button>
-        </div>
+        <CacheActionButtons
+          onRefresh={handleRefreshData}
+          onClearUser={handleClearUserCaches}
+          onClearAll={handleShowConfirmation}
+          isClearing={isClearing}
+          showConfirmation={showClearAllConfirmation}
+        />
 
-        <div className="text-xs text-muted-foreground space-y-1">
-          <p>
-            <strong>Refresh Data:</strong> Fetches latest content from server
-            without clearing static assets. Safe for regular use.
-          </p>
-          <p>
-            <strong>Clear User Data:</strong> Removes personal content caches
-            (routes and API data).
-          </p>
-          <p>
-            <strong>Clear All Caches:</strong> Removes everything including
-            downloaded assets. Use if experiencing issues.
-          </p>
-        </div>
+        <CacheHelpText />
       </div>
     </Card>
   );
@@ -499,7 +616,7 @@ export function ParentalSettings() {
     load();
   }, [profile, setSettings, setPinCode, setTheme]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!profile?.id) return;
 
     // Validate PIN if changed
@@ -557,7 +674,34 @@ export function ParentalSettings() {
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [
+    profile,
+    localPin,
+    confirmPin,
+    pinCode,
+    setPinCode,
+    localSettings,
+    currentTheme,
+    setSettings,
+  ]);
+
+  const handleSettingsChange = useCallback(
+    (newSettings: Partial<typeof localSettings>) => {
+      setLocalSettings((prev) => ({ ...prev, ...newSettings }));
+    },
+    []
+  );
+
+  const handleLimitChange = useCallback((minutes: number) => {
+    setLocalSettings((prev) => ({
+      ...prev,
+      dailySessionLimitMinutes: minutes,
+    }));
+  }, []);
+
+  const handleVoiceChange = useCallback((voice: string) => {
+    setLocalSettings((prev) => ({ ...prev, defaultTtsVoice: voice }));
+  }, []);
 
   return (
     <AppShell title="Parental Settings" variant="parent">
@@ -595,28 +739,19 @@ export function ParentalSettings() {
             autoReadbackSpelling: localSettings.autoReadbackSpelling,
             strictSpacedMode: localSettings.strictSpacedMode,
           }}
-          onSettingsChange={(newSettings) =>
-            setLocalSettings({ ...localSettings, ...newSettings })
-          }
+          onSettingsChange={handleSettingsChange}
         />
 
         {/* Session Limits */}
         <SessionLimits
           dailySessionLimitMinutes={localSettings.dailySessionLimitMinutes}
-          onLimitChange={(minutes) =>
-            setLocalSettings({
-              ...localSettings,
-              dailySessionLimitMinutes: minutes,
-            })
-          }
+          onLimitChange={handleLimitChange}
         />
 
         {/* TTS Settings */}
         <TtsSettings
           defaultTtsVoice={localSettings.defaultTtsVoice}
-          onVoiceChange={(voice) =>
-            setLocalSettings({ ...localSettings, defaultTtsVoice: voice })
-          }
+          onVoiceChange={handleVoiceChange}
         />
 
         {/* Cache Management */}
@@ -624,7 +759,7 @@ export function ParentalSettings() {
 
         {/* Color Theme Picker */}
         <Card>
-          <ColorThemePicker showLabel={true} variant="parent" />
+          <ColorThemePicker showLabel variant="parent" />
         </Card>
 
         {/* Save Button */}
