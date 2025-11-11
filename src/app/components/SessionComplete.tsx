@@ -1,3 +1,4 @@
+import React from "react";
 import { Card } from "./Card";
 import { Button } from "./Button";
 import { Trophy, Star } from "lucide-react";

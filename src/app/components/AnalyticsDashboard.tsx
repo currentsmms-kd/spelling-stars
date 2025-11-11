@@ -1,3 +1,4 @@
+import React from "react";
 import { Card } from "./Card";
 import { TrendingUp, Target, Award, Clock } from "lucide-react";
 import {

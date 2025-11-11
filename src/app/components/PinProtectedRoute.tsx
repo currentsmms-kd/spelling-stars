@@ -1,3 +1,4 @@
+import React from "react";
 import { useParentalSettingsStore } from "../store/parentalSettings";
 import { PinLock } from "./PinLock";
 import { useNavigate } from "react-router-dom";
