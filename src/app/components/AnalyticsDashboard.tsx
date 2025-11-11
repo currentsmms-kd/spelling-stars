@@ -153,6 +153,10 @@ function MasterySection({
   );
 }
 
+// Label formatter for pie chart
+const formatPieLabel = (entry: { list_title: string; mastery_percentage: number }) =>
+  `${entry.list_title}: ${entry.mastery_percentage}%`;
+
 // Pie Chart Component
 function MasteryPieChart({
   masteryData,
@@ -174,7 +178,7 @@ function MasteryPieChart({
           cx="50%"
           cy="50%"
           outerRadius={100}
-          label={(entry) => `${entry.list_title}: ${entry.mastery_percentage}%`}
+          label={formatPieLabel}
         >
           {masteryData.map((_entry: unknown, index: number) => (
             <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />

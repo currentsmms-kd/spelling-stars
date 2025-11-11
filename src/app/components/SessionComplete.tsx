@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback } from "react";
 import { Card } from "./Card";
 import { Button } from "./Button";
 import { Trophy, Star } from "lucide-react";
@@ -75,6 +75,14 @@ function SessionContent({
   starsEarned: number;
   navigate: ReturnType<typeof useNavigate>;
 }) {
+  const handleViewRewards = useCallback(() => {
+    navigate("/child/rewards");
+  }, [navigate]);
+
+  const handleGoHome = useCallback(() => {
+    navigate("/child/home");
+  }, [navigate]);
+
   return (
     <div className="space-y-6">
       {/* Trophy Icon */}
@@ -110,13 +118,13 @@ function SessionContent({
       {/* Action Buttons */}
       <div className="flex gap-4 justify-center">
         <Button
-          onClick={() => navigate("/child/rewards")}
+          onClick={handleViewRewards}
           size="lg"
           variant="secondary"
         >
           View Rewards
         </Button>
-        <Button onClick={() => navigate("/child/home")} size="lg">
+        <Button onClick={handleGoHome} size="lg">
           Go Home
         </Button>
       </div>
