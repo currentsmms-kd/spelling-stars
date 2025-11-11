@@ -204,12 +204,7 @@ export async function getListWithWords(
   // Then, get the words with their sort indices
   const { data: listWords, error: wordsError } = await supabase
     .from("list_words")
-    .select(
-      `
-      sort_index,
-      words (*)
-    `
-    )
+    .select("sort_index, words (*)")
     .eq("list_id", listId)
     .order("sort_index", { ascending: true });
 
@@ -669,12 +664,7 @@ export async function getDueWords(childId: string): Promise<
 
   const { data, error } = await supabase
     .from("srs")
-    .select(
-      `
-      *,
-      words (*)
-    `
-    )
+    .select("*, words (*)")
     .eq("child_id", childId)
     .lte("due_date", today)
     .order("due_date", { ascending: true });
@@ -694,11 +684,7 @@ export async function getDueWords(childId: string): Promise<
       // Get lists containing this word
       const { data: listData } = await supabase
         .from("list_words")
-        .select(
-          `
-          word_lists (id, title)
-        `
-        )
+        .select("word_lists (id, title)")
         .eq("word_id", word.id);
 
       const lists =
@@ -771,12 +757,7 @@ export async function getHardestWords(
   const resultLimit = limit ?? DEFAULT_LIMIT;
   const { data, error } = await supabase
     .from("srs")
-    .select(
-      `
-      *,
-      words (*)
-    `
-    )
+    .select("*, words (*)")
     .eq("child_id", childId)
     .order("ease", { ascending: true })
     .order("lapses", { ascending: false })
@@ -841,12 +822,7 @@ export async function getMostLapsedWords(
   const resultLimit = limit ?? DEFAULT_LIMIT;
   const { data, error } = await supabase
     .from("srs")
-    .select(
-      `
-      *,
-      words (*)
-    `
-    )
+    .select("*, words (*)")
     .eq("child_id", childId)
     .order("lapses", { ascending: false })
     .order("ease", { ascending: true })
@@ -908,12 +884,7 @@ export function useWordLists(userId?: string) {
 
       const { data, error } = await supabase
         .from("word_lists")
-        .select(
-          `
-          *,
-          list_words!inner(count)
-        `
-        )
+        .select("*, list_words!inner(count)")
         .eq("created_by", userId)
         .order("created_at", { ascending: false });
 
@@ -1764,12 +1735,7 @@ export function useRewardsCatalog(
 export async function getUserRewards(userId: string): Promise<UserReward[]> {
   const { data, error } = await supabase
     .from("user_rewards" as unknown as "profiles")
-    .select(
-      `
-      *,
-      reward:rewards_catalog (*)
-    `
-    )
+    .select("*, reward:rewards_catalog (*)")
     .eq("user_id", userId)
     .order("acquired_at", { ascending: false });
 

@@ -314,15 +314,7 @@ export function ChildHome() {
       // Get all lists with word count
       const { data: listsData, error: listsError } = await supabase
         .from("word_lists")
-        .select(
-          `
-          id,
-          title,
-          list_words (
-            word_id
-          )
-        `
-        )
+        .select("id, title, list_words (word_id)")
         .order("created_at", { ascending: false });
 
       if (listsError) throw listsError;
