@@ -311,7 +311,7 @@ export function StickerBook() {
           .eq("child_id", profile.id)
           .single();
 
-        if (rewardsError && rewardsError.code !== "PGRST116")
+        if (rewardsError?.code !== "PGRST116")
           throw rewardsError;
 
         setBadges(badgesData || []);

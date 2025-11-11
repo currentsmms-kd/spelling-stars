@@ -550,7 +550,7 @@ export async function getAttemptsWithSignedUrls(
   // Extract unique audio paths that need signed URLs
   const audioPaths = attempts
     .map((a) => a.audio_url)
-    .filter((path): path is string => Boolean(path && path.length > 0));
+    .filter((path): path is string => Boolean(path?.length));
 
   if (audioPaths.length === 0) {
     // No audio to sign, return attempts as-is with null signed URLs

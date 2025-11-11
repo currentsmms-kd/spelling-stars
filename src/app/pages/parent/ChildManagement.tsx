@@ -650,7 +650,7 @@ export function ChildManagement() {
               Loading children...
             </p>
           </Card>
-        ) : children && children.length > 0 ? (
+        ) : children?.length ? (
           <div className="grid gap-4">
             {children.map((child) => (
               <ChildCard

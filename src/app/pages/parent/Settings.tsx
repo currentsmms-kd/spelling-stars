@@ -468,7 +468,7 @@ export function ParentalSettings() {
           .eq("parent_id", profile.id)
           .single();
 
-        if (error && error.code !== "PGRST116") {
+        if (error?.code !== "PGRST116") {
           logger.error("Error loading settings:", error);
           return;
         }
