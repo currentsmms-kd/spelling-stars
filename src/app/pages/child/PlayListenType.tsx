@@ -101,12 +101,7 @@ function ListSelector() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("word_lists")
-        .select(
-          `
-          *,
-          list_words(count)
-        `
-        )
+        .select("*, list_words(count)")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -443,12 +438,7 @@ export function PlayListenType() {
 
       const { data: listWords, error: wordsError } = await supabase
         .from("list_words")
-        .select(
-          `
-          sort_index,
-          words (*)
-        `
-        )
+        .select("sort_index, words (*)")
         .eq("list_id", listId)
         .order("sort_index", { ascending: true });
 
