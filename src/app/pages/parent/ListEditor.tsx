@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   useForm,
@@ -13,8 +13,14 @@ import { Card } from "@/app/components/Card";
 import { Button } from "@/app/components/Button";
 import { AudioRecorder } from "@/app/components/AudioRecorder";
 import { Toast } from "@/app/components/Toast";
+import { AutoSaveIndicator } from "@/app/components/AutoSaveIndicator";
+import { BulkActionToolbar } from "@/app/components/BulkActionToolbar";
+import { ListStatistics } from "@/app/components/ListStatistics";
 import { Plus, Trash2, Save, GripVertical, Play, Upload } from "lucide-react";
 import { useAuth } from "@/app/hooks/useAuth";
+import { useDebounce } from "@/app/hooks/useDebounce";
+import { useBulkSelection } from "@/app/hooks/useBulkSelection";
+import { useKeyboardShortcuts } from "@/app/hooks/useKeyboardShortcuts";
 import { logger } from "@/lib/logger";
 import { useTtsVoices } from "@/app/hooks/useTtsVoices";
 import { toast } from "react-hot-toast";
@@ -27,8 +33,10 @@ import {
   useUpdateWord,
   useReorderWords,
   useUploadAudio,
+  useBulkDeleteWords,
   type WordWithIndex,
 } from "@/app/api/supa";
+import { parseCSV, normalizeForDedupe } from "@/lib/csvParser";
 
 const listMetaSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -47,11 +55,15 @@ interface WordRowProps {
   index: number;
   isSelected: boolean;
   isDragOver: boolean;
+  isDragging: boolean;
+  isSelectionMode: boolean;
+  isBulkSelected: boolean;
   onDragStart: () => void;
   onDragOver: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent) => void;
   onDragEnd: () => void;
   onSelect: () => void;
+  onToggleSelect: () => void;
   onUpdateWord: (
     wordId: string,
     field: "text" | "phonetic" | "tts_voice",
@@ -62,6 +74,8 @@ interface WordRowProps {
   onDelete: (wordId: string) => void;
   isDeleting: boolean;
   availableVoices: SpeechSynthesisVoice[];
+  inputRefCallback?: (el: HTMLInputElement | null) => void;
+  rowRefCallback?: (el: HTMLDivElement | null) => void;
 }
 
 function WordRow({
@@ -69,104 +83,143 @@ function WordRow({
   index,
   isSelected,
   isDragOver,
+  isDragging,
+  isSelectionMode,
+  isBulkSelected,
   onDragStart,
   onDragOver,
   onDrop,
   onDragEnd,
   onSelect,
+  onToggleSelect,
   onUpdateWord,
   onKeyDown,
   onPlayAudio,
   onDelete,
   isDeleting,
   availableVoices,
+  inputRefCallback,
+  rowRefCallback,
 }: WordRowProps) {
   return (
-    <div
-      draggable
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-      onDragEnd={onDragEnd}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onSelect();
-        }
-      }}
-      className={`flex items-center gap-3 p-3 border rounded-lg transition-colors ${
-        isSelected
-          ? "border-primary bg-primary/10"
-          : "border-border hover:border-primary/50"
-      } ${isDragOver ? "border-primary border-dashed" : ""} cursor-move`}
-      onClick={onSelect}
-    >
-      <GripVertical size={20} className="text-muted-foreground flex-shrink-0" />
-      <div className="w-12 text-muted-foreground text-sm flex-shrink-0">
-        #{index + 1}
-      </div>
-      <input
-        type="text"
-        value={word.text}
-        onChange={(e) => onUpdateWord(word.id, "text", e.target.value)}
-        onKeyDown={onKeyDown}
-        placeholder="Word"
-        className="flex-1 px-2 py-1 border rounded focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
-        onClick={(e) => e.stopPropagation()}
-      />
-      <input
-        type="text"
-        value={word.phonetic || ""}
-        onChange={(e) => onUpdateWord(word.id, "phonetic", e.target.value)}
-        placeholder="Phonetic (optional)"
-        className="flex-1 px-2 py-1 border rounded focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
-        onClick={(e) => e.stopPropagation()}
-      />
-      <select
-        value={word.tts_voice || ""}
-        onChange={(e) => onUpdateWord(word.id, "tts_voice", e.target.value)}
-        className="px-2 py-1 border rounded text-sm focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
-        onClick={(e) => e.stopPropagation()}
-        title="Text-to-Speech Voice"
+    <div className="relative">
+      {/* Drop indicator line */}
+      {isDragOver && (
+        <div className="absolute top-0 left-0 right-0 h-1 bg-primary/70 rounded-t-lg z-10" />
+      )}
+      <div
+        ref={rowRefCallback}
+        draggable={!isSelectionMode}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+        onDragEnd={onDragEnd}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onSelect();
+          }
+        }}
+        className={`flex items-center gap-3 p-3 border-2 rounded-lg transition-all ${
+          isSelected
+            ? "border-primary bg-primary/10"
+            : "border-border hover:border-primary/50"
+        } ${isDragOver ? "border-primary bg-primary/5 scale-[1.02]" : ""} ${
+          isDragging ? "opacity-50" : ""
+        } ${isSelectionMode ? "cursor-pointer" : "cursor-move"}`}
+        onClick={onSelect}
       >
-        <option value="">Default</option>
-        {availableVoices
-          .filter((v) => v.lang.startsWith("en"))
-          .map((voice) => (
-            <option key={voice.name} value={voice.name}>
-              {voice.name}
-            </option>
-          ))}
-      </select>
-      {word.prompt_audio_url && (
+        {/* Bulk Selection Checkbox */}
+        {isSelectionMode && (
+          <input
+            type="checkbox"
+            checked={isBulkSelected}
+            onChange={(e) => {
+              e.stopPropagation();
+              onToggleSelect();
+            }}
+            className="h-5 w-5 rounded border-2 border-border bg-background text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            aria-label={`Select word ${word.text || `#${index + 1}`}`}
+            onClick={(e) => e.stopPropagation()}
+          />
+        )}
+
+        {!isSelectionMode && (
+          <GripVertical
+            size={20}
+            className="text-muted-foreground flex-shrink-0"
+          />
+        )}
+        <div className="w-12 text-muted-foreground text-sm flex-shrink-0">
+          #{index + 1}
+        </div>
+        <input
+          ref={inputRefCallback}
+          type="text"
+          value={word.text}
+          onChange={(e) => onUpdateWord(word.id, "text", e.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder="Enter word"
+          className={`flex-1 px-2 py-1 border rounded transition-shadow focus:ring-2 focus:ring-primary focus:border-transparent bg-input ${
+            !word.text ? "ring-2 ring-primary/50" : ""
+          }`}
+          onClick={(e) => e.stopPropagation()}
+          autoFocus={!word.text && index === 0}
+        />
+        <input
+          type="text"
+          value={word.phonetic || ""}
+          onChange={(e) => onUpdateWord(word.id, "phonetic", e.target.value)}
+          placeholder="Phonetic (optional)"
+          className="flex-1 px-2 py-1 border rounded focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
+          onClick={(e) => e.stopPropagation()}
+        />
+        <select
+          value={word.tts_voice || ""}
+          onChange={(e) => onUpdateWord(word.id, "tts_voice", e.target.value)}
+          className="px-2 py-1 border rounded text-sm focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
+          onClick={(e) => e.stopPropagation()}
+          title="Text-to-Speech Voice"
+        >
+          <option value="">Default</option>
+          {availableVoices
+            .filter((v) => v.lang.startsWith("en"))
+            .map((voice) => (
+              <option key={voice.name} value={voice.name}>
+                {voice.name}
+              </option>
+            ))}
+        </select>
+        {word.prompt_audio_url && (
+          <Button
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (word.prompt_audio_url) {
+                onPlayAudio(word.prompt_audio_url);
+              }
+            }}
+            title="Play audio"
+            aria-label="Play audio pronunciation"
+          >
+            <Play size={16} aria-hidden="true" />
+          </Button>
+        )}
         <Button
           size="sm"
           onClick={(e) => {
             e.stopPropagation();
-            if (word.prompt_audio_url) {
-              onPlayAudio(word.prompt_audio_url);
-            }
+            onDelete(word.id);
           }}
-          title="Play audio"
-          aria-label="Play audio pronunciation"
+          disabled={isDeleting}
+          title="Delete word"
+          aria-label="Delete word"
         >
-          <Play size={16} aria-hidden="true" />
+          <Trash2 size={16} aria-hidden="true" />
         </Button>
-      )}
-      <Button
-        size="sm"
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete(word.id);
-        }}
-        disabled={isDeleting}
-        title="Delete word"
-        aria-label="Delete word"
-      >
-        <Trash2 size={16} aria-hidden="true" />
-      </Button>
+      </div>
     </div>
   );
 }
@@ -331,6 +384,13 @@ function WordsListSection({
   handleDeleteWord,
   deleteWordPending,
   availableVoices,
+  isSelectionMode,
+  onToggleSelectionMode,
+  bulkSelection,
+  onBulkDelete,
+  isBulkDeleting,
+  wordInputRefs,
+  wordRowRefs,
 }: {
   isNewList: boolean;
   words: WordWithIndex[];
@@ -353,22 +413,69 @@ function WordsListSection({
   handleDeleteWord: (wordId: string) => void;
   deleteWordPending: boolean;
   availableVoices: SpeechSynthesisVoice[];
+  isSelectionMode: boolean;
+  onToggleSelectionMode: () => void;
+  bulkSelection: ReturnType<typeof useBulkSelection>;
+  onBulkDelete: () => void;
+  isBulkDeleting: boolean;
+  wordInputRefs: React.MutableRefObject<Map<string, HTMLInputElement>>;
+  wordRowRefs: React.MutableRefObject<Map<string, HTMLDivElement>>;
 }) {
   return (
     <div className="lg:col-span-6">
       <Card>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Words ({words.length})</h3>
-          <Button
-            onClick={handleAddWord}
-            disabled={isNewList || addWordPending}
-            size="sm"
-            className="flex items-center gap-2"
-          >
-            <Plus size={16} />
-            Add Word
-          </Button>
+          <div className="flex items-center gap-3">
+            {isSelectionMode && (
+              <input
+                type="checkbox"
+                checked={bulkSelection.isAllSelected}
+                onChange={() => {
+                  if (bulkSelection.isAllSelected) {
+                    bulkSelection.clearSelection();
+                  } else {
+                    bulkSelection.selectAll();
+                  }
+                }}
+                className="h-5 w-5 rounded border-2"
+                aria-label="Select all words"
+              />
+            )}
+            <h3 className="text-lg font-semibold">
+              Words ({words.length})
+              {bulkSelection.selectedCount > 0 &&
+                ` - ${bulkSelection.selectedCount} selected`}
+            </h3>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant={isSelectionMode ? "default" : "ghost"}
+              size="sm"
+              onClick={onToggleSelectionMode}
+            >
+              {isSelectionMode ? "Cancel" : "Select"}
+            </Button>
+            <Button
+              onClick={handleAddWord}
+              disabled={isNewList || addWordPending}
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <Plus size={16} />
+              Add Word
+            </Button>
+          </div>
         </div>
+
+        {bulkSelection.selectedCount > 0 && (
+          <BulkActionToolbar
+            selectedCount={bulkSelection.selectedCount}
+            totalCount={words.length}
+            onDelete={onBulkDelete}
+            onClear={() => bulkSelection.clearSelection()}
+            isDeleting={isBulkDeleting}
+          />
+        )}
 
         {isNewList ? (
           <p className="text-muted-foreground text-center py-8">
@@ -390,23 +497,118 @@ function WordsListSection({
                   dragState.dragOverIndex === index &&
                   dragState.draggedIndex !== index
                 }
+                isDragging={dragState.draggedIndex === index}
+                isSelectionMode={isSelectionMode}
+                isBulkSelected={bulkSelection.isSelected(word.id)}
                 onDragStart={() => handleDragStart(index)}
                 onDragOver={(e) => handleDragOver(e, index)}
                 onDrop={(e) => handleDrop(e, index)}
                 onDragEnd={handleDragEnd}
                 onSelect={() => setSelectedWordId(word.id)}
+                onToggleSelect={() => bulkSelection.toggleSelection(word.id)}
                 onUpdateWord={handleUpdateWord}
                 onKeyDown={handleKeyDown}
                 onPlayAudio={handlePlayAudio}
                 onDelete={handleDeleteWord}
                 isDeleting={deleteWordPending}
                 availableVoices={availableVoices}
+                inputRefCallback={(el) => {
+                  if (el) {
+                    wordInputRefs.current.set(word.id, el);
+                  } else {
+                    wordInputRefs.current.delete(word.id);
+                  }
+                }}
+                rowRefCallback={(el) => {
+                  if (el) {
+                    wordRowRefs.current.set(word.id, el);
+                  } else {
+                    wordRowRefs.current.delete(word.id);
+                  }
+                }}
               />
             ))}
           </div>
         )}
       </Card>
     </div>
+  );
+}
+
+function CSVImportSection({
+  listId,
+  onFileSelect,
+  csvData,
+  onImportComplete,
+  importProgress,
+  addWordPending,
+}: {
+  listId: string | undefined;
+  onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  csvData: Array<{ text: string; phonetic?: string; tts_voice?: string }>;
+  onImportComplete: () => void;
+  importProgress: { current: number; total: number } | null;
+  addWordPending: boolean;
+}) {
+  return (
+    <Card>
+      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+        <Upload size={20} />
+        Import from CSV
+      </h3>
+
+      <div className="space-y-4">
+        <div>
+          <p className="text-sm text-muted-foreground mb-3">
+            Upload a CSV file with words (one per line, or columns: word,
+            phonetic, voice)
+          </p>
+          <input
+            id="csv-file-input"
+            type="file"
+            accept=".csv"
+            onChange={onFileSelect}
+            className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+            disabled={!listId || addWordPending}
+          />
+        </div>
+
+        {csvData.length > 0 && (
+          <div className="border rounded-lg p-3 bg-muted">
+            <p className="text-sm font-medium mb-2">Preview (first 5 words):</p>
+            <ul className="text-sm space-y-1">
+              {csvData.slice(0, 5).map((word, i) => (
+                <li key={i} className="text-muted-foreground">
+                  {word.text}
+                  {word.phonetic && ` (${word.phonetic})`}
+                  {word.tts_voice && ` - ${word.tts_voice}`}
+                </li>
+              ))}
+            </ul>
+            {csvData.length > 5 && (
+              <p className="text-xs text-muted-foreground mt-2">
+                ...and {csvData.length - 5} more
+              </p>
+            )}
+          </div>
+        )}
+
+        {importProgress && (
+          <div className="text-sm text-muted-foreground">
+            Importing {importProgress.current} of {importProgress.total}...
+          </div>
+        )}
+
+        <Button
+          onClick={onImportComplete}
+          disabled={csvData.length === 0 || addWordPending}
+          className="w-full flex items-center justify-center gap-2"
+        >
+          <Upload size={18} />
+          Import {csvData.length} Words
+        </Button>
+      </div>
+    </Card>
   );
 }
 
@@ -438,7 +640,10 @@ function AudioRecorderSection({
                 </p>
               )}
             </div>
-            <AudioRecorder onRecordingComplete={handleAudioRecorded} />
+            <AudioRecorder
+              onRecordingComplete={handleAudioRecorded}
+              showInstructions={true}
+            />
             {uploadingAudio && (
               <p className="text-sm text-muted-foreground">Uploading...</p>
             )}
@@ -488,6 +693,7 @@ export function ListEditor() {
   const updateWord = useUpdateWord();
   const reorderWords = useReorderWords();
   const uploadAudio = useUploadAudio();
+  const bulkDeleteWords = useBulkDeleteWords();
 
   // Local state
   const [words, setWords] = useState<WordWithIndex[]>([]);
@@ -499,6 +705,37 @@ export function ListEditor() {
   });
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [uploadingAudio, setUploadingAudio] = useState(false);
+
+  // Auto-save state
+  const [autoSaveStatus, setAutoSaveStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [pendingChanges, setPendingChanges] = useState<
+    Map<string, Partial<WordWithIndex>>
+  >(new Map());
+
+  // CSV Import state
+  const [csvData, setCsvData] = useState<
+    Array<{ text: string; phonetic?: string; tts_voice?: string }>
+  >([]);
+  const [importProgress, setImportProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
+
+  // Selection mode state
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+
+  // Refs for word inputs and rows (for auto-focus and scroll)
+  const wordInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+  const wordRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Bulk selection hook
+  const bulkSelection = useBulkSelection(words);
+
+  // Debounced pending changes for auto-save
+  const debouncedPendingChanges = useDebounce(pendingChanges, 1000);
 
   // Form for list metadata
   const {
@@ -619,11 +856,37 @@ export function ListEditor() {
 
     try {
       const newSortIndex = words.length;
-      await addWord.mutateAsync({
+      const result = await addWord.mutateAsync({
         listId: id,
         word: { text: "" },
         sortIndex: newSortIndex,
       });
+
+      // Auto-select the new word
+      if (result.word) {
+        setSelectedWordId(result.word.id);
+
+        // Turn off selection mode to avoid drag/selection conflicts
+        if (isSelectionMode) {
+          setIsSelectionMode(false);
+          bulkSelection.clearSelection();
+        }
+
+        // Scroll to and focus the new word after a brief delay to allow rendering
+        setTimeout(() => {
+          const rowElement = wordRowRefs.current.get(result.word.id);
+          const inputElement = wordInputRefs.current.get(result.word.id);
+
+          if (rowElement) {
+            rowElement.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+
+          if (inputElement) {
+            inputElement.focus();
+          }
+        }, 100);
+      }
+
       toast.custom((t) => (
         <Toast
           type="success"
@@ -667,27 +930,282 @@ export function ListEditor() {
     }
   };
 
-  const handleUpdateWord = async (
+  const handleUpdateWord = (
     wordId: string,
     field: "text" | "phonetic" | "tts_voice",
     value: string
   ) => {
+    // Optimistically update local state
+    setWords((prev) =>
+      prev.map((w) => (w.id === wordId ? { ...w, [field]: value } : w))
+    );
+
+    // Add to pending changes for auto-save
+    setPendingChanges((prev) => {
+      const updated = new Map(prev);
+      const existing = updated.get(wordId) || {};
+      updated.set(wordId, { ...existing, [field]: value });
+      return updated;
+    });
+
+    setAutoSaveStatus("idle");
+  };
+
+  // Auto-save effect
+  useEffect(() => {
+    const savePendingChanges = async () => {
+      if (debouncedPendingChanges.size === 0) return;
+
+      // Capture the keys that we're about to save
+      const savedIds = new Set(debouncedPendingChanges.keys());
+
+      setAutoSaveStatus("saving");
+
+      try {
+        const promises = Array.from(debouncedPendingChanges.entries()).map(
+          ([wordId, changes]) => {
+            return updateWord.mutateAsync({
+              id: wordId,
+              updates: changes,
+            });
+          }
+        );
+
+        await Promise.all(promises);
+        setAutoSaveStatus("saved");
+        setLastSavedAt(new Date());
+
+        // Only clear the keys that were successfully saved
+        setPendingChanges((prev) => {
+          const filtered = new Map(
+            [...prev].filter(([id]) => !savedIds.has(id))
+          );
+          return filtered;
+        });
+      } catch (error) {
+        setAutoSaveStatus("error");
+        logger.error("Auto-save failed", error);
+      }
+    };
+
+    savePendingChanges();
+  }, [debouncedPendingChanges, updateWord]);
+
+  // Retry auto-save handler
+  const handleRetryAutoSave = async () => {
+    if (pendingChanges.size === 0) return;
+
+    setAutoSaveStatus("saving");
+
     try {
-      await updateWord.mutateAsync({
-        id: wordId,
-        updates: { [field]: value },
-      });
+      const promises = Array.from(pendingChanges.entries()).map(
+        ([wordId, changes]) => {
+          return updateWord.mutateAsync({
+            id: wordId,
+            updates: changes,
+          });
+        }
+      );
+
+      await Promise.all(promises);
+      setAutoSaveStatus("saved");
+      setLastSavedAt(new Date());
+      setPendingChanges(new Map());
     } catch (error) {
-      logger.error("Error updating word:", error);
+      setAutoSaveStatus("error");
+      logger.error("Auto-save retry failed", error);
+    }
+  };
+
+  // Bulk delete handler
+  const handleBulkDelete = async () => {
+    if (!id || bulkSelection.selectedCount === 0) return;
+
+    const confirmDelete = confirm(
+      `Delete ${bulkSelection.selectedCount} word${bulkSelection.selectedCount !== 1 ? "s" : ""}?`
+    );
+    if (!confirmDelete) return;
+
+    try {
+      await bulkDeleteWords.mutateAsync({
+        listId: id,
+        wordIds: Array.from(bulkSelection.selectedIds),
+      });
+
+      toast.custom((t) => (
+        <Toast
+          type="success"
+          message={`Deleted ${bulkSelection.selectedCount} words`}
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
+      bulkSelection.clearSelection();
+      setIsSelectionMode(false);
+    } catch (error) {
+      logger.error("Bulk delete failed", {
+        context: "ListEditor.bulkDelete",
+        error,
+      });
       toast.custom((t) => (
         <Toast
           type="error"
-          message="Failed to update word"
+          message={`Failed to delete ${bulkSelection.selectedCount} words`}
           onClose={() => toast.dismiss(t.id)}
         />
       ));
     }
   };
+
+  // CSV file selection handler
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+
+      // Use robust CSV parser that handles:
+      // - Different line endings (\n, \r\n)
+      // - Quoted fields with commas
+      // - Empty/whitespace rows
+      // - Empty first columns
+      // - Header row detection
+      const parsed = parseCSV(text);
+
+      // Additional deduplication against existing words
+      const existingTexts = new Set(
+        words.map((w) => normalizeForDedupe(w.text))
+      );
+
+      const uniqueWords = parsed.filter(
+        (word) => !existingTexts.has(normalizeForDedupe(word.text))
+      );
+
+      setCsvData(uniqueWords);
+    };
+
+    reader.readAsText(file);
+  };
+
+  // CSV import handler
+  const handleCSVImport = async () => {
+    if (!id || csvData.length === 0) return;
+
+    try {
+      // Deduplicate against existing words
+      const existingTexts = new Set(words.map((w) => w.text.toLowerCase()));
+      const uniqueWords = csvData.filter(
+        (word) => !existingTexts.has(word.text.toLowerCase())
+      );
+
+      if (uniqueWords.length === 0) {
+        toast.custom((t) => (
+          <Toast
+            type="error"
+            message="All words already exist in this list"
+            onClose={() => toast.dismiss(t.id)}
+          />
+        ));
+        return;
+      }
+
+      // Import words sequentially with progress
+      setImportProgress({ current: 0, total: uniqueWords.length });
+
+      for (let i = 0; i < uniqueWords.length; i++) {
+        const sortIndex = words.length + i;
+        await addWord.mutateAsync({
+          listId: id,
+          word: {
+            text: uniqueWords[i].text,
+            phonetic: uniqueWords[i].phonetic || null,
+            tts_voice: uniqueWords[i].tts_voice || null,
+          },
+          sortIndex,
+        });
+        setImportProgress({ current: i + 1, total: uniqueWords.length });
+      }
+
+      toast.custom((t) => (
+        <Toast
+          type="success"
+          message={`Imported ${uniqueWords.length} words`}
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
+      setCsvData([]);
+      setImportProgress(null);
+
+      // Reset file input
+      const fileInput = document.getElementById(
+        "csv-file-input"
+      ) as HTMLInputElement;
+      if (fileInput) fileInput.value = "";
+    } catch (error) {
+      logger.error("CSV import failed", {
+        context: "ListEditor.csvImport",
+        error,
+      });
+      toast.custom((t) => (
+        <Toast
+          type="error"
+          message="Failed to import CSV"
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
+      setImportProgress(null);
+    }
+  };
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: "Escape",
+        callback: () => {
+          if (isSelectionMode) {
+            bulkSelection.clearSelection();
+            setIsSelectionMode(false);
+          }
+        },
+        description: "Clear selection",
+      },
+      {
+        key: "a",
+        ctrlKey: true,
+        callback: () => {
+          if (!isNewList && words.length > 0) {
+            setIsSelectionMode(true);
+            bulkSelection.selectAll();
+          }
+        },
+        description: "Select all words (Ctrl+A)",
+      },
+      {
+        key: "a",
+        metaKey: true,
+        callback: () => {
+          if (!isNewList && words.length > 0) {
+            setIsSelectionMode(true);
+            bulkSelection.selectAll();
+          }
+        },
+        description: "Select all words (Cmd+A)",
+      },
+      {
+        key: "Delete",
+        callback: () => {
+          if (isSelectionMode && bulkSelection.selectedCount > 0) {
+            handleBulkDelete();
+          }
+        },
+        description: "Delete selected words",
+      },
+    ],
+    enabled: !isNewList,
+  });
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -868,6 +1386,28 @@ export function ListEditor() {
       variant="parent"
     >
       <div className="max-w-7xl mx-auto space-y-6">
+        {/* Auto-save Indicator */}
+        {!isNewList && (
+          <div className="flex justify-end">
+            <AutoSaveIndicator
+              status={autoSaveStatus}
+              lastSavedAt={lastSavedAt || undefined}
+              onRetry={handleRetryAutoSave}
+            />
+          </div>
+        )}
+
+        {/* List Statistics */}
+        {!isNewList && list && (
+          <ListStatistics
+            totalWords={words.length}
+            wordsWithAudio={words.filter((w) => w.prompt_audio_url).length}
+            wordsWithPhonetics={words.filter((w) => w.phonetic).length}
+            lastModified={list.updated_at || undefined}
+            createdAt={list.created_at || undefined}
+          />
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <ListDetailsSection
             isNewList={isNewList}
@@ -902,15 +1442,52 @@ export function ListEditor() {
             handleDeleteWord={handleDeleteWord}
             deleteWordPending={deleteWord.isPending}
             availableVoices={availableVoices}
+            isSelectionMode={isSelectionMode}
+            onToggleSelectionMode={() => setIsSelectionMode(!isSelectionMode)}
+            bulkSelection={bulkSelection}
+            onBulkDelete={handleBulkDelete}
+            isBulkDeleting={bulkDeleteWords.isPending}
+            wordInputRefs={wordInputRefs}
+            wordRowRefs={wordRowRefs}
           />
 
-          <AudioRecorderSection
-            selectedWord={selectedWord}
-            handleAudioRecorded={handleAudioRecorded}
-            uploadingAudio={uploadingAudio}
-            handlePlayAudio={handlePlayAudio}
-          />
+          <div className="lg:col-span-3 space-y-6">
+            {!isNewList && (
+              <CSVImportSection
+                listId={id}
+                onFileSelect={handleFileSelect}
+                csvData={csvData}
+                onImportComplete={handleCSVImport}
+                importProgress={importProgress}
+                addWordPending={addWord.isPending}
+              />
+            )}
+
+            <AudioRecorderSection
+              selectedWord={selectedWord}
+              handleAudioRecorded={handleAudioRecorded}
+              uploadingAudio={uploadingAudio}
+              handlePlayAudio={handlePlayAudio}
+            />
+          </div>
         </div>
+
+        {/* Keyboard shortcuts help */}
+        {!isNewList && words.length > 0 && (
+          <p className="text-center text-xs text-muted-foreground">
+            Keyboard shortcuts:{" "}
+            <kbd className="px-1.5 py-0.5 rounded bg-muted border">Esc</kbd>{" "}
+            clear,
+            <kbd className="px-1.5 py-0.5 rounded bg-muted border ml-2">
+              Ctrl+A / Cmd+A
+            </kbd>{" "}
+            select all,
+            <kbd className="px-1.5 py-0.5 rounded bg-muted border ml-2">
+              Delete
+            </kbd>{" "}
+            remove selected
+          </p>
+        )}
       </div>
     </AppShell>
   );

@@ -12,6 +12,7 @@ import { useOnline } from "@/app/hooks/useOnline";
 import { useTtsVoices } from "@/app/hooks/useTtsVoices";
 import { queueAttempt } from "@/lib/sync";
 import { logger } from "@/lib/logger";
+import { toast } from "react-hot-toast";
 import {
   useUpdateSrs,
   useAwardStars,
@@ -95,6 +96,7 @@ function PlayWordButton({ playAudio }: PlayWordButtonProps) {
 function ListSelector() {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const lastErrorRef = useRef<string | null>(null);
 
   // Fetch all word lists - children have read access via RLS
   // Use list_words(count) pattern to get counts consistently
@@ -136,6 +138,29 @@ function ListSelector() {
     staleTime: 1000 * 60 * 5, // 5 minutes to reduce flicker
   });
 
+  // Move telemetry to useEffect to avoid duplicate emissions on re-renders
+  useEffect(() => {
+    if (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to load spelling lists";
+
+      // Only emit telemetry if this is a new/different error
+      if (lastErrorRef.current !== errorMessage) {
+        lastErrorRef.current = errorMessage;
+        logger.metrics.errorCaptured({
+          context: "PlayListenType.loadLists",
+          message: errorMessage,
+          severity: "warning",
+        });
+      }
+    } else {
+      // Clear the error ref when error is resolved
+      lastErrorRef.current = null;
+    }
+  }, [error]);
+
   const handleRetry = useCallback(() => {
     refetch();
   }, [refetch]);
@@ -148,16 +173,6 @@ function ListSelector() {
   );
 
   if (error) {
-    // Add error telemetry
-    logger.metrics.errorCaptured({
-      context: "PlayListenType.loadLists",
-      message:
-        error instanceof Error
-          ? error.message
-          : "Failed to load spelling lists",
-      severity: "warning",
-    });
-
     return (
       <Card variant="child">
         <div className="text-center space-y-6">
@@ -612,12 +627,23 @@ export function PlayListenType() {
       }
     },
     onError: (error) => {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to save attempt";
+
       logger.error("Error saving attempt:", error);
       logger.metrics.errorCaptured({
         context: "PlayListenType.saveAttempt",
-        message: error instanceof Error ? error.message : "Unknown error",
+        message: errorMessage,
         severity: "error",
       });
+
+      // Show user-facing error
+      toast.error(
+        `Failed to save your answer. Don't worry, you can continue playing!`,
+        {
+          duration: 6000,
+        }
+      );
     },
   });
 
@@ -756,12 +782,18 @@ export function PlayListenType() {
       }
 
       // Save attempt with quality (async, don't block UI)
-      saveAttemptMutation.mutate({
-        wordId: currentWord.id,
-        correct: true,
-        typedAnswer: answer,
-        quality,
-      });
+      // Wrap in try/catch to ensure game continues even if save fails
+      try {
+        await saveAttemptMutation.mutateAsync({
+          wordId: currentWord.id,
+          correct: true,
+          typedAnswer: answer,
+          quality,
+        });
+      } catch (error) {
+        // Error already handled by onError, just log and continue
+        logger.warn("Save attempt failed, continuing game flow", error);
+      }
 
       // Update SRS: first-try correct (async, don't block UI)
       if (isOnline) {
@@ -790,12 +822,18 @@ export function PlayListenType() {
       setHasTriedOnce(true);
 
       // Save incorrect attempt with quality (async, don't block UI)
-      saveAttemptMutation.mutate({
-        wordId: currentWord.id,
-        correct: false,
-        typedAnswer: answer,
-        quality,
-      });
+      // Wrap in try/catch to ensure game continues even if save fails
+      try {
+        await saveAttemptMutation.mutateAsync({
+          wordId: currentWord.id,
+          correct: false,
+          typedAnswer: answer,
+          quality,
+        });
+      } catch (error) {
+        // Error already handled by onError, just log and continue
+        logger.warn("Save attempt failed, continuing game flow", error);
+      }
 
       // Update SRS: not first-try correct (miss) (async, don't block UI)
       if (isOnline && !hasTriedOnce) {

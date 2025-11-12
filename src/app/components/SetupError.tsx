@@ -7,6 +7,7 @@ interface SetupErrorProps {
   details?: string[];
   type?: "env" | "network" | "database" | "permission" | "general";
   onRetry?: () => void;
+  isRetrying?: boolean;
 }
 
 /**
@@ -18,6 +19,7 @@ export function SetupError({
   details,
   type = "env",
   onRetry,
+  isRetrying = false,
 }: SetupErrorProps) {
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
 
@@ -208,8 +210,16 @@ export function SetupError({
                   variant="default"
                   size="default"
                   className="w-full"
+                  disabled={isRetrying}
                 >
-                  Retry Connection
+                  {isRetrying ? (
+                    <span className="flex items-center gap-2">
+                      <span className="animate-spin">⏳</span>
+                      Retrying...
+                    </span>
+                  ) : (
+                    "Retry Connection"
+                  )}
                 </Button>
               </div>
             )}

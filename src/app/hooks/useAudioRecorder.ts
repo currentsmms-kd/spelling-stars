@@ -7,6 +7,7 @@ interface UseAudioRecorderResult {
   duration: number;
   audioUrl: string | null;
   audioBlob: Blob | null;
+  mimeType: string | null;
   error: string | null;
   startRecording: () => Promise<void>;
   pauseRecording: () => void;
@@ -15,12 +16,33 @@ interface UseAudioRecorderResult {
   clearRecording: () => void;
 }
 
+/**
+ * Detect supported MIME type for MediaRecorder
+ * Prefers audio/webm, falls back to audio/mp4, or returns null to let browser decide
+ */
+function detectSupportedMimeType(): string | null {
+  const types = ["audio/webm", "audio/mp4", "audio/ogg", "audio/wav"];
+
+  for (const type of types) {
+    if (
+      typeof MediaRecorder !== "undefined" &&
+      MediaRecorder.isTypeSupported(type)
+    ) {
+      return type;
+    }
+  }
+
+  // Return null to let browser use its default
+  return null;
+}
+
 export function useAudioRecorder(): UseAudioRecorderResult {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [duration, setDuration] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [mimeType, setMimeType] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -61,7 +83,16 @@ export function useAudioRecorder(): UseAudioRecorderResult {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       logger.info("Microphone access granted");
 
-      const mediaRecorder = new MediaRecorder(stream);
+      // Detect supported MIME type
+      const detectedMimeType = detectSupportedMimeType();
+      setMimeType(detectedMimeType);
+      logger.info("Detected MIME type:", detectedMimeType || "browser default");
+
+      // Create MediaRecorder with detected MIME type or let browser choose
+      const mediaRecorder = detectedMimeType
+        ? new MediaRecorder(stream, { mimeType: detectedMimeType })
+        : new MediaRecorder(stream);
+
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
@@ -74,11 +105,18 @@ export function useAudioRecorder(): UseAudioRecorderResult {
 
       mediaRecorder.onstop = () => {
         logger.info("Recording stopped, creating audio blob");
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const blob = new Blob(chunksRef.current, {
+          type: detectedMimeType || "audio/webm",
+        });
         const url = URL.createObjectURL(blob);
         setAudioUrl(url);
         setAudioBlob(blob);
-        logger.info("Audio blob created:", blob.size, "bytes");
+        logger.info(
+          "Audio blob created:",
+          blob.size,
+          "bytes, type:",
+          blob.type
+        );
 
         // Stop all tracks
         stream.getTracks().forEach((track) => {
@@ -94,8 +132,19 @@ export function useAudioRecorder(): UseAudioRecorderResult {
       };
 
       mediaRecorder.onerror = (event) => {
+        const errorMessage =
+          event.error?.message || "Recording error occurred. Please try again.";
+
         logger.error("MediaRecorder error:", event);
-        setError("Recording error occurred. Please try again.");
+        setError(errorMessage);
+
+        // Add telemetry for MediaRecorder errors
+        logger.metrics.errorCaptured({
+          context: "useAudioRecorder",
+          message: errorMessage,
+          stack: event.error?.stack,
+          severity: "error",
+        });
       };
 
       mediaRecorder.start();
@@ -205,6 +254,7 @@ export function useAudioRecorder(): UseAudioRecorderResult {
     duration,
     audioUrl,
     audioBlob,
+    mimeType,
     error,
     startRecording,
     pauseRecording,

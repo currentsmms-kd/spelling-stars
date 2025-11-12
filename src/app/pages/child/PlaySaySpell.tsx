@@ -13,6 +13,7 @@ import { useAudioRecorder } from "@/app/hooks/useAudioRecorder";
 import { useTtsVoices } from "@/app/hooks/useTtsVoices";
 import { queueAttempt, queueAudio } from "@/lib/sync";
 import { logger } from "@/lib/logger";
+import { toast } from "react-hot-toast";
 import {
   useUpdateSrs,
   useAwardStars,
@@ -410,6 +411,7 @@ function GameContent({
 function NoListSelected() {
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const lastErrorRef = useRef<string | null>(null);
 
   const handleGoHome = useCallback(() => {
     navigate("/child/home");
@@ -462,21 +464,34 @@ function NoListSelected() {
     staleTime: 1000 * 60 * 5, // 5 minutes to reduce flicker
   });
 
+  // Move telemetry to useEffect to avoid duplicate emissions on re-renders
+  useEffect(() => {
+    if (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to load spelling lists";
+
+      // Only emit telemetry if this is a new/different error
+      if (lastErrorRef.current !== errorMessage) {
+        lastErrorRef.current = errorMessage;
+        logger.metrics.errorCaptured({
+          context: "PlaySaySpell.loadLists",
+          message: errorMessage,
+          severity: "warning",
+        });
+      }
+    } else {
+      // Clear the error ref when error is resolved
+      lastErrorRef.current = null;
+    }
+  }, [error]);
+
   const handleRetry = useCallback(() => {
     refetch();
   }, [refetch]);
 
   if (error) {
-    // Add error telemetry
-    logger.metrics.errorCaptured({
-      context: "PlaySaySpell.loadLists",
-      message:
-        error instanceof Error
-          ? error.message
-          : "Failed to load spelling lists",
-      severity: "warning",
-    });
-
     return (
       <AppShell title="Say & Spell" variant="child">
         <Card variant="child" className="max-w-3xl mx-auto">
@@ -645,6 +660,7 @@ export function PlaySaySpell() {
     startRecording,
     stopRecording,
     audioBlob: recordedBlob,
+    mimeType,
     clearRecording,
     error,
   } = useAudioRecorder();
@@ -710,7 +726,7 @@ export function PlaySaySpell() {
           const { data, error } = await supabase.storage
             .from("audio-recordings")
             .upload(fileName, audioBlob, {
-              contentType: "audio/webm",
+              contentType: mimeType || "audio/webm", // Use detected MIME type
               cacheControl: "3600",
             });
 
@@ -763,12 +779,23 @@ export function PlaySaySpell() {
       }
     },
     onError: (error) => {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to save attempt";
+
       logger.error("Error saving attempt:", error);
       logger.metrics.errorCaptured({
         context: "PlaySaySpell.saveAttempt",
-        message: error instanceof Error ? error.message : "Unknown error",
+        message: errorMessage,
         severity: "error",
       });
+
+      // Show user-facing error
+      toast.error(
+        `Failed to save your answer. Don't worry, you can continue playing!`,
+        {
+          duration: 6000,
+        }
+      );
     },
   });
 
@@ -978,13 +1005,19 @@ export function PlaySaySpell() {
       }
 
       // Save attempt with quality
-      await saveAttemptMutation.mutateAsync({
-        wordId: currentWord.id,
-        correct: true,
-        typedAnswer: answer,
-        quality,
-        audioBlobId: audioBlobId || undefined,
-      });
+      // Wrap in try/catch to ensure game continues even if save fails
+      try {
+        await saveAttemptMutation.mutateAsync({
+          wordId: currentWord.id,
+          correct: true,
+          typedAnswer: answer,
+          quality,
+          audioBlobId: audioBlobId || undefined,
+        });
+      } catch (error) {
+        // Error already handled by onError, just log and continue
+        logger.warn("Save attempt failed, continuing game flow", error);
+      }
 
       // Update SRS: first-try correct
       if (isOnline) {
@@ -1010,13 +1043,19 @@ export function PlaySaySpell() {
       setHasTriedOnce(true);
 
       // Save incorrect attempt with quality
-      await saveAttemptMutation.mutateAsync({
-        wordId: currentWord.id,
-        correct: false,
-        typedAnswer: answer,
-        quality,
-        audioBlobId: audioBlobId || undefined,
-      });
+      // Wrap in try/catch to ensure game continues even if save fails
+      try {
+        await saveAttemptMutation.mutateAsync({
+          wordId: currentWord.id,
+          correct: false,
+          typedAnswer: answer,
+          quality,
+          audioBlobId: audioBlobId || undefined,
+        });
+      } catch (error) {
+        // Error already handled by onError, just log and continue
+        logger.warn("Save attempt failed, continuing game flow", error);
+      }
 
       // Update SRS: not first-try correct (miss)
       if (isOnline && !hasTriedOnce) {

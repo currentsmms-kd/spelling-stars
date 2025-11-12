@@ -1156,6 +1156,67 @@ export function useDeleteWordFromList() {
 }
 
 /**
+ * Hook to bulk delete multiple words from a list
+ */
+export function useBulkDeleteWords() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      listId,
+      wordIds,
+    }: {
+      listId: string;
+      wordIds: string[];
+    }) => {
+      const { error } = await supabase
+        .from("list_words")
+        .delete()
+        .eq("list_id", listId)
+        .in("word_id", wordIds);
+
+      if (error) throw error;
+      return { listId, wordIds };
+    },
+    onMutate: async ({ listId, wordIds }) => {
+      // Cancel outgoing queries
+      await queryClient.cancelQueries({ queryKey: ["word_list", listId] });
+
+      // Snapshot previous value
+      const previous = queryClient.getQueryData<WordListWithWords>([
+        "word_list",
+        listId,
+      ]);
+
+      // Optimistically update cache
+      queryClient.setQueryData<WordListWithWords>(
+        ["word_list", listId],
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            words: old.words?.filter((w) => !wordIds.includes(w.id)) ?? [],
+          };
+        }
+      );
+
+      return { previous };
+    },
+    onError: (_err, { listId }, context) => {
+      // Rollback on error
+      if (context?.previous) {
+        queryClient.setQueryData(["word_list", listId], context.previous);
+      }
+    },
+    onSettled: (data) => {
+      if (data) {
+        queryClient.invalidateQueries({ queryKey: ["word_list", data.listId] });
+      }
+    },
+  });
+}
+
+/**
  * Hook to reorder words in a list
  */
 export function useReorderWords() {

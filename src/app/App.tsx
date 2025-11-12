@@ -7,7 +7,6 @@ import { logger } from "@/lib/logger";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { Toaster } from "react-hot-toast";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { NetworkStatusIndicator } from "./components/NetworkStatusIndicator";
 import type { ErrorInfo } from "react";
 
 /**
@@ -54,7 +53,6 @@ export function App() {
       <QueryClientProvider client={queryClient}>
         <ErrorBoundary onError={handleError}>
           <RouterProvider router={router} />
-          <NetworkStatusIndicator variant="parent" />
         </ErrorBoundary>
       </QueryClientProvider>
       {showBanner && (
