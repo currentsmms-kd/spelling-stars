@@ -4,6 +4,7 @@ import { AppShell } from "@/app/components/AppShell";
 import { Card } from "@/app/components/Card";
 import { Button } from "@/app/components/Button";
 import { RewardStar } from "@/app/components/RewardStar";
+import { VisuallyHidden } from "@/app/components/VisuallyHidden";
 import { Volume2, CheckCircle, XCircle, Home } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/app/supabase";
@@ -73,9 +74,10 @@ interface GameContentProps {
 
 interface PlayWordButtonProps {
   playAudio: () => void;
+  currentWord?: Word;
 }
 
-function PlayWordButton({ playAudio }: PlayWordButtonProps) {
+function PlayWordButton({ playAudio, currentWord }: PlayWordButtonProps) {
   return (
     <div>
       <p className="text-2xl text-muted-foreground mb-6">
@@ -85,6 +87,9 @@ function PlayWordButton({ playAudio }: PlayWordButtonProps) {
         onClick={playAudio}
         size="child"
         className="w-64 flex items-center justify-center gap-3"
+        aria-label={
+          currentWord ? `Play word: ${currentWord.text}` : "Play word"
+        }
       >
         <Volume2 size={32} />
         <span>Play Word</span>
@@ -174,7 +179,7 @@ function ListSelector() {
 
   if (error) {
     return (
-      <Card variant="child">
+      <Card variant="child" role="alert" aria-live="assertive">
         <div className="text-center space-y-6">
           <h3 className="text-3xl font-bold text-destructive">
             Error Loading Lists
@@ -202,7 +207,7 @@ function ListSelector() {
   if (listsLoading) {
     return (
       <Card variant="child">
-        <div className="text-center">
+        <div className="text-center" aria-live="polite">
           <p className="text-2xl">Loading lists...</p>
         </div>
       </Card>
@@ -239,7 +244,9 @@ function ListSelector() {
           <Card
             key={list.id}
             variant="child"
-            className="cursor-pointer hover:shadow-lg transition-shadow"
+            role="button"
+            tabIndex={0}
+            aria-label={`Practice ${list.title}, ${list.word_count} words`}
             onClick={() => handleSelectList(list.id)}
           >
             <div className="text-center space-y-4">
@@ -291,10 +298,13 @@ function GameHeader({ starsEarned }: GameHeaderProps) {
           <span>Home</span>
         </Button>
       </Link>
-      <div className="flex gap-2">
-        {stars.map((star) => (
-          <RewardStar key={star.id} filled={star.filled} size="lg" />
-        ))}
+      <div className="flex gap-2" aria-live="polite" aria-atomic="true">
+        <VisuallyHidden>Stars earned: {starsEarned} out of 5</VisuallyHidden>
+        <div className="flex gap-2" aria-hidden="true">
+          {stars.map((star) => (
+            <RewardStar key={star.id} filled={star.filled} size="lg" />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -306,7 +316,7 @@ function ProgressDisplay({
   totalWords,
 }: ProgressDisplayProps) {
   return (
-    <div className="text-center">
+    <div className="text-center" aria-live="polite" aria-atomic="true">
       <p className="text-2xl font-bold">{listTitle}</p>
       <p className="text-xl text-muted-foreground mt-2">
         Word {currentWordIndex + 1} of {totalWords}
@@ -336,13 +346,30 @@ function GameContent({
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 relative">
+      {/* Live region for feedback announcements */}
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {feedback === "correct" && "Correct! Well done!"}
+        {feedback === "wrong" && showHint === 0 && "Incorrect. Try again."}
+        {feedback === "wrong" &&
+          showHint === 1 &&
+          `Hint: The word starts with ${currentWord?.text[0].toUpperCase()}`}
+        {feedback === "wrong" &&
+          showHint === 2 &&
+          `The correct spelling is ${currentWord?.text}`}
+      </div>
+
       {/* Equipped avatar and streak display in corner */}
       <div className="absolute top-4 right-4 flex items-center gap-3">
         {profile?.equipped_avatar && (
-          <div className="text-5xl">{profile.equipped_avatar}</div>
+          <div className="text-5xl" aria-hidden="true">
+            {profile.equipped_avatar}
+          </div>
         )}
         {(profile?.streak_days || 0) > 0 && (
-          <div className="flex items-center gap-1 bg-primary/20 px-3 py-2 rounded-full">
+          <div
+            className="flex items-center gap-1 bg-primary/20 px-3 py-2 rounded-full"
+            aria-hidden="true"
+          >
             <span className="text-3xl">🔥</span>
             <span className="text-2xl font-bold">{profile?.streak_days}</span>
           </div>
@@ -359,7 +386,7 @@ function GameContent({
 
       <Card variant="child">
         <div className="text-center space-y-8">
-          <PlayWordButton playAudio={playAudio} />
+          <PlayWordButton playAudio={playAudio} currentWord={currentWord} />
 
           <AnswerSection
             answer={answer}
@@ -391,6 +418,8 @@ function AnswerSection({
   onNextWord,
   isSaving,
 }: AnswerSectionProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       onAnswerChange(e.target.value);
@@ -412,9 +441,21 @@ function AnswerSection({
     [answer, feedback, onCheckAnswer, isSaving]
   );
 
+  // Auto-focus input on mount and when feedback resets
+  useEffect(() => {
+    if (feedback === null && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [currentWord, feedback]);
+
   return (
     <div className="space-y-4">
+      <VisuallyHidden as="label" htmlFor="spelling-input">
+        Type the spelling of the word you heard
+      </VisuallyHidden>
       <input
+        ref={inputRef}
+        id="spelling-input"
         type="text"
         value={answer}
         onChange={handleChange}
@@ -422,11 +463,12 @@ function AnswerSection({
         className={`w-full text-4xl text-center px-6 py-4 border-4 border-primary rounded-2xl focus:ring-4 focus:ring-ring focus:border-primary font-bold bg-input ${isSaving ? "opacity-50" : ""}`}
         placeholder="Type here..."
         disabled={feedback === "correct" || isSaving}
+        aria-describedby={showHint > 0 ? "hint-text" : undefined}
       />
 
       {/* Hints */}
       {showHint > 0 && feedback === "wrong" && (
-        <div className="text-center">
+        <div className="text-center" id="hint-text">
           {showHint === 1 && (
             <p className="text-2xl text-secondary">
               Hint: It starts with &quot;

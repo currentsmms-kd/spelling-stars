@@ -23,6 +23,7 @@ export function TopBar({
 
   return (
     <header
+      aria-label="Site header"
       className={cn(
         "bg-card border-b border-border px-4 flex items-center justify-between",
         isChild ? "h-20" : "h-16"
@@ -42,15 +43,21 @@ export function TopBar({
           <Link
             to="/child/rewards"
             className="flex items-center gap-3 p-2 hover:bg-muted rounded-lg transition-colors"
+            aria-label={`View rewards. ${profile.stars || 0} stars, ${profile.streak_days || 0} day streak`}
           >
             {/* Equipped Avatar */}
             {profile.equipped_avatar && (
-              <div className="text-4xl">{profile.equipped_avatar}</div>
+              <div className="text-4xl" aria-hidden="true">
+                {profile.equipped_avatar}
+              </div>
             )}
 
             {/* Streak Counter */}
             {(profile.streak_days || 0) > 0 && (
-              <div className="flex items-center gap-1 bg-primary/20 px-3 py-1 rounded-full">
+              <div
+                className="flex items-center gap-1 bg-primary/20 px-3 py-1 rounded-full"
+                aria-hidden="true"
+              >
                 <span className="text-2xl">🔥</span>
                 <span className="text-xl font-bold text-primary">
                   {profile.streak_days}
@@ -59,7 +66,10 @@ export function TopBar({
             )}
 
             {/* Stars Count */}
-            <div className="flex items-center gap-1 bg-secondary/20 px-3 py-1 rounded-full">
+            <div
+              className="flex items-center gap-1 bg-secondary/20 px-3 py-1 rounded-full"
+              aria-hidden="true"
+            >
               <span className="text-2xl">⭐</span>
               <span className="text-xl font-bold text-secondary">
                 {profile.stars || 0}
@@ -75,6 +85,7 @@ export function TopBar({
             onClick={onLogout}
             className="p-2 hover:bg-muted rounded-lg transition-colors"
             aria-label="Logout"
+            title="Logout"
           >
             <LogOut size={isChild ? 28 : 20} />
           </button>
@@ -94,6 +105,7 @@ export function NavRail({ items, isChild = false }: NavRailProps) {
 
   return (
     <nav
+      aria-label={isChild ? "Child navigation" : "Parent navigation"}
       className={cn(
         "bg-card border-r border-border flex flex-col",
         isChild ? "w-24" : "w-20"
@@ -113,6 +125,8 @@ export function NavRail({ items, isChild = false }: NavRailProps) {
                   ? "bg-primary text-primary-foreground"
                   : "hover:bg-muted text-muted-foreground"
               )}
+              aria-current={isActive ? "page" : undefined}
+              aria-label={item.label}
             >
               {item.icon}
               <span className={cn("text-xs font-medium", isChild && "text-sm")}>

@@ -9,6 +9,8 @@ import {
   exportAllAnalytics,
 } from "@/lib/exportCsv";
 import { logger } from "@/lib/logger";
+import { FocusTrap } from "./FocusTrap";
+import { VisuallyHidden } from "./VisuallyHidden";
 
 interface ExportButtonProps {
   childId: string;
@@ -95,88 +97,113 @@ function ExportModal({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-lg">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold">Export Analytics Data</h2>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-muted transition-colors"
-            aria-label="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Only close if clicking on the backdrop, not on the card
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
 
-        <div className="space-y-4 mb-6">
-          {dateFrom && dateTo && (
-            <div className="p-3 bg-muted rounded-lg text-sm">
-              <p className="font-medium mb-1">Date Range:</p>
-              <p className="text-muted-foreground">
-                {dateFrom.toLocaleDateString()} - {dateTo.toLocaleDateString()}
-              </p>
+  return (
+    <FocusTrap active={isOpen} onEscape={onClose}>
+      <div
+        className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="export-modal-title"
+        onClick={handleBackdropClick}
+      >
+        <Card className="w-full max-w-lg">
+          <div className="flex items-center justify-between mb-6">
+            <h2 id="export-modal-title" className="text-2xl font-bold">
+              Export Analytics Data
+            </h2>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg hover:bg-muted transition-colors"
+              aria-label="Close export dialog"
+              type="button"
+            >
+              <X className="w-5 h-5" aria-hidden="true" />
+            </button>
+          </div>
+
+          <div className="space-y-4 mb-6">
+            {dateFrom && dateTo && (
+              <div className="p-3 bg-muted rounded-lg text-sm">
+                <p className="font-medium mb-1">Date Range:</p>
+                <p className="text-muted-foreground">
+                  {dateFrom.toLocaleDateString()} -{" "}
+                  {dateTo.toLocaleDateString()}
+                </p>
+              </div>
+            )}
+
+            <p className="text-muted-foreground">
+              Choose what data to export to CSV:
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <ExportOption
+              onClick={handleExportAttempts}
+              disabled={isExporting}
+              icon={FileText}
+              title="Practice Attempts"
+              description="All spelling attempts with timestamps, words, modes, and results"
+            />
+
+            <ExportOption
+              onClick={handleExportMastered}
+              disabled={isExporting}
+              icon={Award}
+              title="Mastered Words"
+              description="Words with ease ≥ 2.5 and interval ≥ 7 days (SRS data)"
+            />
+
+            <ExportOption
+              onClick={handleExportSessions}
+              disabled={isExporting}
+              icon={Activity}
+              title="Session Analytics"
+              description="Daily session summaries with accuracy and time-on-task"
+            />
+
+            <ExportOption
+              onClick={handleExportAll}
+              disabled={isExporting}
+              icon={Download}
+              title="Export All"
+              description="Download all three datasets as separate CSV files"
+              variant="primary"
+            />
+          </div>
+
+          <div className="mt-6 flex justify-end gap-3">
+            <Button
+              size={buttonSize}
+              variant="outline"
+              onClick={onClose}
+              disabled={isExporting}
+            >
+              Cancel
+            </Button>
+          </div>
+
+          {isExporting && (
+            <div
+              className="mt-4 p-3 bg-primary/10 rounded-lg text-sm text-center"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              <p className="font-medium">Preparing export...</p>
+              <VisuallyHidden>Exporting data. Please wait.</VisuallyHidden>
             </div>
           )}
-
-          <p className="text-muted-foreground">
-            Choose what data to export to CSV:
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          <ExportOption
-            onClick={handleExportAttempts}
-            disabled={isExporting}
-            icon={FileText}
-            title="Practice Attempts"
-            description="All spelling attempts with timestamps, words, modes, and results"
-          />
-
-          <ExportOption
-            onClick={handleExportMastered}
-            disabled={isExporting}
-            icon={Award}
-            title="Mastered Words"
-            description="Words with ease ≥ 2.5 and interval ≥ 7 days (SRS data)"
-          />
-
-          <ExportOption
-            onClick={handleExportSessions}
-            disabled={isExporting}
-            icon={Activity}
-            title="Session Analytics"
-            description="Daily session summaries with accuracy and time-on-task"
-          />
-
-          <ExportOption
-            onClick={handleExportAll}
-            disabled={isExporting}
-            icon={Download}
-            title="Export All"
-            description="Download all three datasets as separate CSV files"
-            variant="primary"
-          />
-        </div>
-
-        <div className="mt-6 flex justify-end gap-3">
-          <Button
-            size={buttonSize}
-            variant="outline"
-            onClick={onClose}
-            disabled={isExporting}
-          >
-            Cancel
-          </Button>
-        </div>
-
-        {isExporting && (
-          <div className="mt-4 p-3 bg-primary/10 rounded-lg text-sm text-center">
-            <p className="font-medium">Preparing export...</p>
-          </div>
-        )}
-      </Card>
-    </div>
+        </Card>
+      </div>
+    </FocusTrap>
   );
 }
 
@@ -235,8 +262,9 @@ export function ExportButton({
         variant="secondary"
         onClick={handleOpenModal}
         disabled={!childId}
+        aria-label="Open export analytics data dialog"
       >
-        <Download className="w-4 h-4 mr-2" />
+        <Download className="w-4 h-4 mr-2" aria-hidden="true" />
         Export Data
       </Button>
 

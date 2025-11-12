@@ -93,18 +93,18 @@ function ListCard({
         {/* Metadata Section */}
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <List size={16} />
+            <List size={16} aria-hidden="true" />
             <span>{list.word_count || 0} words</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Calendar size={16} />
+            <Calendar size={16} aria-hidden="true" />
             <span>
               Week Start:{" "}
               {list.week_start_date ? formatDate(list.week_start_date) : "—"}
             </span>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Calendar size={16} />
+            <Calendar size={16} aria-hidden="true" />
             <span>Created: {formatDate(list.created_at)}</span>
           </div>
         </div>
@@ -119,11 +119,17 @@ function ListCard({
                 onClick={handleDeleteConfirm}
                 disabled={isDeleting}
                 className="flex items-center gap-2"
+                aria-label={`Confirm deletion of ${list.title}`}
               >
-                <Trash2 size={16} />
+                <Trash2 size={16} aria-hidden="true" />
                 {isDeleting ? "Deleting..." : "Confirm Delete"}
               </Button>
-              <Button size="sm" variant="outline" onClick={handleDeleteCancel}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleDeleteCancel}
+                aria-label="Cancel deletion"
+              >
                 Cancel
               </Button>
             </>
@@ -135,8 +141,9 @@ function ListCard({
                   buttonVariants({ variant: "outline", size: "sm" }),
                   "flex items-center gap-2"
                 )}
+                aria-label={`Edit ${list.title} list`}
               >
-                <Edit size={16} />
+                <Edit size={16} aria-hidden="true" />
                 Edit
               </Link>
               <Button
@@ -145,8 +152,9 @@ function ListCard({
                 onClick={handleDuplicate}
                 disabled={isDuplicating}
                 className="flex items-center gap-2"
+                aria-label={`Duplicate ${list.title} list`}
               >
-                <Copy size={16} />
+                <Copy size={16} aria-hidden="true" />
                 {isDuplicating ? "Duplicating..." : "Duplicate"}
               </Button>
               <Button
@@ -154,8 +162,9 @@ function ListCard({
                 variant="outline"
                 onClick={handleDeleteRequest}
                 className="flex items-center gap-2"
+                aria-label={`Delete ${list.title} list`}
               >
-                <Trash2 size={16} />
+                <Trash2 size={16} aria-hidden="true" />
                 Delete
               </Button>
             </>
@@ -181,8 +190,9 @@ function ListsHeader() {
           buttonVariants({ size: "default" }),
           "flex items-center gap-2"
         )}
+        aria-label="Create a new spelling word list"
       >
-        <Plus size={20} />
+        <Plus size={20} aria-hidden="true" />
         New List
       </Link>
     </div>
@@ -230,13 +240,19 @@ function ListsContent({
               <Search
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                 size={24}
+                aria-hidden="true"
               />
+              <label htmlFor="search-input" className="sr-only">
+                Search lists by title
+              </label>
               <input
+                id="search-input"
                 type="text"
                 placeholder="Search by list title..."
                 value={searchTerm}
                 onChange={handleSearchChange}
                 className="w-full pl-12 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
+                aria-label="Search lists by title"
               />
             </div>
 
@@ -289,7 +305,11 @@ function ListsContent({
         /* Enhanced Empty State */
         <Card>
           <div className="text-center py-16 space-y-4">
-            <List size={48} className="mx-auto text-muted-foreground" />
+            <List
+              size={48}
+              className="mx-auto text-muted-foreground"
+              aria-hidden="true"
+            />
             {searchTerm ? (
               <>
                 <h3 className="text-xl font-bold">
@@ -315,8 +335,9 @@ function ListsContent({
                     buttonVariants({ size: "default" }),
                     "flex items-center gap-2 mx-auto"
                   )}
+                  aria-label="Create your first spelling word list"
                 >
-                  <Plus size={20} />
+                  <Plus size={20} aria-hidden="true" />
                   Create Your First List
                 </Link>
               </>

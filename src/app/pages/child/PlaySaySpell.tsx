@@ -4,6 +4,7 @@ import { AppShell } from "@/app/components/AppShell";
 import { Card } from "@/app/components/Card";
 import { Button } from "@/app/components/Button";
 import { RewardStar } from "@/app/components/RewardStar";
+import { VisuallyHidden } from "@/app/components/VisuallyHidden";
 import { Volume2, Mic, CheckCircle, XCircle, Home } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/app/supabase";
@@ -55,7 +56,11 @@ function RecordStep({
 
         {/* Display error message if recording fails */}
         {error && (
-          <div className="mb-6 p-4 bg-destructive/10 border-2 border-destructive rounded-lg">
+          <div
+            className="mb-6 p-4 bg-destructive/10 border-2 border-destructive rounded-lg"
+            role="alert"
+            aria-live="assertive"
+          >
             <p className="text-xl font-semibold text-destructive mb-2">
               Recording Error
             </p>
@@ -75,6 +80,7 @@ function RecordStep({
           onClick={playWord}
           size="child"
           className="w-64 flex items-center justify-center gap-3 mb-6"
+          aria-label="Play word to hear pronunciation"
         >
           <Volume2 size={32} />
           <span>Play Word</span>
@@ -89,6 +95,7 @@ function RecordStep({
             onClick={handleStartRecording}
             size="child"
             className="w-64 mx-auto flex items-center justify-center gap-3 bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+            aria-label="Start recording your spelling"
           >
             <Mic size={32} />
             <span>Start Recording</span>
@@ -98,9 +105,9 @@ function RecordStep({
         {isRecording && (
           <div className="space-y-4">
             <div className="animate-pulse text-destructive">
-              <Mic size={64} className="mx-auto" />
+              <Mic size={64} className="mx-auto" aria-hidden="true" />
             </div>
-            <p className="text-xl text-muted-foreground">
+            <p className="text-xl text-muted-foreground" aria-live="polite">
               Recording... (3 seconds)
             </p>
           </div>
@@ -108,8 +115,14 @@ function RecordStep({
 
         {audioBlob && (
           <div className="space-y-4">
-            <CheckCircle size={48} className="mx-auto text-secondary" />
-            <p className="text-xl text-muted-foreground">Recording saved!</p>
+            <CheckCircle
+              size={48}
+              className="mx-auto text-secondary"
+              aria-hidden="true"
+            />
+            <p className="text-xl text-muted-foreground" aria-live="polite">
+              Recording saved!
+            </p>
           </div>
         )}
       </div>
@@ -146,6 +159,8 @@ function TypeStep({
   audioBlobId: number | null;
   isSaving: boolean;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setAnswer(e.target.value);
@@ -167,11 +182,24 @@ function TypeStep({
     [answer, feedback, checkAnswer, isSaving]
   );
 
+  // Auto-focus input when step changes to 'type'
+  useEffect(() => {
+    if (feedback === null && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [currentWord, feedback]);
+
   return (
     <div className="space-y-4">
       <p className="text-2xl text-muted-foreground">Now type the spelling:</p>
 
+      <VisuallyHidden as="label" htmlFor="spelling-input-say">
+        Type the spelling you just recorded
+      </VisuallyHidden>
+
       <input
+        ref={inputRef}
+        id="spelling-input-say"
         type="text"
         value={answer}
         onChange={handleInputChange}
@@ -179,10 +207,11 @@ function TypeStep({
         className={`w-full text-4xl text-center px-6 py-4 border-4 border-primary rounded-2xl focus:ring-4 focus:ring-ring focus:border-primary font-bold bg-input ${isSaving ? "opacity-50" : ""}`}
         placeholder="Type here..."
         disabled={feedback === "correct" || isSaving}
+        aria-describedby={showHint > 0 ? "hint-text-say" : undefined}
       />
 
       {showHint > 0 && feedback === "wrong" && (
-        <div className="text-center">
+        <div className="text-center" id="hint-text-say">
           {showHint === 1 && (
             <p className="text-2xl text-secondary">
               Hint: It starts with &quot;{currentWord?.text[0].toUpperCase()}
@@ -270,10 +299,13 @@ function GameHeader({ starsEarned }: { starsEarned: number }) {
           <span>Home</span>
         </Button>
       </Link>
-      <div className="flex gap-2">
-        {stars.map((star) => (
-          <RewardStar key={star.id} filled={star.filled} size="lg" />
-        ))}
+      <div className="flex gap-2" aria-live="polite" aria-atomic="true">
+        <VisuallyHidden>Stars earned: {starsEarned} out of 5</VisuallyHidden>
+        <div className="flex gap-2" aria-hidden="true">
+          {stars.map((star) => (
+            <RewardStar key={star.id} filled={star.filled} size="lg" />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -289,7 +321,7 @@ function GameProgress({
   total: number;
 }) {
   return (
-    <div className="text-center">
+    <div className="text-center" aria-live="polite" aria-atomic="true">
       <p className="text-2xl font-bold">{listTitle}</p>
       <p className="text-xl text-muted-foreground mt-2">
         Word {currentIndex + 1} of {total}
@@ -371,6 +403,13 @@ function GameContent({
         currentIndex={currentWordIndex}
         total={listData.words.length}
       />
+
+      {/* Announce step transitions for screen readers */}
+      <VisuallyHidden aria-live="polite">
+        {step === "record"
+          ? "Now recording your spelling"
+          : "Now type your spelling"}
+      </VisuallyHidden>
 
       <Card variant="child">
         <div className="text-center space-y-8">
@@ -494,7 +533,12 @@ function NoListSelected() {
   if (error) {
     return (
       <AppShell title="Say & Spell" variant="child">
-        <Card variant="child" className="max-w-3xl mx-auto">
+        <Card
+          variant="child"
+          role="alert"
+          aria-live="assertive"
+          className="max-w-3xl mx-auto"
+        >
           <div className="text-center space-y-6">
             <h3 className="text-3xl font-bold text-destructive">
               Error Loading Lists
@@ -522,7 +566,7 @@ function NoListSelected() {
     return (
       <AppShell title="Say & Spell" variant="child">
         <Card variant="child" className="max-w-3xl mx-auto">
-          <div className="text-center">
+          <div className="text-center" aria-live="polite">
             <p className="text-2xl">Loading lists...</p>
           </div>
         </Card>
@@ -591,7 +635,9 @@ function ListCard({
   return (
     <Card
       variant="child"
-      className="cursor-pointer hover:shadow-lg transition-shadow"
+      role="button"
+      tabIndex={0}
+      aria-label={`Practice ${list.title}, ${list.word_count} words`}
       onClick={handleClick}
     >
       <div className="text-center space-y-4">

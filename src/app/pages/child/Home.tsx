@@ -1,6 +1,7 @@
 import { AppShell } from "@/app/components/AppShell";
 import { Card } from "@/app/components/Card";
 import { Button } from "@/app/components/Button";
+import { VisuallyHidden } from "@/app/components/VisuallyHidden";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Headphones,
@@ -117,6 +118,7 @@ function ListProgressCard({
           size="child"
           onClick={handleContinue}
           className="ml-4"
+          aria-label={`Continue practicing ${list.title} in ${list.last_mode} mode`}
         >
           Continue
         </Button>
@@ -190,7 +192,7 @@ function DueWordsSection({
   return (
     <Card variant="child">
       <div className="flex items-center gap-3 mb-4">
-        <Calendar className="text-primary" size={28} />
+        <Calendar className="text-primary" size={28} aria-hidden="true" />
         <h3 className="text-2xl font-bold">Due Today</h3>
       </div>
       <p className="text-lg text-muted-foreground mb-4">
@@ -261,33 +263,51 @@ function NextUpCounter({ childId }: { childId: string }) {
   return (
     <Card variant="child">
       <div className="flex items-center gap-4 mb-4">
-        <Target className="text-primary" size={32} />
+        <Target className="text-primary" size={32} aria-hidden="true" />
         <h3 className="text-3xl font-bold">Next Up</h3>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="text-center p-4 bg-primary/10 rounded-xl">
-          <p className="text-4xl font-bold text-primary">{dueCount}</p>
+          <VisuallyHidden>{dueCount} words due for review</VisuallyHidden>
+          <div className="text-4xl font-bold text-primary" aria-hidden="true">
+            {dueCount}
+          </div>
           <p className="text-lg text-muted-foreground mt-1">Due</p>
         </div>
 
         {leechCount > 0 && (
           <div className="text-center p-4 bg-destructive/10 rounded-xl">
-            <p className="text-4xl font-bold text-destructive">{leechCount}</p>
+            <VisuallyHidden>{leechCount} words need work</VisuallyHidden>
+            <div
+              className="text-4xl font-bold text-destructive"
+              aria-hidden="true"
+            >
+              {leechCount}
+            </div>
             <p className="text-lg text-muted-foreground mt-1">Needs Work</p>
           </div>
         )}
 
         {reviewCount > 0 && (
           <div className="text-center p-4 bg-secondary/10 rounded-xl">
-            <p className="text-4xl font-bold text-secondary">{reviewCount}</p>
+            <VisuallyHidden>{reviewCount} words for review</VisuallyHidden>
+            <div
+              className="text-4xl font-bold text-secondary"
+              aria-hidden="true"
+            >
+              {reviewCount}
+            </div>
             <p className="text-lg text-muted-foreground mt-1">Review</p>
           </div>
         )}
 
         {newCount > 0 && (
           <div className="text-center p-4 bg-accent/10 rounded-xl">
-            <p className="text-4xl font-bold text-accent">{newCount}</p>
+            <VisuallyHidden>{newCount} new words</VisuallyHidden>
+            <div className="text-4xl font-bold text-accent" aria-hidden="true">
+              {newCount}
+            </div>
             <p className="text-lg text-muted-foreground mt-1">New</p>
           </div>
         )}
@@ -362,10 +382,9 @@ export function ChildHome() {
           const progress = (correctWords.size / wordCount) * 100;
 
           // Get the most recent mode used
-          const lastMode =
-            attempts?.length
-              ? (attempts[0].mode as "listen-type" | "say-spell")
-              : undefined;
+          const lastMode = attempts?.length
+            ? (attempts[0].mode as "listen-type" | "say-spell")
+            : undefined;
 
           return {
             id: list.id,
@@ -382,9 +401,12 @@ export function ChildHome() {
     enabled: Boolean(profile?.id),
   });
 
-  const handleContinueList = useCallback((listId: string, mode: string) => {
-    navigate(`/child/play/${mode}?listId=${listId}`);
-  }, [navigate]);
+  const handleContinueList = useCallback(
+    (listId: string, mode: string) => {
+      navigate(`/child/play/${mode}?listId=${listId}`);
+    },
+    [navigate]
+  );
 
   const handleBackToParent = useCallback(() => {
     navigate("/parent/dashboard");

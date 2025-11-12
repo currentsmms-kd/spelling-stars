@@ -4,6 +4,8 @@ import { parentNavItems, childNavItems } from "./navItems";
 import { useAuth } from "../hooks/useAuth";
 import { SyncStatusBadge } from "./SyncStatusBadge";
 import { NetworkStatusIndicator } from "./NetworkStatusIndicator";
+import { SkipLink } from "./SkipLink";
+import { VisuallyHidden } from "./VisuallyHidden";
 
 interface AppShellProps {
   children: ReactNode;
@@ -22,15 +24,24 @@ export function AppShell({
 
   return (
     <div className="h-screen flex flex-col">
-      <TopBar
-        title={title}
-        isChild={isChild}
-        onLogout={signOut}
-        syncBadge={<SyncStatusBadge variant={variant} />}
-      />
+      <SkipLink href="#main-content">Skip to main content</SkipLink>
+      <header role="banner">
+        <TopBar
+          title={title}
+          isChild={isChild}
+          onLogout={signOut}
+          syncBadge={<SyncStatusBadge variant={variant} />}
+        />
+      </header>
+      <VisuallyHidden as="h1">{title}</VisuallyHidden>
       <div className="flex-1 flex overflow-hidden">
         <NavRail items={navItems} isChild={isChild} />
-        <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8 bg-background">
+        <main
+          id="main-content"
+          role="main"
+          tabIndex={-1}
+          className="flex-1 overflow-auto p-4 md:p-6 lg:p-8 bg-background focus:outline-none"
+        >
           {children}
         </main>
       </div>
