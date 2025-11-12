@@ -7,6 +7,8 @@ import { useAuth } from "@/app/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/app/supabase";
 import { logger } from "@/lib/logger";
+import { toast } from "react-hot-toast";
+import { Toast } from "@/app/components/Toast";
 
 interface ChildProfile {
   id: string;
@@ -292,6 +294,11 @@ export function ChildManagement() {
 
       if (error) {
         logger.error("Error fetching children:", error);
+        logger.metrics.errorCaptured({
+          context: "ChildManagement.fetchChildren",
+          message: error instanceof Error ? error.message : "Unknown error",
+          severity: "warning",
+        });
         throw error;
       }
 
@@ -363,6 +370,13 @@ export function ChildManagement() {
       return authData.user;
     },
     onSuccess: () => {
+      toast.custom((t) => (
+        <Toast
+          type="success"
+          message="Child account created successfully"
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
       queryClient.invalidateQueries({ queryKey: ["children"] });
       setShowAddForm(false);
       setChildUsername("");
@@ -373,6 +387,11 @@ export function ChildManagement() {
     },
     onError: (error) => {
       logger.error("Error creating child account:", error);
+      logger.metrics.errorCaptured({
+        context: "ChildManagement.createChild",
+        message: error instanceof Error ? error.message : "Unknown error",
+        severity: "error",
+      });
 
       // Provide user-friendly error messages
       let errorMessage = "Failed to create child account";
@@ -396,8 +415,13 @@ export function ChildManagement() {
         }
       }
 
-      logger.error(errorMessage);
-      // TODO: Add toast notification system for better UX
+      toast.custom((t) => (
+        <Toast
+          type="error"
+          message={errorMessage}
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
     },
   });
 
@@ -413,15 +437,31 @@ export function ChildManagement() {
       if (error) throw error;
     },
     onSuccess: () => {
+      toast.custom((t) => (
+        <Toast
+          type="success"
+          message="Child account deleted successfully"
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
       queryClient.invalidateQueries({ queryKey: ["children"] });
       setDeleteConfirm(null);
       logger.info("Child account deleted successfully");
     },
     onError: (error) => {
       logger.error("Error deleting child account:", error);
-      // Using logger.error instead of alert for better UX
-      // TODO: Add toast notification system
-      logger.error(`Failed to delete child account: ${error.message}`);
+      logger.metrics.errorCaptured({
+        context: "ChildManagement.deleteChild",
+        message: error instanceof Error ? error.message : "Unknown error",
+        severity: "error",
+      });
+      toast.custom((t) => (
+        <Toast
+          type="error"
+          message={`Failed to delete child account: ${error.message}`}
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
     },
   });
 

@@ -129,6 +129,7 @@ function TypeStep({
   showConfetti,
   isOnline,
   audioBlobId,
+  isSaving,
 }: {
   answer: string;
   setAnswer: (value: string) => void;
@@ -142,6 +143,7 @@ function TypeStep({
   showConfetti: boolean;
   isOnline: boolean;
   audioBlobId: number | null;
+  isSaving: boolean;
 }) {
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -152,11 +154,16 @@ function TypeStep({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter" && answer.trim() && feedback === null) {
+      if (
+        e.key === "Enter" &&
+        answer.trim() &&
+        feedback === null &&
+        !isSaving
+      ) {
         checkAnswer();
       }
     },
-    [answer, feedback, checkAnswer]
+    [answer, feedback, checkAnswer, isSaving]
   );
 
   return (
@@ -168,9 +175,9 @@ function TypeStep({
         value={answer}
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
-        className="w-full text-4xl text-center px-6 py-4 border-4 border-primary rounded-2xl focus:ring-4 focus:ring-ring focus:border-primary font-bold bg-input"
+        className={`w-full text-4xl text-center px-6 py-4 border-4 border-primary rounded-2xl focus:ring-4 focus:ring-ring focus:border-primary font-bold bg-input ${isSaving ? "opacity-50" : ""}`}
         placeholder="Type here..."
-        disabled={feedback === "correct"}
+        disabled={feedback === "correct" || isSaving}
       />
 
       {showHint > 0 && feedback === "wrong" && (
@@ -195,9 +202,16 @@ function TypeStep({
             onClick={checkAnswer}
             size="child"
             className="w-full"
-            disabled={!answer.trim() || (!isOnline && !audioBlobId)}
+            disabled={!answer.trim() || (!isOnline && !audioBlobId) || isSaving}
           >
-            Check Answer
+            {isSaving ? (
+              <span className="flex items-center gap-2">
+                <span className="animate-spin">⏳</span>
+                Saving...
+              </span>
+            ) : (
+              "Check Answer"
+            )}
           </Button>
           <Button
             onClick={redoRecording}
@@ -306,6 +320,7 @@ function GameContent({
   isOnline,
   audioBlobId,
   clearRecording,
+  isSaving,
 }: {
   listData: ListWithWords;
   currentWordIndex: number;
@@ -329,6 +344,7 @@ function GameContent({
   isOnline: boolean;
   audioBlobId: number | null;
   clearRecording: () => void;
+  isSaving: boolean;
 }) {
   const { profile } = useAuth();
 
@@ -382,16 +398,11 @@ function GameContent({
               showConfetti={showConfetti}
               isOnline={isOnline}
               audioBlobId={audioBlobId}
+              isSaving={isSaving}
             />
           )}
         </div>
       </Card>
-
-      {!isOnline && (
-        <div className="text-center text-accent-foreground text-lg">
-          📡 Offline mode - progress will sync when online
-        </div>
-      )}
     </div>
   );
 }
@@ -456,6 +467,16 @@ function NoListSelected() {
   }, [refetch]);
 
   if (error) {
+    // Add error telemetry
+    logger.metrics.errorCaptured({
+      context: "PlaySaySpell.loadLists",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Failed to load spelling lists",
+      severity: "warning",
+    });
+
     return (
       <AppShell title="Say & Spell" variant="child">
         <Card variant="child" className="max-w-3xl mx-auto">
@@ -741,7 +762,17 @@ export function PlaySaySpell() {
         }
       }
     },
+    onError: (error) => {
+      logger.error("Error saving attempt:", error);
+      logger.metrics.errorCaptured({
+        context: "PlaySaySpell.saveAttempt",
+        message: error instanceof Error ? error.message : "Unknown error",
+        severity: "error",
+      });
+    },
   });
+
+  const isSaving = saveAttemptMutation.isPending;
 
   const currentWord = listData?.words[currentWordIndex];
 
@@ -1070,6 +1101,7 @@ export function PlaySaySpell() {
         isOnline={isOnline}
         audioBlobId={audioBlobId}
         clearRecording={clearRecording}
+        isSaving={isSaving}
       />
     </AppShell>
   );

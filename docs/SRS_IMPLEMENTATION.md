@@ -32,9 +32,12 @@ Created in migration `20241109000004_add_srs_table.sql`
 
 **Indexes:**
 
-- `idx_srs_child_due` on (child_id, due_date)
-- `idx_srs_child_word` on (child_id, word_id)
-- `idx_srs_due_date` on (due_date)
+- `idx_srs_child_due` on (child_id, due_date) - Used by due word queries
+- `idx_srs_last_reviewed` on (last_reviewed) - Used by leech detection (added in D3 features)
+
+**Note:** The UNIQUE constraint on (child_id, word_id) automatically creates an index (srs_child_id_word_id_key) used for lookups and upsert operations.
+
+**Index Strategy:** The composite index on (child_id, due_date) is optimal because all queries filter by child_id first (for RLS and data isolation), then optionally by due_date. A standalone due_date index would never be used by the query planner. The unique constraint's backing index handles all (child_id, word_id) lookups efficiently.
 
 **RLS Policies:**
 
@@ -163,6 +166,10 @@ supabase db push
 .\push-migration.ps1
 ```
 
+### Index Optimization (November 2025)
+
+After monitoring index usage, two unused/redundant indexes were removed in migration `20251111000000_drop_unused_srs_indexes.sql` to improve write performance. All queries continue to function optimally using the remaining indexes.
+
 ## Testing Recommendations
 
 1. Practice words in both game modes to create SRS entries
@@ -171,6 +178,8 @@ supabase db push
 4. Check parent dashboard shows hardest words and most lapsed words
 5. Test that ease increases on correct answers and decreases on misses
 6. Verify intervals increase appropriately (1 day first time, then multiplied by ease)
+7. Verify that SRS queries use the correct indexes by checking query execution plans
+8. Monitor index usage with database health checks to ensure optimal performance
 
 ## Future Enhancements
 

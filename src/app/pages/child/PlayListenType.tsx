@@ -39,6 +39,7 @@ interface AnswerSectionProps {
   onCheckAnswer: () => void;
   onRetry: () => void;
   onNextWord: () => void;
+  isSaving: boolean;
 }
 
 interface GameHeaderProps {
@@ -66,7 +67,7 @@ interface GameContentProps {
   onCheckAnswer: () => void;
   onRetry: () => void;
   onNextWord: () => void;
-  isOnline: boolean;
+  isSaving: boolean;
 }
 
 interface PlayWordButtonProps {
@@ -147,6 +148,16 @@ function ListSelector() {
   );
 
   if (error) {
+    // Add error telemetry
+    logger.metrics.errorCaptured({
+      context: "PlayListenType.loadLists",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Failed to load spelling lists",
+      severity: "warning",
+    });
+
     return (
       <Card variant="child">
         <div className="text-center space-y-6">
@@ -304,7 +315,7 @@ function GameContent({
   onCheckAnswer,
   onRetry,
   onNextWord,
-  isOnline,
+  isSaving,
 }: GameContentProps) {
   const { profile } = useAuth();
 
@@ -345,15 +356,10 @@ function GameContent({
             onCheckAnswer={onCheckAnswer}
             onRetry={onRetry}
             onNextWord={onNextWord}
+            isSaving={isSaving}
           />
         </div>
       </Card>
-
-      {!isOnline && (
-        <div className="text-center text-accent-foreground text-lg">
-          📡 Offline mode - progress will sync when online
-        </div>
-      )}
     </div>
   );
 }
@@ -368,6 +374,7 @@ function AnswerSection({
   onCheckAnswer,
   onRetry,
   onNextWord,
+  isSaving,
 }: AnswerSectionProps) {
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -378,11 +385,16 @@ function AnswerSection({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter" && answer.trim() && feedback === null) {
+      if (
+        e.key === "Enter" &&
+        answer.trim() &&
+        feedback === null &&
+        !isSaving
+      ) {
         onCheckAnswer();
       }
     },
-    [answer, feedback, onCheckAnswer]
+    [answer, feedback, onCheckAnswer, isSaving]
   );
 
   return (
@@ -392,9 +404,9 @@ function AnswerSection({
         value={answer}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        className="w-full text-4xl text-center px-6 py-4 border-4 border-primary rounded-2xl focus:ring-4 focus:ring-ring focus:border-primary font-bold bg-input"
+        className={`w-full text-4xl text-center px-6 py-4 border-4 border-primary rounded-2xl focus:ring-4 focus:ring-ring focus:border-primary font-bold bg-input ${isSaving ? "opacity-50" : ""}`}
         placeholder="Type here..."
-        disabled={feedback === "correct"}
+        disabled={feedback === "correct" || isSaving}
       />
 
       {/* Hints */}
@@ -419,9 +431,16 @@ function AnswerSection({
           onClick={onCheckAnswer}
           size="child"
           className="w-full"
-          disabled={!answer.trim()}
+          disabled={!answer.trim() || isSaving}
         >
-          Check Answer
+          {isSaving ? (
+            <span className="flex items-center gap-2">
+              <span className="animate-spin">⏳</span>
+              Saving...
+            </span>
+          ) : (
+            "Check Answer"
+          )}
         </Button>
       )}
 
@@ -432,6 +451,21 @@ function AnswerSection({
             <p className="text-4xl font-bold">Correct! 🎉</p>
           </div>
           {showConfetti && <div className="text-6xl animate-bounce">⭐</div>}
+          <Button
+            onClick={onNextWord}
+            size="child"
+            className="w-full"
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <span className="flex items-center gap-2">
+                <span className="animate-spin">⏳</span>
+                Saving...
+              </span>
+            ) : (
+              "Next Word →"
+            )}
+          </Button>
         </div>
       )}
 
@@ -577,7 +611,17 @@ export function PlayListenType() {
         }
       }
     },
+    onError: (error) => {
+      logger.error("Error saving attempt:", error);
+      logger.metrics.errorCaptured({
+        context: "PlayListenType.saveAttempt",
+        message: error instanceof Error ? error.message : "Unknown error",
+        severity: "error",
+      });
+    },
   });
+
+  const isSaving = saveAttemptMutation.isPending;
 
   const currentWord = listData?.words[currentWordIndex];
 
@@ -711,15 +755,15 @@ export function PlayListenType() {
         setStarsEarned((prev) => prev + 1);
       }
 
-      // Save attempt with quality
-      await saveAttemptMutation.mutateAsync({
+      // Save attempt with quality (async, don't block UI)
+      saveAttemptMutation.mutate({
         wordId: currentWord.id,
         correct: true,
         typedAnswer: answer,
         quality,
       });
 
-      // Update SRS: first-try correct
+      // Update SRS: first-try correct (async, don't block UI)
       if (isOnline) {
         updateSrs.mutate({
           childId: profile.id,
@@ -727,30 +771,33 @@ export function PlayListenType() {
           isCorrectFirstTry: !hasTriedOnce,
         });
       } else {
-        await queueSrsUpdate(profile.id, currentWord.id, !hasTriedOnce);
+        queueSrsUpdate(profile.id, currentWord.id, !hasTriedOnce);
       }
 
-      // Move to next word after delay
-      console.log("[PlayListenType] Answer correct, scheduling nextWord in 2s");
+      // Move to next word after delay (auto-advance in 5 seconds)
+      // User can also click "Next Word" button to proceed immediately
+      console.log(
+        "[PlayListenType] Answer correct, scheduling auto-advance in 5s"
+      );
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
       timeoutRef.current = setTimeout(() => {
         nextWord();
-      }, 2000);
+      }, 5000);
     } else {
       setFeedback("wrong");
       setHasTriedOnce(true);
 
-      // Save incorrect attempt with quality
-      await saveAttemptMutation.mutateAsync({
+      // Save incorrect attempt with quality (async, don't block UI)
+      saveAttemptMutation.mutate({
         wordId: currentWord.id,
         correct: false,
         typedAnswer: answer,
         quality,
       });
 
-      // Update SRS: not first-try correct (miss)
+      // Update SRS: not first-try correct (miss) (async, don't block UI)
       if (isOnline && !hasTriedOnce) {
         // Only update SRS on first miss, not subsequent retries
         updateSrs.mutate({
@@ -759,7 +806,7 @@ export function PlayListenType() {
           isCorrectFirstTry: false,
         });
       } else if (!isOnline && !hasTriedOnce) {
-        await queueSrsUpdate(profile.id, currentWord.id, false);
+        queueSrsUpdate(profile.id, currentWord.id, false);
       }
 
       // Show hint progressively
@@ -818,7 +865,7 @@ export function PlayListenType() {
         onCheckAnswer={checkAnswer}
         onRetry={retry}
         onNextWord={nextWord}
-        isOnline={isOnline}
+        isSaving={isSaving}
       />
     </AppShell>
   );

@@ -10,14 +10,56 @@ Checking: Unused indexes
 [
   {
     "schemaname": "public",
+    "tablename": "attempts",
+    "indexname": "idx_attempts_list_id",
+    "scans": 0
+  },
+  {
+    "schemaname": "public",
+    "tablename": "attempts",
+    "indexname": "idx_attempts_quality",
+    "scans": 0
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profiles",
+    "indexname": "idx_profiles_last_active",
+    "scans": 0
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profiles",
+    "indexname": "idx_profiles_parent_id",
+    "scans": 0
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profiles",
+    "indexname": "idx_profiles_stars",
+    "scans": 0
+  },
+  {
+    "schemaname": "public",
+    "tablename": "rewards_catalog",
+    "indexname": "idx_rewards_catalog_active",
+    "scans": 0
+  },
+  {
+    "schemaname": "public",
     "tablename": "srs",
-    "indexname": "idx_srs_due_date",
+    "indexname": "idx_srs_last_reviewed",
     "scans": 0
   },
   {
     "schemaname": "public",
     "tablename": "srs",
     "indexname": "srs_child_id_word_id_key",
+    "scans": 0
+  },
+  {
+    "schemaname": "public",
+    "tablename": "user_rewards",
+    "indexname": "idx_user_rewards_user",
     "scans": 0
   }
 ]
@@ -39,12 +81,32 @@ Checking: Table sizes
 [
   {
     "schemaname": "public",
+    "tablename": "profiles",
+    "size": "80 kB"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "user_rewards",
+    "size": "72 kB"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "rewards_catalog",
+    "size": "64 kB"
+  },
+  {
+    "schemaname": "public",
     "tablename": "words",
     "size": "64 kB"
   },
   {
     "schemaname": "public",
-    "tablename": "word_lists",
+    "tablename": "list_words",
+    "size": "56 kB"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "parental_settings",
     "size": "48 kB"
   },
   {
@@ -54,33 +116,23 @@ Checking: Table sizes
   },
   {
     "schemaname": "public",
+    "tablename": "word_lists",
+    "size": "48 kB"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "attempts",
+    "size": "48 kB"
+  },
+  {
+    "schemaname": "public",
     "tablename": "srs",
-    "size": "40 kB"
-  },
-  {
-    "schemaname": "public",
-    "tablename": "list_words",
-    "size": "40 kB"
-  },
-  {
-    "schemaname": "public",
-    "tablename": "profiles",
     "size": "32 kB"
   },
   {
     "schemaname": "public",
     "tablename": "rewards",
     "size": "32 kB"
-  },
-  {
-    "schemaname": "public",
-    "tablename": "parental_settings",
-    "size": "24 kB"
-  },
-  {
-    "schemaname": "public",
-    "tablename": "attempts",
-    "size": "24 kB"
   },
   {
     "schemaname": "public",
@@ -99,13 +151,53 @@ Checking: Security definer functions
 [
   {
     "schema": "public",
+    "function_name": "award_stars",
+    "definition": "CREATE OR REPLACE FUNCTION public.award_stars(p_user_id uuid, p_amount integer, p_reason text DEFAULT 'practice'::text)\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n    v_new_total INTEGER;\r\nBEGIN\r\n    -- Add stars to profile\r\n    UPDATE profiles\r\n    SET stars = stars + p_amount\r\n    WHERE id = p_user_id\r\n    RETURNING stars INTO v_new_total;\r\n    \r\n    RETURN v_new_total;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "equip_reward",
+    "definition": "CREATE OR REPLACE FUNCTION public.equip_reward(p_user_id uuid, p_reward_id uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n    v_reward_type TEXT;\r\n    v_reward_icon TEXT;\r\nBEGIN\r\n    -- Check if user owns this reward\r\n    IF NOT EXISTS (\r\n        SELECT 1 FROM user_rewards \r\n        WHERE user_id = p_user_id AND reward_id = p_reward_id\r\n    ) THEN\r\n        RETURN jsonb_build_object(\r\n            'success', false,\r\n            'error', 'Reward not owned'\r\n        );\r\n    END IF;\r\n    \r\n    -- Get reward type\r\n    SELECT type, icon INTO v_reward_type, v_reward_icon\r\n    FROM rewards_catalog\r\n    WHERE id = p_reward_id;\r\n    \r\n    -- Unequip all other rewards of same type for this user\r\n    UPDATE user_rewards\r\n    SET equipped = false\r\n    WHERE user_id = p_user_id\r\n      AND reward_id IN (\r\n          SELECT id FROM rewards_catalog WHERE type = v_reward_type\r\n      );\r\n    \r\n    -- Equip this reward\r\n    UPDATE user_rewards\r\n    SET equipped = true\r\n    WHERE user_id = p_user_id AND reward_id = p_reward_id;\r\n    \r\n    -- Update profile equipped column\r\n    IF v_reward_type = 'avatar' THEN\r\n        UPDATE profiles\r\n        SET equipped_avatar = v_reward_icon\r\n        WHERE id = p_user_id;\r\n    ELSIF v_reward_type = 'theme' THEN\r\n        UPDATE profiles\r\n        SET equipped_theme = v_reward_icon\r\n        WHERE id = p_user_id;\r\n    END IF;\r\n    \r\n    RETURN jsonb_build_object(\r\n        'success', true,\r\n        'reward_type', v_reward_type,\r\n        'equipped', v_reward_icon\r\n    );\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
     "function_name": "fn_add_stars",
-    "definition": "CREATE OR REPLACE FUNCTION public.fn_add_stars(p_child uuid, p_amount integer)\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\r\nDECLARE\r\n    v_new_total INTEGER;\r\nBEGIN\r\n    INSERT INTO rewards (child_id, stars_total)\r\n    VALUES (p_child, p_amount)\r\n    ON CONFLICT (child_id)\r\n    DO UPDATE SET stars_total = rewards.stars_total + p_amount\r\n    RETURNING stars_total INTO v_new_total;\r\n\r\n    RETURN v_new_total;\r\nEND;\r\n$function$\n"
+    "definition": "CREATE OR REPLACE FUNCTION public.fn_add_stars(p_child uuid, p_amount integer)\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\r\nDECLARE\r\n    v_new_total INTEGER;\r\nBEGIN\r\n    INSERT INTO rewards (child_id, stars_total)\r\n    VALUES (p_child, p_amount)\r\n    ON CONFLICT (child_id)\r\n    DO UPDATE SET stars_total = rewards.stars_total + p_amount\r\n    RETURNING stars_total INTO v_new_total;\r\n\r\n    RETURN v_new_total;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "get_children_for_parent",
+    "definition": "CREATE OR REPLACE FUNCTION public.get_children_for_parent(p_parent_id uuid)\n RETURNS TABLE(id uuid, email text, display_name text, created_at timestamp with time zone)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nBEGIN\r\n    RETURN QUERY\r\n    SELECT\r\n        p.id,\r\n        p.email,\r\n        p.display_name,\r\n        p.created_at\r\n    FROM profiles p\r\n    WHERE p.parent_id = p_parent_id\r\n    AND p.role = 'child'\r\n    ORDER BY p.created_at DESC;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "get_parent_overview",
+    "definition": "CREATE OR REPLACE FUNCTION public.get_parent_overview(p_parent_id uuid, p_date_from date DEFAULT NULL::date, p_date_to date DEFAULT NULL::date)\n RETURNS json\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n    v_result JSON;\r\n    v_date_from DATE;\r\n    v_date_to DATE;\r\nBEGIN\r\n    -- Default date range: last 30 days if not specified\r\n    v_date_from := COALESCE(p_date_from, CURRENT_DATE - INTERVAL '30 days');\r\n    v_date_to := COALESCE(p_date_to, CURRENT_DATE);\r\n\r\n    -- Build comprehensive JSON response\r\n    SELECT json_build_object(\r\n        'summary', (\r\n            SELECT json_build_object(\r\n                'total_words_mastered', COUNT(DISTINCT CASE\r\n                    WHEN s.ease >= 2.5 AND s.interval_days >= 7 THEN s.word_id\r\n                END),\r\n                'current_streak_days', (\r\n                    -- Calculate consecutive days with practice\r\n                    SELECT COUNT(DISTINCT DATE(sa.session_date))\r\n                    FROM session_analytics sa\r\n                    WHERE sa.child_id IN (\r\n                        SELECT id FROM profiles\r\n                        WHERE role = 'child' AND created_by = p_parent_id\r\n                    )\r\n                    AND sa.session_date >= (\r\n                        -- Find the last gap in practice\r\n                        SELECT COALESCE(MAX(DATE(session_date)), CURRENT_DATE - INTERVAL '365 days')\r\n                        FROM session_analytics\r\n                        WHERE child_id IN (\r\n                            SELECT id FROM profiles\r\n                            WHERE role = 'child' AND created_by = p_parent_id\r\n                        )\r\n                        AND session_date < CURRENT_DATE\r\n                        AND NOT EXISTS (\r\n                            SELECT 1 FROM session_analytics sa2\r\n                            WHERE sa2.child_id = session_analytics.child_id\r\n                            AND DATE(sa2.session_date) = DATE(session_analytics.session_date) + INTERVAL '1 day'\r\n                        )\r\n                    )\r\n                ),\r\n                'avg_accuracy_7d', ROUND(\r\n                    AVG(CASE\r\n                        WHEN sa.total_attempts > 0\r\n                        THEN (sa.correct_on_first_try::DECIMAL / sa.total_attempts) * 100\r\n                    END)::NUMERIC, 2\r\n                ),\r\n                'avg_accuracy_30d', ROUND(\r\n                    AVG(CASE\r\n                        WHEN sa.total_attempts > 0\r\n                        THEN (sa.correct_on_first_try::DECIMAL / sa.total_attempts) * 100\r\n                    END)::NUMERIC, 2\r\n                ),\r\n                'total_time_on_task_minutes', SUM(sa.session_duration_seconds) / 60,\r\n                'total_sessions', COUNT(DISTINCT sa.id)\r\n            )\r\n            FROM session_analytics sa\r\n            WHERE sa.child_id IN (\r\n                SELECT id FROM profiles\r\n                WHERE role = 'child' AND created_by = p_parent_id\r\n            )\r\n            AND DATE(sa.session_date) >= v_date_from\r\n            AND DATE(sa.session_date) <= v_date_to\r\n        ),\r\n        'hardest_words', (\r\n            SELECT json_agg(\r\n                json_build_object(\r\n                    'word', w.text,\r\n                    'word_id', s.word_id,\r\n                    'ease', s.ease,\r\n                    'error_rate', ROUND(\r\n                        (s.lapses::DECIMAL / NULLIF(s.reps, 0)) * 100, 2\r\n                    ),\r\n                    'last_attempted', s.updated_at\r\n                )\r\n            )\r\n            FROM srs s\r\n            JOIN words w ON s.word_id = w.id\r\n            WHERE s.child_id IN (\r\n                SELECT id FROM profiles\r\n                WHERE role = 'child' AND created_by = p_parent_id\r\n            )\r\n            AND s.reps > 0\r\n            ORDER BY s.ease ASC, s.lapses DESC\r\n            LIMIT 10\r\n        ),\r\n        'common_mistake_patterns', (\r\n            SELECT json_agg(\r\n                json_build_object(\r\n                    'pattern', ngram,\r\n                    'common_error', typed_ngram,\r\n                    'occurrences', error_count,\r\n                    'last_seen', last_seen\r\n                )\r\n            )\r\n            FROM (\r\n                SELECT\r\n                    ngram,\r\n                    typed_ngram,\r\n                    SUM(error_count) AS error_count,\r\n                    MAX(last_seen) AS last_seen\r\n                FROM view_ngram_errors\r\n                WHERE child_id IN (\r\n                    SELECT id FROM profiles\r\n                    WHERE role = 'child' AND created_by = p_parent_id\r\n                )\r\n                AND DATE(last_seen) >= v_date_from\r\n                AND DATE(last_seen) <= v_date_to\r\n                GROUP BY ngram, typed_ngram\r\n                ORDER BY error_count DESC\r\n                LIMIT 10\r\n            ) AS top_patterns\r\n        ),\r\n        'attempts_by_mode', (\r\n            SELECT json_object_agg(mode, attempt_count)\r\n            FROM (\r\n                SELECT\r\n                    mode,\r\n                    COUNT(*) AS attempt_count\r\n                FROM attempts a\r\n                WHERE a.child_id IN (\r\n                    SELECT id FROM profiles\r\n                    WHERE role = 'child' AND created_by = p_parent_id\r\n                )\r\n                AND DATE(a.started_at) >= v_date_from\r\n                AND DATE(a.started_at) <= v_date_to\r\n                GROUP BY mode\r\n            ) AS mode_counts\r\n        ),\r\n        'mastery_by_list', (\r\n            SELECT json_agg(\r\n                json_build_object(\r\n                    'list_id', list_id,\r\n                    'list_title', list_title,\r\n                    'mastered_count', mastered_count,\r\n                    'total_words', total_words_in_list,\r\n                    'mastery_percentage', mastery_percentage,\r\n                    'accuracy', accuracy\r\n                )\r\n            )\r\n            FROM view_child_mastery\r\n            WHERE child_id IN (\r\n                SELECT id FROM profiles\r\n                WHERE role = 'child' AND created_by = p_parent_id\r\n            )\r\n        ),\r\n        'accuracy_over_time', (\r\n            SELECT json_agg(\r\n                json_build_object(\r\n                    'date', session_date,\r\n                    'accuracy', ROUND(\r\n                        CASE\r\n                            WHEN total_attempts > 0\r\n                            THEN (correct_on_first_try::DECIMAL / total_attempts) * 100\r\n                            ELSE 0\r\n                        END::NUMERIC, 2\r\n                    ),\r\n                    'attempts', total_attempts\r\n                )\r\n                ORDER BY session_date\r\n            )\r\n            FROM session_analytics sa\r\n            WHERE sa.child_id IN (\r\n                SELECT id FROM profiles\r\n                WHERE role = 'child' AND created_by = p_parent_id\r\n            )\r\n            AND DATE(sa.session_date) >= v_date_from\r\n            AND DATE(sa.session_date) <= v_date_to\r\n        )\r\n    ) INTO v_result;\r\n\r\n    RETURN v_result;\r\nEND;\r\n$function$\n"
   },
   {
     "schema": "public",
     "function_name": "handle_new_user",
-    "definition": "CREATE OR REPLACE FUNCTION public.handle_new_user()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\r\nBEGIN\r\n    INSERT INTO public.profiles (id, role, display_name)\r\n    VALUES (\r\n        NEW.id,\r\n        COALESCE(NEW.raw_user_meta_data->>'role', 'parent'),\r\n        COALESCE(NEW.raw_user_meta_data->>'display_name', split_part(NEW.email, '@', 1))\r\n    );\r\n    RETURN NEW;\r\nEND;\r\n$function$\n"
+    "definition": "CREATE OR REPLACE FUNCTION public.handle_new_user()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\r\nBEGIN\r\n    INSERT INTO public.profiles (\r\n        id,\r\n        role,\r\n        display_name,\r\n        parent_id,\r\n        stars,\r\n        streak_days\r\n    )\r\n    VALUES (\r\n        NEW.id,\r\n        COALESCE(NEW.raw_user_meta_data->>'role', 'parent'),\r\n        COALESCE(NEW.raw_user_meta_data->>'display_name', split_part(NEW.email, '@', 1)),\r\n        NULLIF(NEW.raw_user_meta_data->>'parent_id', '')::uuid, -- Extract parent_id from metadata\r\n        COALESCE((NEW.raw_user_meta_data->>'stars')::integer, 0), -- Default 0 stars\r\n        COALESCE((NEW.raw_user_meta_data->>'streak_days')::integer, 0) -- Default 0 streak\r\n    );\r\n    RETURN NEW;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "is_word_mastered",
+    "definition": "CREATE OR REPLACE FUNCTION public.is_word_mastered(p_child_id uuid, p_word_id uuid)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nBEGIN\r\n    RETURN EXISTS (\r\n        SELECT 1 FROM srs\r\n        WHERE child_id = p_child_id\r\n        AND word_id = p_word_id\r\n        AND ease >= 2.5\r\n        AND interval_days >= 7\r\n    );\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "purchase_reward",
+    "definition": "CREATE OR REPLACE FUNCTION public.purchase_reward(p_user_id uuid, p_reward_id uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n    v_cost INTEGER;\r\n    v_current_stars INTEGER;\r\n    v_reward_name TEXT;\r\n    v_reward_type TEXT;\r\nBEGIN\r\n    -- Get reward details\r\n    SELECT cost_stars, name, type INTO v_cost, v_reward_name, v_reward_type\r\n    FROM rewards_catalog\r\n    WHERE id = p_reward_id AND is_active = true;\r\n    \r\n    IF NOT FOUND THEN\r\n        RETURN jsonb_build_object(\r\n            'success', false,\r\n            'error', 'Reward not found or not active'\r\n        );\r\n    END IF;\r\n    \r\n    -- Get current stars\r\n    SELECT stars INTO v_current_stars\r\n    FROM profiles\r\n    WHERE id = p_user_id;\r\n    \r\n    IF v_current_stars < v_cost THEN\r\n        RETURN jsonb_build_object(\r\n            'success', false,\r\n            'error', 'Insufficient stars',\r\n            'required', v_cost,\r\n            'available', v_current_stars\r\n        );\r\n    END IF;\r\n    \r\n    -- Check if already owned\r\n    IF EXISTS (SELECT 1 FROM user_rewards WHERE user_id = p_user_id AND reward_id = p_reward_id) THEN\r\n        RETURN jsonb_build_object(\r\n            'success', false,\r\n            'error', 'Reward already owned'\r\n        );\r\n    END IF;\r\n    \r\n    -- Deduct stars\r\n    UPDATE profiles\r\n    SET stars = stars - v_cost\r\n    WHERE id = p_user_id;\r\n    \r\n    -- Add to user_rewards\r\n    INSERT INTO user_rewards (user_id, reward_id, equipped)\r\n    VALUES (p_user_id, p_reward_id, false);\r\n    \r\n    -- Return success\r\n    RETURN jsonb_build_object(\r\n        'success', true,\r\n        'reward_name', v_reward_name,\r\n        'reward_type', v_reward_type,\r\n        'cost', v_cost,\r\n        'remaining_stars', v_current_stars - v_cost\r\n    );\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "set_child_parent_id",
+    "definition": "CREATE OR REPLACE FUNCTION public.set_child_parent_id()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nBEGIN\r\n    -- If this is a child account and parent_id is not set,\r\n    -- try to set it from the creating user's context\r\n    IF NEW.role = 'child' AND NEW.parent_id IS NULL THEN\r\n        -- In a real implementation, you might get parent_id from app metadata\r\n        -- For now, this is a placeholder that could be enhanced\r\n        NULL;\r\n    END IF;\r\n\r\n    RETURN NEW;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "update_daily_streak",
+    "definition": "CREATE OR REPLACE FUNCTION public.update_daily_streak(p_user_id uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n    v_last_active DATE;\r\n    v_current_streak INTEGER;\r\n    v_new_streak INTEGER;\r\n    v_bonus_stars INTEGER := 0;\r\nBEGIN\r\n    -- Get current values\r\n    SELECT last_active, streak_days INTO v_last_active, v_current_streak\r\n    FROM profiles\r\n    WHERE id = p_user_id;\r\n    \r\n    -- Calculate new streak\r\n    IF v_last_active = CURRENT_DATE THEN\r\n        -- Already updated today, no change\r\n        RETURN jsonb_build_object(\r\n            'streak_days', v_current_streak,\r\n            'bonus_stars', 0,\r\n            'continued', false\r\n        );\r\n    ELSIF v_last_active = CURRENT_DATE - 1 THEN\r\n        -- Consecutive day, increment streak\r\n        v_new_streak := v_current_streak + 1;\r\n        \r\n        -- Award bonus stars for milestones\r\n        IF v_new_streak % 7 = 0 THEN\r\n            v_bonus_stars := 10;  -- Weekly streak bonus\r\n        ELSIF v_new_streak % 3 = 0 THEN\r\n            v_bonus_stars := 5;   -- 3-day streak bonus\r\n        END IF;\r\n        \r\n    ELSIF v_last_active < CURRENT_DATE - 1 THEN\r\n        -- Streak broken (gap > 36 hours), reset to 1\r\n        v_new_streak := 1;\r\n    ELSE\r\n        -- Last active is in the future? This shouldn't happen, reset\r\n        v_new_streak := 1;\r\n    END IF;\r\n    \r\n    -- Update profile\r\n    UPDATE profiles\r\n    SET \r\n        streak_days = v_new_streak,\r\n        last_active = CURRENT_DATE,\r\n        stars = stars + v_bonus_stars\r\n    WHERE id = p_user_id;\r\n    \r\n    RETURN jsonb_build_object(\r\n        'streak_days', v_new_streak,\r\n        'bonus_stars', v_bonus_stars,\r\n        'continued', v_new_streak > v_current_streak\r\n    );\r\nEND;\r\n$function$\n"
   }
 ]
 

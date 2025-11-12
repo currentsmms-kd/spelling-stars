@@ -315,6 +315,128 @@ Users can install the app on their device:
 
 ## Development
 
+### Error Handling & User Feedback
+
+The app includes comprehensive error handling and user feedback mechanisms:
+
+**React Error Boundaries**
+
+- App-wide error boundary catches component errors without full crash
+- Fallback UI with error details and recovery options (reload page, go home)
+- Automatic error logging and telemetry tracking
+
+**Network Status Indicator**
+
+- Persistent offline notification with variant styling for parent/child interfaces
+- Parent variant: Dismissible banner with "You're offline" message
+- Child variant: Non-dismissible, friendly "📡 Offline - Your work is being saved!" message
+- Smooth slide-up animations when network status changes
+
+**Loading States**
+
+- All mutations show loading states with disabled inputs and "Saving..." indicators
+- Prevents duplicate submissions during async operations
+- Visual feedback with spinner icons on buttons
+
+**Error Telemetry**
+
+- Centralized error tracking via `logger.metrics.errorCaptured()`
+- Tracks context, message, stack traces, severity, timestamps
+- Circular buffer storage (max 50 errors) prevents memory issues
+- Event listener pattern for subscribing to error events
+- Integration points:
+  - `useAudioRecorder`: Microphone access and recording errors
+  - Game pages: Attempt save and list loading errors
+  - Parent pages: List management and child account errors
+  - Error boundaries: Component rendering errors
+
+**Enhanced Error Messages**
+
+- Browser-specific guidance (Safari microphone permissions)
+- Actionable instructions (click lock icon, close other apps)
+- User-friendly explanations for technical errors
+- SetupError component with type-specific troubleshooting:
+  - Environment variable configuration
+  - Network connectivity issues
+  - Database connection problems
+  - Permission/authorization errors
+  - General errors with fallback guidance
+
+**Retry Mechanisms**
+
+- Offline queue with automatic retry on reconnection
+- Manual retry buttons in error states
+- Exponential backoff for failed sync operations
+
+### Troubleshooting
+
+**Common Issues:**
+
+1. **"Microphone not found" error**
+   - Ensure microphone is connected and recognized by OS
+   - Check browser permissions: Click lock icon in address bar
+   - Close other apps using microphone (Zoom, Teams, etc.)
+   - Safari users: May need to grant permission in browser settings
+
+2. **"Cannot connect to database" error**
+   - Verify Supabase credentials in `.env` file
+   - Check Supabase project status at dashboard
+   - Ensure network connectivity
+   - Disable VPN if causing connection issues
+
+3. **App won't install as PWA**
+   - HTTPS required (localhost works for dev)
+   - Check manifest.json is accessible
+   - Clear browser cache and retry
+   - Some browsers require user gesture to prompt install
+
+4. **Offline sync not working**
+   - Check IndexedDB is enabled in browser
+   - Verify service worker is registered (DevTools > Application > Service Workers)
+   - Clear site data and re-cache if corrupted
+   - Check browser console for sync errors
+
+5. **Loading states stuck**
+   - Check network tab for failed requests
+   - Review error telemetry: `logger.metrics.getErrors()`
+   - Clear React Query cache: `queryClient.clear()`
+   - Reload page to reset mutation states
+
+**Debugging Tips:**
+
+- Open browser DevTools console to see detailed error logs
+- Check Application > IndexedDB for queued offline data
+- Review Network tab for failed API requests
+- Use `logger.metrics.getErrors()` in console to view error telemetry
+- Check Supabase dashboard logs for server-side errors
+
+### Database Health Monitoring
+
+The project includes PowerShell scripts for database health monitoring:
+
+- **`check-db-health.ps1`** - General database health metrics (unused indexes, missing FK indexes, table sizes)
+- **`check-db-advisor.ps1`** - Application-specific health checks (critical indexes, RLS policies, security)
+
+**Usage:**
+
+```powershell
+doppler run -- pwsh .\check-db-health.ps1
+doppler run -- pwsh .\check-db-advisor.ps1
+```
+
+**Best Practices:**
+
+- Run health checks weekly during active development
+- When creating indexes, remember that UNIQUE constraints automatically create indexes
+- Avoid creating standalone indexes on columns that are always filtered with other columns
+- Use composite indexes when queries filter by multiple columns together
+- Monitor index usage after schema changes to verify they're being used
+
+**Documentation:**
+
+- See `docs/DATABASE_ADVISOR_REPORT.md` for detailed database optimization findings
+- See `docs/SRS_IMPLEMENTATION.md` for SRS-specific schema details
+
 ### Key Concepts
 
 1. **Route Protection**: Routes are protected based on user authentication and role (parent/child)

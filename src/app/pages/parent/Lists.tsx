@@ -13,6 +13,8 @@ import {
 import { useState, useCallback, useMemo } from "react";
 import { logger } from "@/lib/logger";
 import { cn } from "@/lib/utils";
+import { toast } from "react-hot-toast";
+import { Toast } from "@/app/components/Toast";
 
 type SortField = "title" | "week_start_date" | "word_count" | "created_at";
 type SortOrder = "asc" | "desc";
@@ -393,11 +395,28 @@ export function Lists() {
     setDeletingId(id);
     try {
       await deleteList.mutateAsync({ id, userId: user.id });
+      toast.custom((t) => (
+        <Toast
+          type="success"
+          message="List deleted successfully"
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
       setDeleteConfirm(null);
     } catch (error) {
       logger.error("Error deleting list:", error);
-      // TODO: Replace with toast notification
-      logger.error("Failed to delete list. Please try again.");
+      logger.metrics.errorCaptured({
+        context: "Lists.deleteList",
+        message: error instanceof Error ? error.message : "Unknown error",
+        severity: "error",
+      });
+      toast.custom((t) => (
+        <Toast
+          type="error"
+          message="Failed to delete list. Please try again."
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
     } finally {
       setDeletingId(null);
     }
@@ -408,10 +427,27 @@ export function Lists() {
     setDuplicatingId(id);
     try {
       await duplicateList.mutateAsync({ listId: id, userId: user.id });
+      toast.custom((t) => (
+        <Toast
+          type="success"
+          message="List duplicated successfully"
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
     } catch (error) {
       logger.error("Error duplicating list:", error);
-      // TODO: Replace with toast notification
-      logger.error("Failed to duplicate list. Please try again.");
+      logger.metrics.errorCaptured({
+        context: "Lists.duplicateList",
+        message: error instanceof Error ? error.message : "Unknown error",
+        severity: "error",
+      });
+      toast.custom((t) => (
+        <Toast
+          type="error"
+          message="Failed to duplicate list. Please try again."
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
     } finally {
       setDuplicatingId(null);
     }

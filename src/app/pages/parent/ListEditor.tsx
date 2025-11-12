@@ -12,18 +12,12 @@ import { AppShell } from "@/app/components/AppShell";
 import { Card } from "@/app/components/Card";
 import { Button } from "@/app/components/Button";
 import { AudioRecorder } from "@/app/components/AudioRecorder";
-import {
-  Plus,
-  Trash2,
-  Save,
-  GripVertical,
-  Play,
-  Upload,
-  Check,
-} from "lucide-react";
+import { Toast } from "@/app/components/Toast";
+import { Plus, Trash2, Save, GripVertical, Play, Upload } from "lucide-react";
 import { useAuth } from "@/app/hooks/useAuth";
 import { logger } from "@/lib/logger";
 import { useTtsVoices } from "@/app/hooks/useTtsVoices";
+import { toast } from "react-hot-toast";
 import {
   useWordList,
   useCreateWordList,
@@ -505,10 +499,6 @@ export function ListEditor() {
   });
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [uploadingAudio, setUploadingAudio] = useState(false);
-  const [toastMessage, setToastMessage] = useState<{
-    type: "success" | "error";
-    message: string;
-  } | null>(null);
 
   // Form for list metadata
   const {
@@ -569,11 +559,6 @@ export function ListEditor() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasUnsavedChanges]);
 
-  const showToast = (type: "success" | "error", message: string) => {
-    setToastMessage({ type, message });
-    setTimeout(() => setToastMessage(null), 3000);
-  };
-
   const onSubmitMeta = async (data: ListMetaFormData) => {
     if (!user?.id) return;
 
@@ -584,7 +569,13 @@ export function ListEditor() {
           week_start_date: data.week_start_date || null,
           created_by: user.id,
         });
-        showToast("success", "List created successfully");
+        toast.custom((t) => (
+          <Toast
+            type="success"
+            message="List created successfully"
+            onClose={() => toast.dismiss(t.id)}
+          />
+        ));
         navigate(`/parent/lists/${newList.id}`, { replace: true });
       } else if (id) {
         await updateList.mutateAsync({
@@ -594,17 +585,35 @@ export function ListEditor() {
             week_start_date: data.week_start_date || null,
           },
         });
-        showToast("success", "List updated successfully");
+        toast.custom((t) => (
+          <Toast
+            type="success"
+            message="List updated successfully"
+            onClose={() => toast.dismiss(t.id)}
+          />
+        ));
       }
     } catch (error) {
       logger.error("Error saving list:", error);
-      showToast("error", "Failed to save list");
+      toast.custom((t) => (
+        <Toast
+          type="error"
+          message="Failed to save list"
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
     }
   };
 
   const handleAddWord = async () => {
     if (!id) {
-      showToast("error", "Please save the list first");
+      toast.custom((t) => (
+        <Toast
+          type="error"
+          message="Please save the list first"
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
       return;
     }
 
@@ -615,10 +624,22 @@ export function ListEditor() {
         word: { text: "" },
         sortIndex: newSortIndex,
       });
-      showToast("success", "Word added");
+      toast.custom((t) => (
+        <Toast
+          type="success"
+          message="Word added"
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
     } catch (error) {
       logger.error("Error adding word:", error);
-      showToast("error", "Failed to add word");
+      toast.custom((t) => (
+        <Toast
+          type="error"
+          message="Failed to add word"
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
     }
   };
 
@@ -627,10 +648,22 @@ export function ListEditor() {
 
     try {
       await deleteWord.mutateAsync({ listId: id, wordId });
-      showToast("success", "Word deleted");
+      toast.custom((t) => (
+        <Toast
+          type="success"
+          message="Word deleted"
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
     } catch (error) {
       logger.error("Error deleting word:", error);
-      showToast("error", "Failed to delete word");
+      toast.custom((t) => (
+        <Toast
+          type="error"
+          message="Failed to delete word"
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
     }
   };
 
@@ -646,7 +679,13 @@ export function ListEditor() {
       });
     } catch (error) {
       logger.error("Error updating word:", error);
-      showToast("error", "Failed to update word");
+      toast.custom((t) => (
+        <Toast
+          type="error"
+          message="Failed to update word"
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
     }
   };
 
@@ -696,7 +735,13 @@ export function ListEditor() {
       });
     } catch (error) {
       logger.error("Error reordering words:", error);
-      showToast("error", "Failed to reorder words");
+      toast.custom((t) => (
+        <Toast
+          type="error"
+          message="Failed to reorder words"
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
     }
 
     setDragState({ draggedIndex: null, dragOverIndex: null });
@@ -721,7 +766,13 @@ export function ListEditor() {
     );
 
     if (newWords.length === 0) {
-      showToast("error", "All words already exist in the list");
+      toast.custom((t) => (
+        <Toast
+          type="error"
+          message="All words already exist in the list"
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
       return;
     }
 
@@ -734,11 +785,23 @@ export function ListEditor() {
           sortIndex: sortIndex++,
         });
       }
-      showToast("success", `Added ${newWords.length} word(s)`);
+      toast.custom((t) => (
+        <Toast
+          type="success"
+          message={`Added ${newWords.length} word(s)`}
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
       setBulkImportText("");
     } catch (error) {
       logger.error("Error bulk importing:", error);
-      showToast("error", "Failed to import words");
+      toast.custom((t) => (
+        <Toast
+          type="error"
+          message="Failed to import words"
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
     }
   };
 
@@ -752,10 +815,22 @@ export function ListEditor() {
         listId: id,
         wordId: selectedWordId,
       });
-      showToast("success", "Audio uploaded successfully");
+      toast.custom((t) => (
+        <Toast
+          type="success"
+          message="Audio uploaded successfully"
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
     } catch (error) {
       logger.error("Error uploading audio:", error);
-      showToast("error", "Failed to upload audio");
+      toast.custom((t) => (
+        <Toast
+          type="error"
+          message="Failed to upload audio"
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
     } finally {
       setUploadingAudio(false);
     }
@@ -765,7 +840,13 @@ export function ListEditor() {
     const audio = new Audio(url);
     audio.play().catch((error) => {
       logger.error("Error playing audio:", error);
-      showToast("error", "Failed to play audio");
+      toast.custom((t) => (
+        <Toast
+          type="error"
+          message="Failed to play audio"
+          onClose={() => toast.dismiss(t.id)}
+        />
+      ));
     });
   };
 
@@ -781,29 +862,12 @@ export function ListEditor() {
     );
   }
 
-  const toastNotification = toastMessage && (
-    <div
-      className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg ${
-        toastMessage.type === "success"
-          ? "bg-secondary text-secondary-foreground"
-          : "bg-destructive text-destructive-foreground"
-      }`}
-    >
-      <div className="flex items-center gap-2">
-        {toastMessage.type === "success" && <Check size={20} />}
-        <span>{toastMessage.message}</span>
-      </div>
-    </div>
-  );
-
   return (
     <AppShell
       title={isNewList ? "New List" : list?.title || "Edit List"}
       variant="parent"
     >
       <div className="max-w-7xl mx-auto space-y-6">
-        {toastNotification}
-
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <ListDetailsSection
             isNewList={isNewList}

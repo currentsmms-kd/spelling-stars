@@ -125,6 +125,19 @@ function captureProductionError(message: string, ...args: unknown[]): void {
 }
 
 /**
+ * Error telemetry for tracking errors across the app
+ */
+export interface ErrorTelemetry {
+  context: string;
+  message: string;
+  stack?: string;
+  severity: "error" | "warning" | "critical";
+  timestamp: string;
+  userAgent?: string;
+  url?: string;
+}
+
+/**
  * Telemetry metrics for sync operations
  */
 interface SyncMetrics {
@@ -153,10 +166,22 @@ let syncMetrics: SyncMetrics = {
 };
 
 /**
+ * Error log storage (circular buffer, max 50 errors)
+ */
+const MAX_ERROR_LOG_SIZE = 50;
+let errorLog: ErrorTelemetry[] = [];
+
+/**
  * Event listeners for metrics updates (for UI components)
  */
 type MetricsListener = (metrics: SyncMetrics) => void;
 const metricsListeners = new Set<MetricsListener>();
+
+/**
+ * Event listeners for error updates
+ */
+export type ErrorListener = (error: ErrorTelemetry) => void;
+const errorListeners = new Set<ErrorListener>();
 
 /**
  * Subscribe to metrics updates
@@ -181,10 +206,44 @@ function notifyMetricsListeners(): void {
     try {
       listener(snapshot);
     } catch (error) {
-  
       console.error("[METRICS] Listener error:", error);
     }
   });
+}
+
+/**
+ * Subscribe to error updates
+ */
+function subscribeToErrors(listener: ErrorListener): () => void {
+  errorListeners.add(listener);
+  // Return unsubscribe function
+  return () => {
+    errorListeners.delete(listener);
+  };
+}
+
+/**
+ * Notify all error listeners
+ */
+function notifyErrorListeners(error: ErrorTelemetry): void {
+  errorListeners.forEach((listener) => {
+    try {
+      listener(error);
+    } catch (err) {
+      console.error("[ERROR_TELEMETRY] Listener error:", err);
+    }
+  });
+}
+
+/**
+ * Add error to circular buffer log
+ */
+function addErrorToLog(error: ErrorTelemetry): void {
+  errorLog.push(error);
+  // Maintain circular buffer by removing oldest errors
+  if (errorLog.length > MAX_ERROR_LOG_SIZE) {
+    errorLog = errorLog.slice(-MAX_ERROR_LOG_SIZE);
+  }
 }
 
 /**
@@ -243,7 +302,6 @@ export const logger = {
    */
   debug: (...args: unknown[]) => {
     if (LOG_LEVELS.debug >= currentLevelValue && shouldSample()) {
-  
       console.log("[DEBUG]", ...formatArgs(...args));
     }
   },
@@ -253,7 +311,6 @@ export const logger = {
    */
   info: (...args: unknown[]) => {
     if (LOG_LEVELS.info >= currentLevelValue && shouldSample()) {
-  
       console.info("[INFO]", ...formatArgs(...args));
     }
   },
@@ -263,7 +320,6 @@ export const logger = {
    */
   warn: (...args: unknown[]) => {
     if (LOG_LEVELS.warn >= currentLevelValue) {
-  
       console.warn("[WARN]", ...formatArgs(...args));
     }
   },
@@ -274,7 +330,6 @@ export const logger = {
   error: (...args: unknown[]) => {
     const formattedArgs = formatArgs(...args);
     if (LOG_LEVELS.error >= currentLevelValue) {
-  
       console.error("[ERROR]", ...formattedArgs);
     }
 
@@ -290,7 +345,6 @@ export const logger = {
    */
   log: (...args: unknown[]) => {
     if (LOG_LEVELS.debug >= currentLevelValue && shouldSample()) {
-  
       console.log("[LOG]", ...formatArgs(...args));
     }
   },
@@ -310,6 +364,49 @@ export const logger = {
     getMetrics: () => getMetrics(),
     resetMetrics: () => resetMetrics(),
     subscribe: (listener: MetricsListener) => subscribeToMetrics(listener),
+
+    // Error telemetry
+    errorCaptured: (params: {
+      context: string;
+      message: string;
+      stack?: string;
+      severity?: "error" | "warning" | "critical";
+    }) => {
+      const error: ErrorTelemetry = {
+        context: params.context,
+        message: params.message,
+        stack: params.stack,
+        severity: params.severity || "error",
+        timestamp: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        url: window.location.href,
+      };
+
+      // Add to error log (circular buffer)
+      addErrorToLog(error);
+
+      // Notify listeners
+      notifyErrorListeners(error);
+
+      // Log to console in development
+      if (isDev) {
+        console.error(
+          `[ERROR_TELEMETRY] ${error.severity.toUpperCase()} in ${error.context}:`,
+          error.message
+        );
+      }
+
+      // In production, could send to monitoring service
+      if (isProd) {
+        captureProductionError(error.message, error);
+      }
+    },
+    getErrors: () => [...errorLog],
+    clearErrors: () => {
+      errorLog = [];
+    },
+    getErrorCount: () => errorLog.length,
+    subscribeToErrors: (listener: ErrorListener) => subscribeToErrors(listener),
   },
 };
 

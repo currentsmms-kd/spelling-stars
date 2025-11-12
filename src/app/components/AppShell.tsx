@@ -3,6 +3,7 @@ import { TopBar, NavRail } from "./Navigation";
 import { parentNavItems, childNavItems } from "./navItems";
 import { useAuth } from "../hooks/useAuth";
 import { SyncStatusBadge } from "./SyncStatusBadge";
+import { NetworkStatusIndicator } from "./NetworkStatusIndicator";
 
 interface AppShellProps {
   children: ReactNode;
@@ -33,6 +34,7 @@ export function AppShell({
           {children}
         </main>
       </div>
+      <NetworkStatusIndicator variant={variant} />
     </div>
   );
 }

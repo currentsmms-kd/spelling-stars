@@ -35,13 +35,26 @@ export function useAudioRecorder(): UseAudioRecorderResult {
 
       // Check if MediaRecorder is supported
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        // Detect browser for specific guidance
+        const userAgent = navigator.userAgent.toLowerCase();
+        const isSafari =
+          userAgent.includes("safari") && !userAgent.includes("chrome");
+
+        if (isSafari) {
+          throw new Error(
+            "Audio recording works best in Chrome, Firefox, or Edge. Safari may have limited support."
+          );
+        }
+
         throw new Error(
-          "Audio recording is not supported in this browser. Please use Chrome, Firefox, or Edge."
+          "Audio recording is not supported in this browser. Try using Chrome, Firefox, or Edge for the best experience."
         );
       }
 
       if (typeof MediaRecorder === "undefined") {
-        throw new Error("MediaRecorder API is not available in this browser.");
+        throw new Error(
+          "MediaRecorder API is not available. Try using Chrome, Firefox, or Edge for the best experience."
+        );
       }
 
       logger.info("Requesting microphone access...");
@@ -107,19 +120,19 @@ export function useAudioRecorder(): UseAudioRecorderResult {
           err.name === "PermissionDeniedError"
         ) {
           errorMessage =
-            "Microphone permission denied. Please allow microphone access in your browser settings.";
+            "Microphone access denied. Please click the 🔒 icon in your browser's address bar and allow microphone access, then try again.";
         } else if (
           err.name === "NotFoundError" ||
           err.name === "DevicesNotFoundError"
         ) {
           errorMessage =
-            "No microphone found. Please connect a microphone and try again.";
+            "No microphone detected. Please connect a microphone or headset to your device and refresh the page.";
         } else if (
           err.name === "NotReadableError" ||
           err.name === "TrackStartError"
         ) {
           errorMessage =
-            "Microphone is already in use by another application. Please close other apps using the microphone.";
+            "Microphone is in use by another app (like Zoom or Teams). Please close other apps using your microphone and try again.";
         } else {
           errorMessage = err.message;
         }
@@ -127,6 +140,14 @@ export function useAudioRecorder(): UseAudioRecorderResult {
 
       setError(errorMessage);
       logger.error("Error starting recording:", err);
+
+      // Add error telemetry
+      logger.metrics.errorCaptured({
+        context: "useAudioRecorder",
+        message: errorMessage,
+        stack: err instanceof Error ? err.stack : undefined,
+        severity: "error",
+      });
     }
   }, []);
 

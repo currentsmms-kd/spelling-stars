@@ -1,6 +1,6 @@
 # Database Advisor Report - SpellStars
 
-**Date:** November 9, 2025
+**Date:** November 11, 2025
 **Project:** spelling-stars
 **Database:** PostgreSQL 17.6 on Supabase
 
@@ -72,6 +72,116 @@ CREATE INDEX idx_list_words_list_id ON list_words(list_id);
 
 ---
 
+### Performance Optimization (November 11, 2025)
+
+#### Unused Index Removal
+
+##### 1. Dropped `idx_srs_due_date`
+
+**Status:** ✓ Optimized
+**Issue:** Index on just `due_date` column was unused (0 scans)
+
+**Root Cause:**
+All queries filter by `child_id` first, making the composite index `idx_srs_child_due` the preferred choice for the query planner.
+
+**Queries Analyzed:**
+
+- `getDueWords()` in supa.ts - Uses `idx_srs_child_due` (child_id, due_date)
+- `get_next_batch()` function - Uses `idx_srs_child_due` (child_id, due_date)
+
+**Action Taken:**
+Dropped `idx_srs_due_date` in migration `20251111000000_drop_unused_srs_indexes.sql`
+
+**Impact:**
+Reduced storage overhead and improved write performance on srs table
+
+---
+
+##### 2. Dropped `idx_srs_child_word`
+
+**Status:** ✓ Optimized
+**Issue:** Index on (child_id, word_id) was redundant with unique constraint
+
+**Root Cause:**
+The UNIQUE constraint on (child_id, word_id) automatically creates a backing index `srs_child_id_word_id_key`. The manually created `idx_srs_child_word` was a duplicate.
+
+**Queries Analyzed:**
+
+- `getSrsEntry()` in supa.ts - Uses unique constraint index
+- `upsertSrsEntry()` in supa.ts - Requires unique constraint
+- Sync operations in sync.ts - Use unique constraint index
+
+**Action Taken:**
+Dropped `idx_srs_child_word` in migration `20251111000000_drop_unused_srs_indexes.sql`
+
+**Data Integrity:**
+UNIQUE constraint remains intact, ensuring no duplicate (child_id, word_id) pairs
+
+**Impact:**
+Eliminated duplicate index maintenance overhead
+
+---
+
+##### 3. Kept `srs_child_id_word_id_key` (Unique Constraint Index)
+
+**Status:** ✓ Retained (Required)
+**Issue:** Shows 0 scans in early health checks but is essential
+
+**Why This Index is Required:**
+
+The `srs_child_id_word_id_key` index is automatically created by PostgreSQL to enforce the `UNIQUE(child_id, word_id)` constraint on the `srs` table. This constraint is critical for data integrity and is actively used by the application.
+
+**Used By:**
+
+- `getSrsEntry()` in supa.ts - Looks up existing SRS record by (child_id, word_id)
+- `upsertSrsEntry()` in supa.ts - Requires unique constraint for ON CONFLICT clause
+- All SRS update operations - Ensures no duplicate spaced repetition entries
+
+**Query Patterns:**
+
+```sql
+-- Used in getSrsEntry()
+SELECT * FROM srs WHERE child_id = ? AND word_id = ?;
+
+-- Used in upsertSrsEntry()
+INSERT INTO srs (child_id, word_id, ease, interval_days, ...)
+VALUES (?, ?, ?, ?, ...)
+ON CONFLICT (child_id, word_id) DO UPDATE SET ...;
+```
+
+**Why 0 Scans is Expected:**
+
+Early health check readings may show 0 scans for this index due to:
+
+1. **Low Load:** Development/testing environments have minimal SRS lookups
+2. **Statistics Lag:** PostgreSQL's `pg_stat_user_indexes` view doesn't update instantly
+3. **Constraint Enforcement:** The index is used for UNIQUE constraint checks on INSERT/UPDATE, which may not be tracked the same way as SELECT queries in scan statistics
+
+**Expected Behavior:**
+
+As the application is used in production, this index will show increased scan counts from:
+
+- Children playing spelling games (SRS lookups on each word attempt)
+- Automatic SRS updates after practice sessions
+- Due word queries that filter by child_id + word_id combinations
+
+**Cannot Be Dropped:**
+
+Attempting to drop this index would fail because:
+
+```sql
+DROP INDEX srs_child_id_word_id_key;
+-- ERROR: cannot drop index srs_child_id_word_id_key because constraint
+-- srs_child_id_word_id_key on table srs requires it
+```
+
+The only way to remove it would be to drop the UNIQUE constraint itself, which would break application logic that depends on preventing duplicate (child_id, word_id) entries.
+
+**Impact:**
+Essential for data integrity. Initial 0-scan readings are not a performance concern and will change with usage.
+
+---
+
 ## Database Health Summary
 
 ### ✓ All Checks Passed
@@ -86,14 +196,14 @@ CREATE INDEX idx_list_words_list_id ON list_words(list_id);
 
 #### Performance
 
-- ✓ All 4 critical indexes now exist:
-  - `idx_srs_due_date` - SRS due date queries
-  - `idx_attempts_child_word` - Attempt history queries (ADDED)
-  - `idx_list_words_list_id` - Word list queries (ADDED)
+- ✓ All 3 critical indexes now exist:
+  - `idx_srs_child_due` - SRS due date queries (composite: child_id, due_date)
+  - `idx_attempts_child_word` - Attempt history queries
+  - `idx_list_words_list_id` - Word list queries
   - `idx_session_analytics_child_date` - Analytics queries
 - ✓ All 13 foreign keys have supporting indexes
 - ✓ No duplicate indexes found
-- ✓ No unused indexes (previous false positive was due to new database)
+- ✓ Unused indexes identified and removed in November 2025 optimization
 
 #### Data Integrity
 
@@ -187,10 +297,12 @@ doppler run -- pwsh .\list-projects.ps1
 1. **Run advisor weekly** during active development
 2. **Monitor query performance** using Supabase dashboard
 3. **Check index usage** as data grows (pg_stat_user_indexes)
+4. **Verify index usage** with `pg_stat_user_indexes` view quarterly
+5. **Check for duplicate indexes** when adding new unique constraints
 
-### Performance
+### Performance (Recommendations)
 
-1. Consider adding index on `srs.due_date` + `child_id` composite if SRS queries slow down
+1. The existing `idx_srs_child_due` composite index on (child_id, due_date) is optimal for all SRS due date queries. No additional indexes needed.
 2. Monitor `attempts` table growth - may need partitioning after 1M+ records
 3. Add database connection pooling if concurrent users exceed 50
 
@@ -220,7 +332,7 @@ doppler run -- pwsh .\list-projects.ps1
 
 ## Conclusion
 
-The database is now fully optimized with no critical issues or warnings. The two missing indexes have been added, which will prevent performance degradation as the application scales. All security measures (RLS, private buckets, constraints) are properly configured.
+The database is now fully optimized with no critical issues or warnings. The two missing indexes have been added, which will prevent performance degradation as the application scales. In November 2025, additional optimization removed 2 unused/redundant indexes on the srs table, further improving write performance. All security measures (RLS, private buckets, constraints) are properly configured and no unused indexes remain.
 
 **Next Steps:**
 
