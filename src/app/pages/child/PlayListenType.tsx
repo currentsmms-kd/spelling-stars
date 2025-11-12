@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { AppShell } from "@/app/components/AppShell";
 import { Card } from "@/app/components/Card";
@@ -139,9 +139,12 @@ function ListSelector() {
     refetch();
   }, [refetch]);
 
-  const handleSelectList = useCallback((listId: string) => {
-    navigate(`?listId=${listId}`);
-  }, [navigate]);
+  const handleSelectList = useCallback(
+    (listId: string) => {
+      navigate(`?listId=${listId}`);
+    },
+    [navigate]
+  );
 
   if (error) {
     return (
@@ -366,15 +369,21 @@ function AnswerSection({
   onRetry,
   onNextWord,
 }: AnswerSectionProps) {
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    onAnswerChange(e.target.value);
-  }, [onAnswerChange]);
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      onAnswerChange(e.target.value);
+    },
+    [onAnswerChange]
+  );
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && answer.trim() && feedback === null) {
-      onCheckAnswer();
-    }
-  }, [answer, feedback, onCheckAnswer]);
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter" && answer.trim() && feedback === null) {
+        onCheckAnswer();
+      }
+    },
+    [answer, feedback, onCheckAnswer]
+  );
 
   return (
     <div className="space-y-4">
@@ -463,6 +472,10 @@ export function PlayListenType() {
   const [hasTriedOnce, setHasTriedOnce] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [hasUpdatedStreak, setHasUpdatedStreak] = useState(false);
+
+  // Refs for timeout cleanup
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const confettiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Hooks for D3/D4 features
   const updateSrs = useUpdateSrs();
@@ -608,6 +621,20 @@ export function PlayListenType() {
     return undefined;
   }, [currentWord, playAudio]);
 
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    const timeout = timeoutRef.current;
+    const confettiTimeout = confettiTimeoutRef.current;
+    return () => {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+      if (confettiTimeout) {
+        clearTimeout(confettiTimeout);
+      }
+    };
+  }, []);
+
   const normalizeAnswer = (text: string) => {
     return text
       .toLowerCase()
@@ -620,16 +647,35 @@ export function PlayListenType() {
       return;
     }
 
-    if (currentWordIndex < listData.words.length - 1) {
-      setCurrentWordIndex((prev) => prev + 1);
-      setAnswer("");
-      setFeedback(null);
-      setShowHint(0);
-      setHasTriedOnce(false);
-    } else {
-      // Completed all words
-      navigate("/child/rewards");
+    // Clear any pending timeouts
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
+    if (confettiTimeoutRef.current) {
+      clearTimeout(confettiTimeoutRef.current);
+      confettiTimeoutRef.current = null;
+    }
+
+    // Compute next index
+    const nextIndex = currentWordIndex + 1;
+    console.log(
+      `[PlayListenType] Advancing from word ${currentWordIndex} to ${nextIndex} of ${listData.words.length}`
+    );
+
+    if (nextIndex >= listData.words.length) {
+      // Completed all words - navigate without updating state
+      console.log("[PlayListenType] All words complete, navigating to rewards");
+      navigate("/child/rewards");
+      return;
+    }
+
+    // Move to next word - update index and reset local state
+    setCurrentWordIndex((prev) => prev + 1);
+    setAnswer("");
+    setFeedback(null);
+    setShowHint(0);
+    setHasTriedOnce(false);
   }, [listData, currentWordIndex, navigate]);
 
   const retry = () => {
@@ -651,7 +697,15 @@ export function PlayListenType() {
     if (correct) {
       setFeedback("correct");
       setShowConfetti(true);
-      setTimeout(() => setShowConfetti(false), 2000);
+
+      // Clear any existing confetti timeout before setting a new one
+      if (confettiTimeoutRef.current) {
+        clearTimeout(confettiTimeoutRef.current);
+      }
+      confettiTimeoutRef.current = setTimeout(
+        () => setShowConfetti(false),
+        2000
+      );
 
       if (!hasTriedOnce) {
         setStarsEarned((prev) => prev + 1);
@@ -677,7 +731,11 @@ export function PlayListenType() {
       }
 
       // Move to next word after delay
-      setTimeout(() => {
+      console.log("[PlayListenType] Answer correct, scheduling nextWord in 2s");
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      timeoutRef.current = setTimeout(() => {
         nextWord();
       }, 2000);
     } else {

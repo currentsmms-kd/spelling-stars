@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { AppShell } from "@/app/components/AppShell";
 import { Card } from "@/app/components/Card";
@@ -35,11 +35,15 @@ function RecordStep({
   handleStartRecording,
   isRecording,
   audioBlob,
+  error,
+  clearRecording,
 }: {
   playWord: () => void;
   handleStartRecording: () => Promise<void>;
   isRecording: boolean;
   audioBlob: Blob | null;
+  error: string | null;
+  clearRecording: () => void;
 }) {
   return (
     <>
@@ -47,6 +51,25 @@ function RecordStep({
         <p className="text-2xl text-muted-foreground mb-6">
           Listen to the word, then say the spelling out loud
         </p>
+
+        {/* Display error message if recording fails */}
+        {error && (
+          <div className="mb-6 p-4 bg-destructive/10 border-2 border-destructive rounded-lg">
+            <p className="text-xl font-semibold text-destructive mb-2">
+              Recording Error
+            </p>
+            <p className="text-lg text-destructive">{error}</p>
+            <Button
+              onClick={clearRecording}
+              size="default"
+              variant="outline"
+              className="mt-4"
+            >
+              Try Again
+            </Button>
+          </div>
+        )}
+
         <Button
           onClick={playWord}
           size="child"
@@ -104,6 +127,8 @@ function TypeStep({
   retry,
   nextWord,
   showConfetti,
+  isOnline,
+  audioBlobId,
 }: {
   answer: string;
   setAnswer: (value: string) => void;
@@ -115,6 +140,8 @@ function TypeStep({
   retry: () => void;
   nextWord: () => void;
   showConfetti: boolean;
+  isOnline: boolean;
+  audioBlobId: number | null;
 }) {
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -168,7 +195,7 @@ function TypeStep({
             onClick={checkAnswer}
             size="child"
             className="w-full"
-            disabled={!answer.trim()}
+            disabled={!answer.trim() || (!isOnline && !audioBlobId)}
           >
             Check Answer
           </Button>
@@ -265,6 +292,7 @@ function GameContent({
   handleStartRecording,
   isRecording,
   audioBlob,
+  error,
   answer,
   setAnswer,
   checkAnswer,
@@ -276,6 +304,8 @@ function GameContent({
   nextWord,
   showConfetti,
   isOnline,
+  audioBlobId,
+  clearRecording,
 }: {
   listData: ListWithWords;
   currentWordIndex: number;
@@ -285,6 +315,7 @@ function GameContent({
   handleStartRecording: () => Promise<void>;
   isRecording: boolean;
   audioBlob: Blob | null;
+  error: string | null;
   answer: string;
   setAnswer: (value: string) => void;
   checkAnswer: () => void;
@@ -296,6 +327,8 @@ function GameContent({
   nextWord: () => void;
   showConfetti: boolean;
   isOnline: boolean;
+  audioBlobId: number | null;
+  clearRecording: () => void;
 }) {
   const { profile } = useAuth();
 
@@ -330,6 +363,8 @@ function GameContent({
               handleStartRecording={handleStartRecording}
               isRecording={isRecording}
               audioBlob={audioBlob}
+              error={error}
+              clearRecording={clearRecording}
             />
           )}
 
@@ -345,6 +380,8 @@ function GameContent({
               retry={retry}
               nextWord={nextWord}
               showConfetti={showConfetti}
+              isOnline={isOnline}
+              audioBlobId={audioBlobId}
             />
           )}
         </div>
@@ -564,6 +601,11 @@ export function PlaySaySpell() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [hasUpdatedStreak, setHasUpdatedStreak] = useState(false);
 
+  // Refs for timeout cleanup
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const confettiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Hooks for D3/D4 features
   const updateSrs = useUpdateSrs();
   const awardStars = useAwardStars();
@@ -583,6 +625,7 @@ export function PlaySaySpell() {
     stopRecording,
     audioBlob: recordedBlob,
     clearRecording,
+    error,
   } = useAudioRecorder();
 
   // Fetch the selected list
@@ -734,31 +777,87 @@ export function PlaySaySpell() {
     return undefined;
   }, [currentWord, step, playWord]);
 
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    // Comment 2: Directly check and clear current timeout refs at cleanup time
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      if (confettiTimeoutRef.current) {
+        clearTimeout(confettiTimeoutRef.current);
+      }
+      if (recordingTimeoutRef.current) {
+        clearTimeout(recordingTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Handle recording completion
   useEffect(() => {
-    if (recordedBlob && step === "record") {
-      setAudioBlob(recordedBlob);
+    // Guard clause: only process when we have a recording blob and we're in record step
+    if (!recordedBlob || step !== "record") return;
 
-      // Queue audio offline
-      if (!isOnline) {
-        const timestamp = Date.now();
-        // CRITICAL: Path format must match online format for RLS policy compliance
-        // Format: {child_id}/{list_id}/{word_id}_{timestamp}.webm
-        const fileName = `${profile?.id}/${listId}/${currentWord?.id}_${timestamp}.webm`;
-        queueAudio(recordedBlob, fileName).then((id) => {
-          setAudioBlobId(id);
+    console.log("[PlaySaySpell] Recording blob received, processing...");
+    setAudioBlob(recordedBlob);
+
+    // Queue audio offline
+    if (!isOnline) {
+      console.log("[PlaySaySpell] Queuing audio offline");
+
+      // Comment 3: Guard against undefined IDs when queueing audio offline
+      if (!profile?.id || !listId || !currentWord?.id) {
+        logger.error("Cannot queue audio: missing required IDs", {
+          hasProfileId: !!profile?.id,
+          hasListId: !!listId,
+          hasWordId: !!currentWord?.id,
         });
+        return;
       }
 
-      // Move to typing step
+      const timestamp = Date.now();
+      // CRITICAL: Path format must match online format for RLS policy compliance
+      // Format: {child_id}/{list_id}/{word_id}_{timestamp}.webm
+      const fileName = `${profile.id}/${listId}/${currentWord.id}_${timestamp}.webm`;
+
+      // Comment 1: Await queueAudio to ensure audioBlobId is set before transitioning
+      queueAudio(recordedBlob, fileName)
+        .then((id) => {
+          setAudioBlobId(id);
+          console.log("[PlaySaySpell] Audio queued with ID:", id);
+          // Move to typing step only after audio is queued
+          console.log("[PlaySaySpell] Moving to type step");
+          setStep("type");
+        })
+        .catch((error) => {
+          logger.error("Failed to queue audio", error);
+          // Still allow transition to type step even if queueing fails
+          console.log("[PlaySaySpell] Moving to type step despite queue error");
+          setStep("type");
+        });
+    } else {
+      // Move to typing step immediately when online
+      console.log("[PlaySaySpell] Moving to type step");
       setStep("type");
     }
-  }, [recordedBlob, step, isOnline, profile?.id, listId, currentWord?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordedBlob]);
 
   const handleStartRecording = useCallback(async () => {
+    // Clear any existing recording timeout
+    if (recordingTimeoutRef.current) {
+      clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
+    }
+
+    console.log(
+      "[PlaySaySpell] Starting recording, will auto-stop in 3 seconds"
+    );
     await startRecording();
-    // Auto-stop after 3 seconds
-    setTimeout(() => {
+
+    // Store timeout ID for cleanup
+    recordingTimeoutRef.current = setTimeout(() => {
+      console.log("[PlaySaySpell] Auto-stopping recording after 3 seconds");
       stopRecording();
     }, 3000);
   }, [startRecording, stopRecording]);
@@ -773,24 +872,54 @@ export function PlaySaySpell() {
   const nextWord = useCallback(() => {
     if (!listData) return;
 
-    if (currentWordIndex < listData.words.length - 1) {
-      setCurrentWordIndex((prev) => prev + 1);
-      setStep("record");
-      setAnswer("");
-      setFeedback(null);
-      setShowHint(0);
-      setHasTriedOnce(false);
-      setAudioBlob(null);
-      setAudioBlobId(null);
-      clearRecording();
-    } else {
-      // Completed all words
-      navigate("/child/rewards");
+    // Clear any pending timeouts
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
+    if (confettiTimeoutRef.current) {
+      clearTimeout(confettiTimeoutRef.current);
+      confettiTimeoutRef.current = null;
+    }
+    if (recordingTimeoutRef.current) {
+      clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
+    }
+
+    // Compute next index
+    const nextIndex = currentWordIndex + 1;
+    console.log(
+      `[PlaySaySpell] Advancing from word ${currentWordIndex} to ${nextIndex} of ${listData.words.length}`
+    );
+
+    if (nextIndex >= listData.words.length) {
+      // Completed all words - navigate without updating state
+      console.log("[PlaySaySpell] All words complete, navigating to rewards");
+      navigate("/child/rewards");
+      return;
+    }
+
+    // Move to next word - update index and reset local state
+    console.log("[PlaySaySpell] Clearing recording state for next word");
+    setCurrentWordIndex((prev) => prev + 1);
+    setStep("record");
+    setAnswer("");
+    setFeedback(null);
+    setShowHint(0);
+    setHasTriedOnce(false);
+    setAudioBlob(null);
+    setAudioBlobId(null);
+    clearRecording();
   }, [listData, currentWordIndex, navigate, clearRecording]);
 
   const checkAnswer = useCallback(async () => {
     if (!currentWord || !profile?.id) return;
+
+    // Comment 1: Guard when offline - ensure audioBlobId is set before checking
+    if (!isOnline && !audioBlobId) {
+      logger.warn("Cannot check answer offline: audio not yet queued");
+      return;
+    }
 
     const normalizedAnswer = normalizeAnswer(answer);
     const normalizedCorrect = normalizeAnswer(currentWord.text);
@@ -803,7 +932,15 @@ export function PlaySaySpell() {
     if (correct) {
       setFeedback("correct");
       setShowConfetti(true);
-      setTimeout(() => setShowConfetti(false), 2000);
+
+      // Clear any existing confetti timeout before setting a new one
+      if (confettiTimeoutRef.current) {
+        clearTimeout(confettiTimeoutRef.current);
+      }
+      confettiTimeoutRef.current = setTimeout(
+        () => setShowConfetti(false),
+        2000
+      );
 
       if (!hasTriedOnce) {
         setStarsEarned((prev) => prev + 1);
@@ -830,7 +967,11 @@ export function PlaySaySpell() {
       }
 
       // Move to next word after delay
-      setTimeout(() => {
+      console.log("[PlaySaySpell] Answer correct, scheduling nextWord in 2s");
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      timeoutRef.current = setTimeout(() => {
         nextWord();
       }, 2000);
     } else {
@@ -884,6 +1025,12 @@ export function PlaySaySpell() {
   }, []);
 
   const redoRecording = useCallback(() => {
+    console.log("[PlaySaySpell] User requested re-record");
+    // Clear any pending recording timeout
+    if (recordingTimeoutRef.current) {
+      clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
+    }
     setStep("record");
     setAudioBlob(null);
     setAudioBlobId(null);
@@ -909,6 +1056,7 @@ export function PlaySaySpell() {
         handleStartRecording={handleStartRecording}
         isRecording={isRecording}
         audioBlob={audioBlob}
+        error={error}
         answer={answer}
         setAnswer={setAnswer}
         checkAnswer={checkAnswer}
@@ -920,6 +1068,8 @@ export function PlaySaySpell() {
         nextWord={nextWord}
         showConfetti={showConfetti}
         isOnline={isOnline}
+        audioBlobId={audioBlobId}
+        clearRecording={clearRecording}
       />
     </AppShell>
   );
