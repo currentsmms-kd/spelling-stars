@@ -26,6 +26,13 @@ import {
 import { logger } from "@/lib/logger";
 import { queryClient } from "@/app/queryClient";
 import { useLocation } from "react-router-dom";
+import type { Tables } from "@/types/database.types";
+
+// Extend the ParentalSettings type to include the new column
+// until database types are regenerated
+type ParentalSettingsRow = Tables<"parental_settings"> & {
+  ignore_punctuation?: boolean | null;
+};
 
 // Extracted PIN Settings Component
 function PinSettings({
@@ -151,6 +158,7 @@ function GameSettings({
   settings: {
     showHintsOnFirstMiss: boolean;
     enforceCaseSensitivity: boolean;
+    ignorePunctuation: boolean;
     autoReadbackSpelling: boolean;
     strictSpacedMode: boolean;
   };
@@ -158,6 +166,7 @@ function GameSettings({
     settings: Partial<{
       showHintsOnFirstMiss: boolean;
       enforceCaseSensitivity: boolean;
+      ignorePunctuation: boolean;
       autoReadbackSpelling: boolean;
       strictSpacedMode: boolean;
       dailySessionLimitMinutes: number;
@@ -175,6 +184,13 @@ function GameSettings({
   const handleCaseSensitivityChange = useCallback(
     (checked: boolean) => {
       onSettingsChange({ enforceCaseSensitivity: checked });
+    },
+    [onSettingsChange]
+  );
+
+  const handlePunctuationChange = useCallback(
+    (checked: boolean) => {
+      onSettingsChange({ ignorePunctuation: checked });
     },
     [onSettingsChange]
   );
@@ -210,6 +226,13 @@ function GameSettings({
           description="Require correct capitalization for answers"
           checked={settings.enforceCaseSensitivity}
           onChange={handleCaseSensitivityChange}
+        />
+        <CheckboxSetting
+          id="ignore-punctuation"
+          label="Ignore all punctuation in spelling checks"
+          description="Remove hyphens, apostrophes, and all punctuation when comparing answers (e.g., 'dont' matches 'don't', 'ice cream' matches 'ice-cream'). Best for younger learners focusing on letter sequences."
+          checked={settings.ignorePunctuation}
+          onChange={handlePunctuationChange}
         />
         <CheckboxSetting
           id="auto-readback"
@@ -559,6 +582,7 @@ export function ParentalSettings() {
     pinCode,
     showHintsOnFirstMiss,
     enforceCaseSensitivity,
+    ignorePunctuation,
     autoReadbackSpelling,
     dailySessionLimitMinutes,
     defaultTtsVoice,
@@ -573,6 +597,7 @@ export function ParentalSettings() {
   const [localSettings, setLocalSettings] = useState({
     showHintsOnFirstMiss,
     enforceCaseSensitivity,
+    ignorePunctuation,
     autoReadbackSpelling,
     dailySessionLimitMinutes,
     defaultTtsVoice,
@@ -611,17 +636,21 @@ export function ParentalSettings() {
         }
 
         if (data) {
+          const settingsData = data as ParentalSettingsRow;
           const newSettings = {
-            showHintsOnFirstMiss: data.show_hints_on_first_miss ?? true,
-            enforceCaseSensitivity: data.enforce_case_sensitivity ?? false,
-            autoReadbackSpelling: data.auto_readback_spelling ?? true,
-            dailySessionLimitMinutes: data.daily_session_limit_minutes ?? 20,
-            defaultTtsVoice: data.default_tts_voice ?? "en-US",
-            strictSpacedMode: data.strict_spaced_mode ?? false,
+            showHintsOnFirstMiss: settingsData.show_hints_on_first_miss ?? true,
+            enforceCaseSensitivity:
+              settingsData.enforce_case_sensitivity ?? false,
+            ignorePunctuation: settingsData.ignore_punctuation ?? false,
+            autoReadbackSpelling: settingsData.auto_readback_spelling ?? true,
+            dailySessionLimitMinutes:
+              settingsData.daily_session_limit_minutes ?? 20,
+            defaultTtsVoice: settingsData.default_tts_voice ?? "en-US",
+            strictSpacedMode: settingsData.strict_spaced_mode ?? false,
           };
           setLocalSettings(newSettings);
           setSettings(newSettings);
-          setPinCode(data.pin_code);
+          setPinCode(settingsData.pin_code);
 
           // Load and apply theme
           if (data.color_theme) {
@@ -673,6 +702,7 @@ export function ParentalSettings() {
         pin_code: hashedPin,
         show_hints_on_first_miss: localSettings.showHintsOnFirstMiss,
         enforce_case_sensitivity: localSettings.enforceCaseSensitivity,
+        ignore_punctuation: localSettings.ignorePunctuation,
         auto_readback_spelling: localSettings.autoReadbackSpelling,
         daily_session_limit_minutes: localSettings.dailySessionLimitMinutes,
         default_tts_voice: localSettings.defaultTtsVoice,
@@ -782,6 +812,7 @@ export function ParentalSettings() {
           settings={{
             showHintsOnFirstMiss: localSettings.showHintsOnFirstMiss,
             enforceCaseSensitivity: localSettings.enforceCaseSensitivity,
+            ignorePunctuation: localSettings.ignorePunctuation,
             autoReadbackSpelling: localSettings.autoReadbackSpelling,
             strictSpacedMode: localSettings.strictSpacedMode,
           }}

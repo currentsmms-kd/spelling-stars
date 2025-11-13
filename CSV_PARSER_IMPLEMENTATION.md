@@ -10,7 +10,7 @@ Successfully implemented Comment 1 from the verification review: **CSV parser is
 
 Created a robust CSV parser with the following capabilities:
 
-#### Key Features:
+#### Key Features
 
 - **Quoted Field Handling**: Properly parses quoted commas as part of a field
   - Example: `"hello, world",phonetic,"voice name"` → 3 correct fields
@@ -37,7 +37,7 @@ Created a robust CSV parser with the following capabilities:
   - Lowercases text for case-insensitive comparison
   - Trims whitespace for robust matching
 
-#### Exported Functions:
+#### Exported Functions
 
 1. `parseCSV(csvText: string): ParsedCsvRow[]`
    - Main parser function
@@ -49,7 +49,7 @@ Created a robust CSV parser with the following capabilities:
 
 ### 2. Updated File: `src/app/pages/parent/ListEditor.tsx`
 
-#### Changes to `handleFileSelect()`:
+#### Changes to `handleFileSelect()`
 
 - **Before**: Used naive `text.split("\n")` without proper CSV parsing
 - **After**: Uses robust `parseCSV()` function with:
@@ -60,7 +60,7 @@ Created a robust CSV parser with the following capabilities:
   5. Header row auto-detection
   6. Normalized deduplication against existing words
 
-#### Code Pattern:
+#### Code Pattern
 
 ```typescript
 const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -86,7 +86,7 @@ const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
 };
 ```
 
-#### Import Added:
+#### Import Added
 
 ```typescript
 import { parseCSV, normalizeForDedupe } from "@/lib/csvParser";

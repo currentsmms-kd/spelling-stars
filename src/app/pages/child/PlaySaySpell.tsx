@@ -12,9 +12,11 @@ import { useAuth } from "@/app/hooks/useAuth";
 import { useOnline } from "@/app/hooks/useOnline";
 import { useAudioRecorder } from "@/app/hooks/useAudioRecorder";
 import { useTtsVoices } from "@/app/hooks/useTtsVoices";
+import { useParentalSettingsStore } from "@/app/store/parentalSettings";
 import { queueAttempt, queueAudio } from "@/lib/sync";
 import { logger } from "@/lib/logger";
 import { toast } from "react-hot-toast";
+import { normalizeSpellingAnswer } from "@/lib/utils";
 import {
   useUpdateSrs,
   useAwardStars,
@@ -32,6 +34,31 @@ interface ListWithWords {
   words: Word[];
 }
 
+/**
+ * Recording step of Say & Spell game.
+ * User hears the word and records themselves spelling it out loud.
+ *
+ * Features:
+ * - Play word button (recorded audio or TTS)
+ * - Start/Stop recording controls
+ * - 3-second auto-stop timer
+ * - Recording status display
+ * - Error handling for microphone issues
+ * - Redo recording option
+ *
+ * Recording Flow:
+ * 1. User clicks "Start Recording"
+ * 2. Browser requests microphone permission
+ * 3. Recording starts (max 3 seconds)
+ * 4. Recording stops automatically or manually
+ * 5. Audio blob is created and saved
+ * 6. Automatically advances to Type step
+ *
+ * Error Handling:
+ * - Permission denied: Show instructions to enable microphone
+ * - No microphone: Prompt to connect device
+ * - Device in use: Suggest closing other apps
+ */
 function RecordStep({
   playWord,
   handleStartRecording,
@@ -130,6 +157,28 @@ function RecordStep({
   );
 }
 
+/**
+ * Typing step of Say & Spell game.
+ * User types the spelling they just recorded.
+ *
+ * Features:
+ * - Text input with auto-focus
+ * - Answer validation
+ * - Progressive hints (first letter → full word)
+ * - Retry and Next Word buttons
+ * - Loading states during save
+ * - Confetti animation on correct answer
+ *
+ * Hint System:
+ * - Level 0: No hint
+ * - Level 1: First letter shown
+ * - Level 2: Full word shown
+ *
+ * Offline Handling:
+ * - Disables submit if offline and audio not queued
+ * - Shows offline indicator
+ * - Queues attempts for later sync
+ */
 function TypeStep({
   answer,
   setAnswer,
@@ -663,6 +712,73 @@ function LoadingState() {
   );
 }
 
+/**
+ * TWO-STEP GAME FLOW:
+ *
+ * STEP 1: RECORD
+ * - User hears the word (audio or TTS)
+ * - User clicks "Start Recording"
+ * - User says the spelling out loud (e.g., "C-A-T")
+ * - Recording stops after 3 seconds (or manual stop)
+ * - Audio is saved to Supabase Storage (or queued if offline)
+ * - Automatically advances to Step 2
+ *
+ * STEP 2: TYPE
+ * - User types the spelling they just said
+ * - Answer is validated
+ * - Feedback provided (correct/wrong with hints)
+ * - On correct: auto-advance to next word after 5s
+ * - On wrong: show hints and allow retry
+ *
+ * STATE MANAGEMENT:
+ * - step: 'record' | 'type' - controls which UI to show
+ * - audioBlob: recorded audio data
+ * - audioBlobId: queued audio ID for offline mode
+ * - answer: typed spelling
+ * - feedback: validation result
+ *
+ * OFFLINE HANDLING:
+ * - Audio recordings queued in IndexedDB
+ * - Attempts queued with audio blob ID reference
+ * - Background sync uploads audio when online
+ * - Attempts link to uploaded audio via blob ID
+ */
+
+/**
+ * Say & Spell Game Mode
+ *
+ * Two-step game where children:
+ * 1. RECORD: Say the spelling out loud (e.g., "C-A-T")
+ * 2. TYPE: Type the spelling they just recorded
+ *
+ * This mode reinforces spelling through multi-modal learning:
+ * - Auditory: hearing the word
+ * - Verbal: saying the spelling
+ * - Visual: seeing their typed answer
+ * - Kinesthetic: typing the letters
+ *
+ * Game Flow:
+ * 1. User selects a spelling list
+ * 2. Step 1 (Record): User hears word and records spelling
+ * 3. Audio is saved (or queued if offline)
+ * 4. Step 2 (Type): User types the spelling
+ * 5. Answer is checked and feedback provided
+ * 6. Correct: auto-advance after 5s
+ * 7. Incorrect: show hints and allow retry
+ * 8. After all words: navigate to rewards page
+ *
+ * Offline Support:
+ * - Audio recordings queued in IndexedDB
+ * - Attempts queued for sync
+ * - SRS updates queued for sync
+ * - Game continues seamlessly offline
+ *
+ * Accessibility:
+ * - Recording status announced to screen readers
+ * - Auto-focus on input in type step
+ * - Live regions announce feedback
+ * - Keyboard navigation throughout
+ */
 export function PlaySaySpell() {
   const [searchParams] = useSearchParams();
   const listId = searchParams.get("listId"); // Fixed: was "list", should be "listId"
@@ -670,23 +786,27 @@ export function PlaySaySpell() {
   const { profile } = useAuth();
   const isOnline = useOnline();
   const { getVoiceWithFallback, isLoading: voicesLoading } = useTtsVoices();
+  const { enforceCaseSensitivity, ignorePunctuation } =
+    useParentalSettingsStore();
 
-  const [currentWordIndex, setCurrentWordIndex] = useState(0);
-  const [step, setStep] = useState<"record" | "type">("record");
+  const [currentWordIndex, setCurrentWordIndex] = useState(0); // Index in words array
+  const [step, setStep] = useState<"record" | "type">("record"); // Current game step
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  const [audioBlobId, setAudioBlobId] = useState<number | null>(null);
-  const [answer, setAnswer] = useState("");
-  const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
-  const [showHint, setShowHint] = useState(0);
-  const [starsEarned, setStarsEarned] = useState(0);
-  const [hasTriedOnce, setHasTriedOnce] = useState(false);
-  const [showConfetti, setShowConfetti] = useState(false);
-  const [hasUpdatedStreak, setHasUpdatedStreak] = useState(false);
+  const [audioBlobId, setAudioBlobId] = useState<number | null>(null); // Queued audio ID for offline
+  const [answer, setAnswer] = useState(""); // User's typed spelling
+  const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null); // Validation result
+  const [showHint, setShowHint] = useState(0); // Hint level: 0=none, 1=first letter, 2=full word
+  const [starsEarned, setStarsEarned] = useState(0); // Stars earned this session
+  const [isFirstAttempt, setIsFirstAttempt] = useState(true); // True until first wrong answer
+  const [showConfetti, setShowConfetti] = useState(false); // Confetti animation trigger
+  const [hasUpdatedStreak, setHasUpdatedStreak] = useState(false); // Prevents duplicate streak updates
 
   // Refs for timeout cleanup
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const confettiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const ttsRetryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const ttsRetryCountRef = useRef<number>(0);
 
   // Hooks for D3/D4 features
   const updateSrs = useUpdateSrs();
@@ -784,13 +904,24 @@ export function PlaySaySpell() {
           }
         }
 
+        // Required columns for attempts table:
+        // - child_id (uuid, FK to profiles)
+        // - word_id (uuid, FK to words)
+        // - list_id (uuid, FK to word_lists)
+        // - mode (text: 'listen-type' | 'say-spell' | 'flash')
+        // - correct (boolean)
+        // - quality (integer, 0-5, nullable)
+        // - typed_answer (text, nullable)
+        // - audio_url (text storage path, nullable)
+        // - duration_ms (integer, nullable)
+        // - started_at (timestamp)
         const { error } = await supabase.from("attempts").insert({
           child_id: profile.id,
           word_id: wordId,
           list_id: listId,
           mode: "say-spell",
           correct,
-          quality, // Add quality field
+          quality, // Quality score (0-5) based on correctness, first-try, hints
           typed_answer: typedAnswer,
           audio_url: audioPath, // Store path instead of URL
           started_at: new Date().toISOString(),
@@ -799,7 +930,7 @@ export function PlaySaySpell() {
         if (error) throw error;
 
         // Award stars if first-try correct
-        if (correct && !hasTriedOnce) {
+        if (correct && isFirstAttempt) {
           await awardStars.mutateAsync({
             userId: profile.id,
             amount: 1,
@@ -819,7 +950,7 @@ export function PlaySaySpell() {
         );
 
         // Queue star transaction
-        if (correct && !hasTriedOnce) {
+        if (correct && isFirstAttempt) {
           await queueStarTransaction(profile.id, 1, "correct_word");
         }
       }
@@ -854,11 +985,34 @@ export function PlaySaySpell() {
 
     // Wait for voices to load before using TTS
     if (voicesLoading) {
-      logger.warn("TTS voices still loading, will retry after delay");
-      // Retry after a short delay when voices are loading
-      setTimeout(() => playWord(), 100);
+      // Cap retries at 50 attempts over 5 seconds (100ms each)
+      if (ttsRetryCountRef.current >= 50) {
+        logger.warn(
+          "TTS voices failed to load after 50 retries, proceeding with default voice"
+        );
+        // Proceed with default speechSynthesis without explicit voice
+        const utterance = new SpeechSynthesisUtterance(currentWord.text);
+        speechSynthesis.speak(utterance);
+        // Reset retry counter for next word
+        ttsRetryCountRef.current = 0;
+        return;
+      }
+
+      logger.warn(
+        `TTS voices still loading, retry ${ttsRetryCountRef.current + 1}/50`
+      );
+      ttsRetryCountRef.current += 1;
+
+      // Track timeout for cleanup
+      if (ttsRetryTimeoutRef.current) {
+        clearTimeout(ttsRetryTimeoutRef.current);
+      }
+      ttsRetryTimeoutRef.current = setTimeout(() => playWord(), 100);
       return;
     }
+
+    // Reset retry counter when voices finish loading
+    ttsRetryCountRef.current = 0;
 
     const utterance = new SpeechSynthesisUtterance(currentWord.text);
 
@@ -893,6 +1047,9 @@ export function PlaySaySpell() {
       }
       if (recordingTimeoutRef.current) {
         clearTimeout(recordingTimeoutRef.current);
+      }
+      if (ttsRetryTimeoutRef.current) {
+        clearTimeout(ttsRetryTimeoutRef.current);
       }
     };
   }, []);
@@ -947,6 +1104,16 @@ export function PlaySaySpell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordedBlob]);
 
+  /**
+   * Initiates audio recording for spelling attempt.
+   * Starts recording and sets 3-second auto-stop timer.
+   *
+   * @remarks
+   * - Clears any existing recording timeout
+   * - Stores timeout ID in ref for cleanup
+   * - Recording stops automatically after 3 seconds
+   * - User can also click "Stop Recording" to end early
+   */
   const handleStartRecording = useCallback(async () => {
     // Clear any existing recording timeout
     if (recordingTimeoutRef.current) {
@@ -966,13 +1133,41 @@ export function PlaySaySpell() {
     }, 3000);
   }, [startRecording, stopRecording]);
 
-  const normalizeAnswer = (text: string) => {
-    return text
-      .toLowerCase()
-      .trim()
-      .replace(/[.,!?;:'"]/g, "");
-  };
+  /**
+   * Normalizes user input for comparison with correct answer.
+   * Uses centralized normalization from utils.ts to ensure consistency across game modes.
+   *
+   * @see {@link normalizeSpellingAnswer} in src/lib/utils.ts for full documentation
+   */
+  const normalizeAnswer = useCallback(
+    (text: string) => {
+      // Normalizes answer per parental settings, preserving hyphens/apostrophes for compound words by default
+      return normalizeSpellingAnswer(text, {
+        enforceCaseSensitivity,
+        ignorePunctuation,
+      });
+    },
+    [enforceCaseSensitivity, ignorePunctuation]
+  );
 
+  /**
+   * Advances to next word or completes session.
+   * Resets both recording and typing state.
+   *
+   * @remarks
+   * State Reset:
+   * - Clears recording (audio blob, recording status)
+   * - Resets to record step
+   * - Clears answer input
+   * - Resets feedback and hints
+   * - Resets first attempt flag
+   * - Clears all timeouts
+   *
+   * Two-Step Reset:
+   * Unlike Listen & Type, this mode must reset both:
+   * 1. Recording step state (audio, recording status)
+   * 2. Typing step state (answer, feedback, hints)
+   */
   const nextWord = useCallback(() => {
     if (!listData) return;
 
@@ -1003,6 +1198,7 @@ export function PlaySaySpell() {
       return;
     }
 
+    // Always start at record step for new word
     // Move to next word - update index and reset local state
     console.log("[PlaySaySpell] Clearing recording state for next word");
     setCurrentWordIndex((prev) => prev + 1);
@@ -1010,15 +1206,41 @@ export function PlaySaySpell() {
     setAnswer("");
     setFeedback(null);
     setShowHint(0);
-    setHasTriedOnce(false);
+    setIsFirstAttempt(true);
     setAudioBlob(null);
     setAudioBlobId(null);
     clearRecording();
   }, [listData, currentWordIndex, navigate, clearRecording]);
 
+  /**
+   * Validates user's typed spelling and updates game state.
+   * Similar to Listen & Type mode but includes audio recording.
+   *
+   * @remarks
+   * Correct Answer Flow:
+   * 1. Set feedback to "correct"
+   * 2. Show confetti animation
+   * 3. Award star if first attempt
+   * 4. Save attempt with audio blob ID
+   * 5. Update SRS with success
+   * 6. Schedule auto-advance (5 seconds)
+   *
+   * Incorrect Answer Flow:
+   * 1. Set feedback to "wrong"
+   * 2. Mark as not first attempt
+   * 3. Save attempt with audio blob ID
+   * 4. Update SRS with miss (first miss only)
+   * 5. Show progressive hints
+   *
+   * Audio Handling:
+   * - Includes audioBlobId in attempt record
+   * - Links typed answer to recorded audio
+   * - Enables playback review in parent dashboard
+   */
   const checkAnswer = useCallback(async () => {
     if (!currentWord || !profile?.id) return;
 
+    // Ensure we have audio blob ID to link with attempt
     // Comment 1: Guard when offline - ensure audioBlobId is set before checking
     if (!isOnline && !audioBlobId) {
       logger.warn("Cannot check answer offline: audio not yet queued");
@@ -1029,9 +1251,10 @@ export function PlaySaySpell() {
     const normalizedCorrect = normalizeAnswer(currentWord.text);
     const correct = normalizedAnswer === normalizedCorrect;
 
+    // Calculate quality score: correctness + first attempt + hint usage
     // Calculate quality score (0-5)
     const usedHint = showHint > 0;
-    const quality = computeAttemptQuality(correct, !hasTriedOnce, usedHint);
+    const quality = computeAttemptQuality(correct, isFirstAttempt, usedHint);
 
     if (correct) {
       setFeedback("correct");
@@ -1046,10 +1269,11 @@ export function PlaySaySpell() {
         2000
       );
 
-      if (!hasTriedOnce) {
+      if (isFirstAttempt) {
         setStarsEarned((prev) => prev + 1);
       }
 
+      // Online: save directly; Offline: queue for sync
       // Save attempt with quality
       // Wrap in try/catch to ensure game continues even if save fails
       try {
@@ -1065,15 +1289,16 @@ export function PlaySaySpell() {
         logger.warn("Save attempt failed, continuing game flow", error);
       }
 
+      // Update spaced repetition algorithm based on performance
       // Update SRS: first-try correct
       if (isOnline) {
         updateSrs.mutate({
           childId: profile.id,
           wordId: currentWord.id,
-          isCorrectFirstTry: !hasTriedOnce,
+          isCorrectFirstTry: isFirstAttempt,
         });
       } else {
-        await queueSrsUpdate(profile.id, currentWord.id, !hasTriedOnce);
+        await queueSrsUpdate(profile.id, currentWord.id, isFirstAttempt);
       }
 
       // Move to next word after delay
@@ -1086,7 +1311,7 @@ export function PlaySaySpell() {
       }, 2000);
     } else {
       setFeedback("wrong");
-      setHasTriedOnce(true);
+      setIsFirstAttempt(false);
 
       // Save incorrect attempt with quality
       // Wrap in try/catch to ensure game continues even if save fails
@@ -1104,14 +1329,14 @@ export function PlaySaySpell() {
       }
 
       // Update SRS: not first-try correct (miss)
-      if (isOnline && !hasTriedOnce) {
+      if (isOnline && isFirstAttempt) {
         // Only update SRS on first miss, not subsequent retries
         updateSrs.mutate({
           childId: profile.id,
           wordId: currentWord.id,
           isCorrectFirstTry: false,
         });
-      } else if (!isOnline && !hasTriedOnce) {
+      } else if (!isOnline && isFirstAttempt) {
         await queueSrsUpdate(profile.id, currentWord.id, false);
       }
 
@@ -1126,13 +1351,14 @@ export function PlaySaySpell() {
     currentWord,
     profile,
     answer,
-    hasTriedOnce,
+    isFirstAttempt,
     showHint,
     audioBlobId,
     saveAttemptMutation,
     isOnline,
     updateSrs,
     nextWord,
+    normalizeAnswer,
   ]);
 
   const retry = useCallback(() => {

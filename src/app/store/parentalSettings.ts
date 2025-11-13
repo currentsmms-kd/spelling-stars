@@ -6,6 +6,7 @@ export interface ParentalSettings {
   pinCode: string | null; // PBKDF2 hash in format "salt:hash"
   showHintsOnFirstMiss: boolean;
   enforceCaseSensitivity: boolean;
+  ignorePunctuation: boolean; // If true, strips ALL punctuation including hyphens/apostrophes for spelling comparison
   autoReadbackSpelling: boolean;
   dailySessionLimitMinutes: number;
   defaultTtsVoice: string;
@@ -34,6 +35,7 @@ export const useParentalSettingsStore = create<ParentalSettingsState>()(
       pinCode: null,
       showHintsOnFirstMiss: true,
       enforceCaseSensitivity: false,
+      ignorePunctuation: false, // Default: preserve hyphens and apostrophes in spelling checks
       autoReadbackSpelling: true,
       dailySessionLimitMinutes: 20,
       defaultTtsVoice: "en-US",
@@ -109,9 +111,11 @@ export const useParentalSettingsStore = create<ParentalSettingsState>()(
         pinCode: state.pinCode,
         showHintsOnFirstMiss: state.showHintsOnFirstMiss,
         enforceCaseSensitivity: state.enforceCaseSensitivity,
+        ignorePunctuation: state.ignorePunctuation,
         autoReadbackSpelling: state.autoReadbackSpelling,
         dailySessionLimitMinutes: state.dailySessionLimitMinutes,
         defaultTtsVoice: state.defaultTtsVoice,
+        strictSpacedMode: state.strictSpacedMode,
       }),
     }
   )

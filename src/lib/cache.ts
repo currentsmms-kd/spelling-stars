@@ -15,14 +15,15 @@ import type { QueryClient } from "@tanstack/react-query";
 const CACHE_VERSION = "v1";
 
 /**
- * Cache names used by the application
+ * Cache names used by the service worker.
+ * Versioned to enable cache invalidation on app updates.
+ * Legacy cache names are kept temporarily for backwards compatibility.
  * These should match the cacheName values in vite.config.ts
- * Versioned to enable cache invalidation on updates
  */
 export const CACHE_NAMES = {
   AUTH: `supabase-auth-${CACHE_VERSION}`,
   API: `supabase-api-${CACHE_VERSION}`,
-  STORAGE: "supabase-storage-cache", // DEPRECATED - kept for backwards compatibility
+  STORAGE: "supabase-storage-cache", // Legacy cache name from v1.0; cleared on sign-out for backward compatibility. Planned removal March 2026 (tracked in issue #TBD).
   PRIVATE_AUDIO: `private-audio-${CACHE_VERSION}`,
   PUBLIC_AUDIO: `public-audio-${CACHE_VERSION}`,
   STORAGE_FALLBACK: `supabase-storage-${CACHE_VERSION}`,

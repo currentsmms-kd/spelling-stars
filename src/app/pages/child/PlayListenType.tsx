@@ -11,9 +11,11 @@ import { supabase } from "@/app/supabase";
 import { useAuth } from "@/app/hooks/useAuth";
 import { useOnline } from "@/app/hooks/useOnline";
 import { useTtsVoices } from "@/app/hooks/useTtsVoices";
+import { useParentalSettingsStore } from "@/app/store/parentalSettings";
 import { queueAttempt } from "@/lib/sync";
 import { logger } from "@/lib/logger";
 import { toast } from "react-hot-toast";
+import { normalizeSpellingAnswer } from "@/lib/utils";
 import {
   useUpdateSrs,
   useAwardStars,
@@ -406,6 +408,17 @@ function GameContent({
   );
 }
 
+/**
+ * Answer input and feedback section for Listen & Type game.
+ * Handles user input, hint display, and action buttons (Check/Retry/Next).
+ *
+ * Features:
+ * - Auto-focus on input when ready
+ * - Enter key to submit answer
+ * - Progressive hints (first letter → full word)
+ * - Loading states during save operations
+ * - Confetti animation on correct answer
+ */
 function AnswerSection({
   answer,
   feedback,
@@ -547,6 +560,33 @@ function AnswerSection({
   );
 }
 
+/**
+ * Listen & Type Game Mode
+ *
+ * Children hear a word (via recorded audio or TTS) and type the spelling.
+ * Features progressive hints, star rewards, and spaced repetition tracking.
+ *
+ * Game Flow:
+ * 1. User selects a spelling list (or continues from URL param)
+ * 2. Word is played automatically on load
+ * 3. User types their answer
+ * 4. Answer is checked and feedback provided
+ * 5. Correct: auto-advance after 5s (or click Next)
+ * 6. Incorrect: show hints and allow retry
+ * 7. After all words: navigate to rewards page
+ *
+ * Offline Support:
+ * - Attempts queued in IndexedDB
+ * - SRS updates queued for sync
+ * - Star awards queued for sync
+ * - Game continues seamlessly offline
+ *
+ * Accessibility:
+ * - Auto-focus on input field
+ * - Live regions announce feedback
+ * - Keyboard navigation (Enter to submit)
+ * - Screen reader labels on all controls
+ */
 export function PlayListenType() {
   const [searchParams] = useSearchParams();
   const listId = searchParams.get("listId"); // Fixed: was "list", should be "listId"
@@ -554,19 +594,23 @@ export function PlayListenType() {
   const { profile } = useAuth();
   const isOnline = useOnline();
   const { getVoiceWithFallback, isLoading: voicesLoading } = useTtsVoices();
+  const { enforceCaseSensitivity, ignorePunctuation } =
+    useParentalSettingsStore();
 
-  const [currentWordIndex, setCurrentWordIndex] = useState(0);
-  const [answer, setAnswer] = useState("");
-  const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
-  const [showHint, setShowHint] = useState(0); // 0: no hint, 1: first letter, 2: full word
-  const [starsEarned, setStarsEarned] = useState(0);
-  const [hasTriedOnce, setHasTriedOnce] = useState(false);
-  const [showConfetti, setShowConfetti] = useState(false);
-  const [hasUpdatedStreak, setHasUpdatedStreak] = useState(false);
+  const [currentWordIndex, setCurrentWordIndex] = useState(0); // Index in words array (0-based)
+  const [answer, setAnswer] = useState(""); // User's typed input
+  const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null); // Answer validation result
+  const [showHint, setShowHint] = useState(0); // Hint level: 0=none, 1=first letter, 2=full word
+  const [starsEarned, setStarsEarned] = useState(0); // Stars earned this session (max 5 per session)
+  const [isFirstAttempt, setIsFirstAttempt] = useState(true); // True until first wrong answer
+  const [showConfetti, setShowConfetti] = useState(false); // Confetti animation trigger
+  const [hasUpdatedStreak, setHasUpdatedStreak] = useState(false); // Prevents duplicate streak updates
 
   // Refs for timeout cleanup
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const confettiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const ttsRetryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const ttsRetryCountRef = useRef<number>(0);
 
   // Hooks for D3/D4 features
   const updateSrs = useUpdateSrs();
@@ -628,23 +672,35 @@ export function PlayListenType() {
     }) => {
       if (!profile?.id || !listId) return;
 
+      // Required columns for attempts table:
+      // - child_id (uuid, FK to profiles)
+      // - word_id (uuid, FK to words)
+      // - list_id (uuid, FK to word_lists)
+      // - mode (text: 'listen-type' | 'say-spell' | 'flash')
+      // - correct (boolean)
+      // - quality (integer, 0-5, nullable)
+      // - typed_answer (text, nullable)
+      // - audio_url (text storage path, nullable)
+      // - duration_ms (integer, nullable)
+      // - started_at (timestamp)
       const attemptData = {
         child_id: profile.id,
         word_id: wordId,
         list_id: listId,
         mode: "listen-type",
         correct,
-        quality, // Add quality field
+        quality, // Quality score (0-5) based on correctness, first-try, hints
         typed_answer: typedAnswer,
         started_at: new Date().toISOString(),
       };
 
       if (isOnline) {
+        // Online: save directly to Supabase
         const { error } = await supabase.from("attempts").insert(attemptData);
         if (error) throw error;
 
         // Award stars if first-try correct
-        if (correct && !hasTriedOnce) {
+        if (correct && isFirstAttempt) {
           await awardStars.mutateAsync({
             userId: profile.id,
             amount: 1,
@@ -652,6 +708,7 @@ export function PlayListenType() {
           });
         }
       } else {
+        // Offline: queue in IndexedDB for background sync when connection restored
         // Queue for later sync
         await queueAttempt(
           profile.id,
@@ -663,7 +720,7 @@ export function PlayListenType() {
         );
 
         // Queue star transaction
-        if (correct && !hasTriedOnce) {
+        if (correct && isFirstAttempt) {
           await queueStarTransaction(profile.id, 1, "correct_word");
         }
       }
@@ -693,6 +750,19 @@ export function PlayListenType() {
 
   const currentWord = listData?.words[currentWordIndex];
 
+  /**
+   * Plays audio pronunciation for the current word.
+   * Uses recorded audio if available, otherwise falls back to text-to-speech.
+   * Handles voice loading delays, provides fallback voice selection, and handles autoplay blocking.
+   *
+   * @remarks
+   * - Checks for prompt_audio_url first (recorded pronunciation)
+   * - Falls back to browser TTS with voice selection
+   * - Retries up to 50 times (5 seconds) if voices are loading
+   * - Uses getVoiceWithFallback to ensure a voice is always available
+   * - Falls back to default speechSynthesis without explicit voice if cap reached
+   * - Handles autoplay blocking by prompting user to tap Play button
+   */
   const playAudio = useCallback(() => {
     if (!currentWord) {
       return;
@@ -700,15 +770,52 @@ export function PlayListenType() {
 
     if (currentWord.prompt_audio_url) {
       const audio = new Audio(currentWord.prompt_audio_url);
-      audio.play();
+
+      // Capture the promise from audio.play() and handle autoplay blocking
+      audio.play().catch((error) => {
+        // Autoplay was blocked by the browser
+        logger.warn("Audio autoplay blocked by browser", error);
+
+        // Show a friendly toast prompting the user to tap Play
+        toast("👆 Tap the Play button to hear the word", {
+          duration: 3000,
+          icon: "🔊",
+        });
+      });
+
+      // Reset retry counter when successfully playing audio
+      ttsRetryCountRef.current = 0;
     } else {
       // Wait for voices to load before using TTS
       if (voicesLoading) {
-        logger.warn("TTS voices still loading, will retry after delay");
-        // Retry after a short delay when voices are loading
-        setTimeout(() => playAudio(), 100);
+        // Cap retries at 50 attempts over 5 seconds (100ms each)
+        if (ttsRetryCountRef.current >= 50) {
+          logger.warn(
+            "TTS voices failed to load after 50 retries, proceeding with default voice"
+          );
+          // Proceed with default speechSynthesis without explicit voice
+          const utterance = new SpeechSynthesisUtterance(currentWord.text);
+          speechSynthesis.speak(utterance);
+          // Reset retry counter for next word
+          ttsRetryCountRef.current = 0;
+          return;
+        }
+
+        logger.warn(
+          `TTS voices still loading, retry ${ttsRetryCountRef.current + 1}/50`
+        );
+        ttsRetryCountRef.current += 1;
+
+        // Track timeout for cleanup
+        if (ttsRetryTimeoutRef.current) {
+          clearTimeout(ttsRetryTimeoutRef.current);
+        }
+        ttsRetryTimeoutRef.current = setTimeout(() => playAudio(), 100);
         return;
       }
+
+      // Reset retry counter when voices finish loading
+      ttsRetryCountRef.current = 0;
 
       // Use speech synthesis with fallback voice selection
       const utterance = new SpeechSynthesisUtterance(currentWord.text);
@@ -737,6 +844,7 @@ export function PlayListenType() {
   useEffect(() => {
     const timeout = timeoutRef.current;
     const confettiTimeout = confettiTimeoutRef.current;
+    const ttsRetryTimeout = ttsRetryTimeoutRef.current;
     return () => {
       if (timeout) {
         clearTimeout(timeout);
@@ -744,16 +852,46 @@ export function PlayListenType() {
       if (confettiTimeout) {
         clearTimeout(confettiTimeout);
       }
+      if (ttsRetryTimeout) {
+        clearTimeout(ttsRetryTimeout);
+      }
     };
   }, []);
 
-  const normalizeAnswer = (text: string) => {
-    return text
-      .toLowerCase()
-      .trim()
-      .replace(/[.,!?;:'"]/g, "");
-  };
+  /**
+   * Normalizes user input for comparison with correct answer.
+   * Uses centralized normalization from utils.ts to ensure consistency across game modes.
+   *
+   * @see {@link normalizeSpellingAnswer} in src/lib/utils.ts for full documentation
+   */
+  const normalizeAnswer = useCallback(
+    (text: string) => {
+      // Normalizes answer per parental settings, preserving hyphens/apostrophes for compound words by default
+      return normalizeSpellingAnswer(text, {
+        enforceCaseSensitivity,
+        ignorePunctuation,
+      });
+    },
+    [enforceCaseSensitivity, ignorePunctuation]
+  );
 
+  /**
+   * Advances to the next word in the list or completes the session.
+   * Cleans up timeouts, updates word index, and resets answer state.
+   *
+   * @remarks
+   * Game Flow:
+   * 1. Clear any pending timeouts (auto-advance, confetti)
+   * 2. Check if more words remain
+   * 3. If complete: navigate to rewards page
+   * 4. If not complete: increment index and reset state
+   *
+   * State Reset:
+   * - Clears answer input
+   * - Resets feedback to null
+   * - Resets hint level to 0
+   * - Resets first attempt flag
+   */
   const nextWord = useCallback(() => {
     if (!listData) {
       return;
@@ -769,12 +907,14 @@ export function PlayListenType() {
       confettiTimeoutRef.current = null;
     }
 
+    // Use functional state update to avoid stale closure issues
     // Compute next index
     const nextIndex = currentWordIndex + 1;
     console.log(
       `[PlayListenType] Advancing from word ${currentWordIndex} to ${nextIndex} of ${listData.words.length}`
     );
 
+    // Check completion before updating state to avoid unnecessary renders
     if (nextIndex >= listData.words.length) {
       // Completed all words - navigate without updating state
       console.log("[PlayListenType] All words complete, navigating to rewards");
@@ -787,7 +927,7 @@ export function PlayListenType() {
     setAnswer("");
     setFeedback(null);
     setShowHint(0);
-    setHasTriedOnce(false);
+    setIsFirstAttempt(true);
   }, [listData, currentWordIndex, navigate]);
 
   const retry = () => {
@@ -795,6 +935,38 @@ export function PlayListenType() {
     setFeedback(null);
   };
 
+  /**
+   * Validates user's spelling attempt and updates game state accordingly.
+   * Handles scoring, SRS updates, star awards, and progression logic.
+   *
+   * @remarks
+   * Correct Answer Flow:
+   * 1. Set feedback to "correct"
+   * 2. Show confetti animation (2 seconds)
+   * 3. Award star if first attempt
+   * 4. Save attempt to database (async, non-blocking)
+   * 5. Update SRS with success (async, non-blocking)
+   * 6. Schedule auto-advance to next word (5 seconds)
+   *
+   * Incorrect Answer Flow:
+   * 1. Set feedback to "wrong"
+   * 2. Mark as not first attempt
+   * 3. Save attempt to database (async, non-blocking)
+   * 4. Update SRS with miss (async, non-blocking, first miss only)
+   * 5. Show progressive hints (first letter → full word)
+   *
+   * Quality Scoring:
+   * - Perfect (5): Correct on first try, no hints
+   * - Good (4): Correct on first try with hint
+   * - Fair (3): Correct on retry, no hints
+   * - Poor (2): Correct on retry with hint
+   * - Fail (0-1): Incorrect
+   *
+   * Offline Handling:
+   * - Attempts queued in IndexedDB when offline
+   * - SRS updates queued for later sync
+   * - Star transactions queued for later sync
+   */
   const checkAnswer = useCallback(async () => {
     if (!currentWord || !profile?.id) return;
 
@@ -802,11 +974,12 @@ export function PlayListenType() {
     const normalizedCorrect = normalizeAnswer(currentWord.text);
     const correct = normalizedAnswer === normalizedCorrect;
 
-    // Calculate quality score (0-5)
+    // Calculate quality score based on correctness, first attempt, and hint usage
     const usedHint = showHint > 0;
-    const quality = computeAttemptQuality(correct, !hasTriedOnce, usedHint);
+    const quality = computeAttemptQuality(correct, isFirstAttempt, usedHint);
 
     if (correct) {
+      // Correct answer path: award stars, save attempt, update SRS, auto-advance
       setFeedback("correct");
       setShowConfetti(true);
 
@@ -819,7 +992,7 @@ export function PlayListenType() {
         2000
       );
 
-      if (!hasTriedOnce) {
+      if (isFirstAttempt) {
         setStarsEarned((prev) => prev + 1);
       }
 
@@ -837,17 +1010,19 @@ export function PlayListenType() {
         logger.warn("Save attempt failed, continuing game flow", error);
       }
 
+      // Update SRS algorithm: correct first-try improves retention, retries don't
       // Update SRS: first-try correct (async, don't block UI)
       if (isOnline) {
         updateSrs.mutate({
           childId: profile.id,
           wordId: currentWord.id,
-          isCorrectFirstTry: !hasTriedOnce,
+          isCorrectFirstTry: isFirstAttempt,
         });
       } else {
-        queueSrsUpdate(profile.id, currentWord.id, !hasTriedOnce);
+        queueSrsUpdate(profile.id, currentWord.id, isFirstAttempt);
       }
 
+      // Auto-advance after 5 seconds, but user can click "Next Word" to skip wait
       // Move to next word after delay (auto-advance in 5 seconds)
       // User can also click "Next Word" button to proceed immediately
       console.log(
@@ -860,8 +1035,9 @@ export function PlayListenType() {
         nextWord();
       }, 5000);
     } else {
+      // Incorrect answer path: save attempt, update SRS on first miss, show hints
       setFeedback("wrong");
-      setHasTriedOnce(true);
+      setIsFirstAttempt(false);
 
       // Save incorrect attempt with quality (async, don't block UI)
       // Wrap in try/catch to ensure game continues even if save fails
@@ -877,18 +1053,20 @@ export function PlayListenType() {
         logger.warn("Save attempt failed, continuing game flow", error);
       }
 
+      // Only update SRS on first miss to avoid over-penalizing retries
       // Update SRS: not first-try correct (miss) (async, don't block UI)
-      if (isOnline && !hasTriedOnce) {
+      if (isOnline && isFirstAttempt) {
         // Only update SRS on first miss, not subsequent retries
         updateSrs.mutate({
           childId: profile.id,
           wordId: currentWord.id,
           isCorrectFirstTry: false,
         });
-      } else if (!isOnline && !hasTriedOnce) {
+      } else if (!isOnline && isFirstAttempt) {
         queueSrsUpdate(profile.id, currentWord.id, false);
       }
 
+      // Progressive hint system: first letter → full word
       // Show hint progressively
       if (showHint === 0) {
         setShowHint(1);
@@ -900,12 +1078,13 @@ export function PlayListenType() {
     currentWord,
     profile,
     answer,
-    hasTriedOnce,
+    isFirstAttempt,
     showHint,
     saveAttemptMutation,
     isOnline,
     updateSrs,
     nextWord,
+    normalizeAnswer,
   ]);
 
   if (!listId) {

@@ -187,6 +187,7 @@ This document summarizes the comprehensive WCAG 2.1 AA accessibility enhancement
    ```
 
 5. **Added footer with landmark**:
+
    ```tsx
    <footer role="contentinfo">
    ```
@@ -234,6 +235,7 @@ This document summarizes the comprehensive WCAG 2.1 AA accessibility enhancement
    ```
 
 5. **Added aria-hidden to decorative icons**:
+
    ```tsx
    <YourIcon aria-hidden="true" />
    ```
@@ -300,6 +302,7 @@ This document summarizes the comprehensive WCAG 2.1 AA accessibility enhancement
    ```
 
 7. **Added list card accessibility**:
+
    ```tsx
    <ListCard
      role="button"
@@ -347,6 +350,7 @@ This document summarizes the comprehensive WCAG 2.1 AA accessibility enhancement
    ```
 
 5. **Added error announcements**:
+
    ```tsx
    <div role="alert" aria-live="assertive">
      {error && <p>{error}</p>}
@@ -382,6 +386,7 @@ This document summarizes the comprehensive WCAG 2.1 AA accessibility enhancement
    ```
 
 4. **Added proper heading hierarchy**:
+
    ```tsx
    <h2>Due Today</h2>  {/* Main sections */}
    <h3>Word Progress</h3>  {/* Subsections */}
@@ -438,6 +443,7 @@ This document summarizes the comprehensive WCAG 2.1 AA accessibility enhancement
    ```
 
 6. **Added button aria-labels**:
+
    ```tsx
    <Button aria-label="Open export analytics data dialog">
      <Download aria-hidden="true" />
@@ -500,6 +506,7 @@ This document summarizes the comprehensive WCAG 2.1 AA accessibility enhancement
    ```
 
 5. **Marked all decorative icons**:
+
    ```tsx
    <List aria-hidden="true" />
    <Calendar aria-hidden="true" />

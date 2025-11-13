@@ -52,6 +52,42 @@ A Progressive Web App (PWA) for kids to practice spelling, built with Vite, Reac
   - Track progress and streaks
   - Spaced repetition system (SRS)
 
+## Recent Updates (November 2025)
+
+### 🎯 Core Functionality Fixes
+
+- **Game Progression**: Fixed critical bug where games wouldn't advance to next word after answering
+- **Voice Recording**: Fixed microphone access and recording flow in Say & Spell mode
+- **Auto-Save**: Added debounced auto-save in List Editor with visual indicator
+
+### 🎨 UI/UX Improvements
+
+- **Lists Page Redesign**: Transformed table layout to card-based grid with better visual hierarchy
+- **Bulk Operations**: Added multi-select and bulk delete for words in List Editor
+- **CSV Import**: Added file upload for importing word lists from CSV
+- **Toast Notifications**: Integrated react-hot-toast for user feedback on all actions
+
+### ♿ Accessibility Enhancements
+
+- **WCAG 2.1 AA Compliance**: Full keyboard navigation and screen reader support
+- **Error Boundaries**: App-wide error catching with graceful fallback UI
+- **Network Status**: Persistent offline indicator with variant styling
+- **Focus Management**: Auto-focus on inputs, focus trapping in modals
+- **ARIA Labels**: Comprehensive labeling of all interactive elements
+
+### 🗄️ Database Optimizations
+
+- **Index Cleanup**: Removed 2 unused indexes on SRS table for better write performance
+- **Health Monitoring**: Added PowerShell scripts for database health checks
+- **Documentation**: Comprehensive database advisor report with optimization findings
+
+### 📝 Code Quality
+
+- **JSDoc Comments**: Added documentation to complex game logic functions
+- **Variable Naming**: Improved clarity (e.g., `hasTriedOnce` → `isFirstAttempt`)
+- **Error Telemetry**: Centralized error tracking with `logger.metrics.errorCaptured()`
+- **Inline Comments**: Explained game flow logic in complex functions
+
 ## Accessibility
 
 SpellStars is built with **WCAG 2.1 Level AA** compliance in mind, ensuring all children and parents can use the application effectively.
@@ -303,15 +339,21 @@ create table words (
 );
 
 -- Create attempts table
+-- NOTE: This is an illustrative example. The actual production schema includes
+-- additional columns (mode, quality, duration_ms) and uses 'correct' instead of 'is_correct'
+-- and 'started_at' instead of 'created_at'. See docs/database-schema.md for the complete schema.
 create table attempts (
   id uuid default uuid_generate_v4() primary key,
   child_id uuid references profiles(id) on delete cascade not null,
   word_id uuid references words(id) on delete cascade not null,
-  list_id uuid references spelling_lists(id) on delete cascade not null,
-  is_correct boolean not null,
+  list_id uuid references word_lists(id) on delete cascade not null,
+  mode text not null check (mode in ('listen-type', 'say-spell', 'flash')),
+  correct boolean not null,
+  quality integer check (quality >= 0 and quality <= 5),
   typed_answer text,
   audio_url text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+  duration_ms integer,
+  started_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
 -- Enable Row Level Security
@@ -537,6 +579,89 @@ The app includes comprehensive error handling and user feedback mechanisms:
 - Manual retry buttons in error states
 - Exponential backoff for failed sync operations
 
+### Code Quality
+
+The project maintains high code quality standards:
+
+**Documentation**
+
+- JSDoc comments on all complex functions
+- Inline comments explaining non-obvious logic
+- Component-level documentation for game pages
+- Clear variable naming conventions
+
+**Error Handling**
+
+- Comprehensive error boundaries
+- Toast notifications for user-facing errors
+- Error telemetry for debugging
+- Graceful degradation (offline mode, fallbacks)
+
+**Testing**
+
+- TypeScript strict mode catches type errors
+- React Query handles loading/error states
+- Manual testing checklist for new features
+- Accessibility testing with keyboard and screen readers
+
+**Performance**
+
+- Debounced saves reduce API calls
+- Optimized database indexes
+- PWA caching for offline performance
+- Lazy loading for code splitting
+
+**Maintenance**
+
+- No TODO comments left in code
+- Deprecated code documented with removal timeline
+- Regular database health monitoring
+- Dependency updates tracked
+
+### Code Documentation Standards
+
+The codebase follows these documentation practices:
+
+**JSDoc Comments**
+
+- All complex functions have JSDoc comments explaining purpose, parameters, and behavior
+- Game logic functions document the complete flow (correct/incorrect paths)
+- Component-level JSDoc explains overall purpose and features
+
+**Inline Comments**
+
+- Complex logic sections have inline comments explaining non-obvious behavior
+- State transitions are documented (e.g., record step → type step)
+- Async operations note whether they block UI or run in background
+
+**Variable Naming**
+
+- Boolean variables use `is`, `has`, `should` prefixes (e.g., `isFirstAttempt`, `hasUpdatedStreak`)
+- State variables include inline comments explaining their purpose
+- Avoid ambiguous names like `flag`, `temp`, `data`
+
+**Example Documentation Pattern**:
+
+```typescript
+/**
+ * Validates user's spelling attempt and updates game state.
+ *
+ * @remarks
+ * Correct Answer Flow:
+ * 1. Set feedback to "correct"
+ * 2. Award star if first attempt
+ * 3. Save attempt (async, non-blocking)
+ * 4. Update SRS (async, non-blocking)
+ * 5. Auto-advance after 5 seconds
+ */
+const checkAnswer = useCallback(async () => {
+  // Calculate quality score based on correctness and hint usage
+  const quality = computeAttemptQuality(correct, isFirstAttempt, usedHint);
+
+  // ... implementation
+}, [dependencies]);
+```
+
 ### Troubleshooting
 
 **Common Issues:**
@@ -570,6 +695,36 @@ The app includes comprehensive error handling and user feedback mechanisms:
    - Review error telemetry: `logger.metrics.getErrors()`
    - Clear React Query cache: `queryClient.clear()`
    - Reload page to reset mutation states
+
+6. **"Game won't advance to next word"**
+   - This was a known bug, now fixed in November 2025 update
+   - If still experiencing: Clear browser cache and reload
+   - Check browser console for JavaScript errors
+   - Ensure you're on the latest version of the app
+
+7. **"Auto-save indicator stuck on 'Saving...'"**
+   - Check network tab for failed requests
+   - Verify Supabase connection is active
+   - Try manual save by navigating away and back
+   - Clear React Query cache: `queryClient.clear()` in console
+
+8. **"Bulk delete not working in List Editor"**
+   - Ensure words are selected (checkboxes checked)
+   - Confirm delete action in the confirmation dialog
+   - Check browser console for errors
+   - Verify you have permission to delete (parent role)
+
+9. **"CSV import fails or imports wrong data"**
+   - Ensure CSV format: one word per line, or columns: word,phonetic,voice
+   - Check for special characters or encoding issues (use UTF-8)
+   - Preview shows first 5 words - verify before importing
+   - Large files (>100 words) may take time to import
+
+10. **"Toast notifications not appearing"**
+    - Check if browser has notification permissions
+    - Verify react-hot-toast is loaded (check Network tab)
+    - Try different browser to rule out extension conflicts
+    - Check browser console for toast-related errors
 
 **Debugging Tips:**
 
@@ -611,15 +766,45 @@ doppler run -- pwsh .\check-db-advisor.ps1
 1. **Route Protection**: Routes are protected based on user authentication and role (parent/child)
 2. **Offline Queue**: Uses Dexie to queue attempts and audio when offline
 3. **Audio Recording**: Uses MediaRecorder API with WaveSurfer.js for visualization
-4. **Responsive Design**: Child UI uses larger touch targets and fonts
+4. **Responsive Design**: Child UI uses larger touch targets (88px) and fonts
+5. **Error Boundaries**: React Error Boundaries catch component errors without full app crash
+6. **Auto-Save**: Debounced saves (1 second delay) reduce API calls in List Editor
+7. **Bulk Operations**: Multi-select with Set-based state management for O(1) lookups
+8. **Accessibility**: WCAG 2.1 AA compliance with keyboard navigation and screen reader support
+9. **Error Telemetry**: Centralized error tracking with circular buffer (max 50 errors)
+10. **Database Health**: Regular monitoring with PowerShell scripts for index optimization
 
 ### Adding New Features
 
-1. Create components in `src/app/components/`
-2. Add pages in `src/app/pages/`
-3. Define routes in `src/app/router.tsx`
-4. Add database queries using React Query
-5. Update Supabase schema as needed
+1. **Create components** in `src/app/components/`
+   - Add JSDoc comment explaining component purpose
+   - Include accessibility attributes (ARIA labels, roles)
+   - Use existing components (Button, Card) for consistency
+
+2. **Add pages** in `src/app/pages/`
+   - Document complex functions with JSDoc
+   - Add inline comments for non-obvious logic
+   - Use clear variable names (avoid `hasTriedOnce`, prefer `isFirstAttempt`)
+
+3. **Define routes** in `src/app/router.tsx`
+   - Ensure proper route protection (ProtectedRoute, PinProtectedRoute)
+   - Add to appropriate navigation (parent or child)
+
+4. **Add database queries** using React Query
+   - Use existing patterns from `src/app/api/supa.ts`
+   - Add error handling with toast notifications
+   - Add error telemetry: `logger.metrics.errorCaptured()`
+
+5. **Update Supabase schema** as needed
+   - Create migration file in `supabase/migrations/`
+   - Add RLS policies for security
+   - Run health checks after schema changes
+   - Document index strategy in migration comments
+
+6. **Update documentation**
+   - Add feature to README "Recent Updates" section
+   - Update relevant docs in `docs/` folder
+   - Add troubleshooting tips if applicable
 
 ## Browser Support
 
