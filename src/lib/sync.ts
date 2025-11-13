@@ -625,7 +625,35 @@ async function syncQueuedAttempts(): Promise<void> {
 }
 
 /**
- * Queue an attempt for later sync
+ * Queue an attempt for offline sync
+ *
+ * This function stores practice attempts in IndexedDB when offline. The queued
+ * attempts will be synced to Supabase when the connection is restored.
+ *
+ * @param childId - The child's profile ID (required, non-null)
+ * @param wordId - The word being attempted (required, non-null)
+ * @param listId - **The word list ID (REQUIRED, non-null)** - This is a non-nullable
+ *                 column in the `attempts` table. Attempts without a valid list_id
+ *                 will permanently fail during sync.
+ * @param mode - Game mode ('listen-type' or 'say-spell')
+ * @param correct - Whether the answer was correct
+ * @param typedAnswer - The user's typed answer (optional, only for listen-type mode)
+ * @param audioBlobId - Reference to queued audio in IndexedDB (optional, only for say-spell mode)
+ *
+ * @returns Promise<void>
+ *
+ * @throws Error if listId is not provided or is an empty string
+ *
+ * @example
+ * ```typescript
+ * // In game component after guard check
+ * if (!profile?.id || !listId) return; // Guard ensures listId is valid
+ * await queueAttempt(profile.id, wordId, listId, 'listen-type', true, userAnswer);
+ * ```
+ *
+ * @note The sync process (see line 550-594) attempts to infer missing list_id values
+ *       by querying the list_words junction table, but this is a fallback for legacy
+ *       data. All new attempts MUST include a valid list_id at queue time.
  */
 export async function queueAttempt(
   childId: string,
@@ -636,6 +664,23 @@ export async function queueAttempt(
   typedAnswer?: string,
   audioBlobId?: number
 ): Promise<void> {
+  // Defensive validation: listId is a required, non-nullable database column
+  if (!listId || listId.trim() === "") {
+    const errorContext = {
+      childId,
+      wordId,
+      mode,
+      providedListId: listId,
+    };
+    logger.error(
+      "listId is required for queueAttempt - cannot queue attempt without a valid list_id",
+      errorContext
+    );
+    throw new Error(
+      `listId is required for queueAttempt - cannot queue attempt without a valid list_id. Context: ${JSON.stringify(errorContext)}`
+    );
+  }
+
   await db.queuedAttempts.add({
     child_id: childId,
     word_id: wordId,

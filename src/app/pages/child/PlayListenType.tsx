@@ -696,8 +696,38 @@ export function PlayListenType() {
 
       if (isOnline) {
         // Online: save directly to Supabase
+        // Verify we have an active auth session
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+
+        if (sessionError || !session) {
+          logger.error("No active session for insert:", { sessionError });
+          throw new Error(
+            "Authentication session expired. Please sign in again."
+          );
+        }
+
+        // Debug: Log attempt data and auth state
+        logger.log("Attempting to save (online):", {
+          attemptData,
+          authUser: session.user.id,
+          profileId: profile.id,
+          match: session.user.id === profile.id,
+          hasSession: !!session,
+        });
+
         const { error } = await supabase.from("attempts").insert(attemptData);
-        if (error) throw error;
+        if (error) {
+          logger.error("INSERT error details:", {
+            error,
+            attemptData,
+            authUserId: session.user.id,
+            profileId: profile.id,
+          });
+          throw error;
+        }
 
         // Award stars if first-try correct
         if (correct && isFirstAttempt) {

@@ -37,7 +37,17 @@ export function useAuth() {
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      // If we get an invalid refresh token error, clear the session
+      if (error) {
+        logger.warn("Session error detected, clearing auth state:", error);
+        supabase.auth.signOut();
+        setUser(null);
+        setProfile(null);
+        setIsLoading(false);
+        return;
+      }
+
       setUser(session?.user ?? null);
       if (session?.user) {
         fetchProfile(session.user.id);

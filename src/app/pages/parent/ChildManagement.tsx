@@ -81,60 +81,6 @@ function validateUsername(username: string): string | null {
   return null; // Valid
 }
 
-/**
- * Checks if a username is already taken by attempting a sign-in with the generated email.
- * Since we cannot query auth.users directly from the client, we use a clever workaround:
- * 1. Try to sign in with a dummy password
- * 2. If we get "Invalid login credentials", the user exists (username taken)
- * 3. If we get "Email not confirmed", the user exists (username taken)
- * 4. If we get any other auth error, assume username is available
- *
- * This is a client-side workaround since Supabase doesn't expose auth.users to the client.
- */
-async function checkUsernameAvailability(username: string): Promise<{
-  available: boolean;
-  message?: string;
-}> {
-  const generatedEmail = `${username}@spellstars.app`;
-
-  // Attempt sign-in with a dummy password that's guaranteed to fail
-  // We're only checking if the email exists in the auth system
-  const { error } = await supabase.auth.signInWithPassword({
-    email: generatedEmail,
-    password: "__DUMMY_PASSWORD_CHECK_ONLY__", // Will never match any real password
-  });
-
-  if (!error) {
-    // This should never happen (we're using a dummy password)
-    logger.warn("Unexpected successful login during username check");
-    return { available: false, message: "Username already exists" };
-  }
-
-  // Check error types
-  if (
-    error.message.toLowerCase().includes("invalid login credentials") ||
-    error.message.toLowerCase().includes("invalid email or password")
-  ) {
-    // User exists (wrong password) - username is taken
-    return { available: false, message: "Username already taken" };
-  }
-
-  if (error.message.toLowerCase().includes("email not confirmed")) {
-    // User exists but not confirmed - username is taken
-    return { available: false, message: "Username already taken" };
-  }
-
-  if (error.message.toLowerCase().includes("user not found")) {
-    // User doesn't exist - username is available
-    return { available: true };
-  }
-
-  // For any other error, we assume the username is available
-  // (better to allow creation and let signUp fail with a proper error)
-  logger.debug("Username availability check returned unexpected error", error);
-  return { available: true };
-}
-
 // Extracted component to reduce nesting
 interface ChildCardProps {
   child: ChildProfile;
@@ -227,7 +173,6 @@ export function ChildManagement() {
   const [childName, setChildName] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [usernameError, setUsernameError] = useState<string | null>(null);
-  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
 
   // Handler for toggling the add form
   const handleToggleAddForm = () => {
@@ -491,43 +436,13 @@ export function ChildManagement() {
       return;
     }
 
-    // Check username availability before attempting to create account
-    setIsCheckingUsername(true);
-    setUsernameError(null);
-
-    try {
-      const { available, message } =
-        await checkUsernameAvailability(childUsername);
-
-      if (!available) {
-        setUsernameError(message || "Username is not available");
-        logger.error(
-          message ||
-            "This username is already taken. Please choose a different username."
-        );
-        setIsCheckingUsername(false);
-        return;
-      }
-
-      // Username is available, proceed with account creation
-      setIsCheckingUsername(false);
-      createChild.mutate({
-        username: childUsername,
-        password: childPassword,
-        displayName: childName,
-        parentId: user.id,
-      });
-    } catch (error) {
-      logger.error("Error checking username availability:", error);
-      setIsCheckingUsername(false);
-      // Proceed anyway and let signUp handle the error
-      createChild.mutate({
-        username: childUsername,
-        password: childPassword,
-        displayName: childName,
-        parentId: user.id,
-      });
-    }
+    // Proceed with account creation - signUp will handle duplicate detection
+    createChild.mutate({
+      username: childUsername,
+      password: childPassword,
+      displayName: childName,
+      parentId: user.id,
+    });
   };
 
   const handleDeleteChild = (childId: string) => {
@@ -537,6 +452,7 @@ export function ChildManagement() {
   /**
    * Validates username on blur (when user leaves the field).
    * Provides immediate feedback about username validity.
+   * Note: Only validates format - duplicate checking happens during signup.
    */
   const handleUsernameBlur = async () => {
     if (!childUsername) {
@@ -544,32 +460,12 @@ export function ChildManagement() {
       return;
     }
 
-    // First, validate format and reserved names
+    // Validate format and reserved names only
     const validationError = validateUsername(childUsername);
     if (validationError) {
       setUsernameError(validationError);
-      return;
-    }
-
-    // Then check availability
-    setIsCheckingUsername(true);
-    setUsernameError(null);
-
-    try {
-      const { available, message } =
-        await checkUsernameAvailability(childUsername);
-
-      if (!available) {
-        setUsernameError(message || "Username is not available");
-      } else {
-        setUsernameError(null); // Clear any previous errors
-      }
-    } catch (error) {
-      logger.error("Error checking username availability:", error);
-      // Don't show error to user - we'll check again on submit
-      setUsernameError(null);
-    } finally {
-      setIsCheckingUsername(false);
+    } else {
+      setUsernameError(null); // Clear any previous errors
     }
   };
 
@@ -668,13 +564,7 @@ export function ChildManagement() {
                     maxLength={USERNAME_MAX_LENGTH}
                     pattern="^[a-zA-Z][a-zA-Z0-9]*$"
                     title="Must start with a letter, followed by letters and numbers only"
-                    disabled={isCheckingUsername}
                   />
-                  {isCheckingUsername && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                    </div>
-                  )}
                 </div>
                 {usernameError ? (
                   <p className="text-xs text-destructive mt-1">
@@ -711,17 +601,11 @@ export function ChildManagement() {
               <div className="flex gap-3">
                 <Button
                   type="submit"
-                  disabled={
-                    createChild.isPending ||
-                    isCheckingUsername ||
-                    Boolean(usernameError)
-                  }
+                  disabled={createChild.isPending || Boolean(usernameError)}
                 >
-                  {isCheckingUsername
-                    ? "Checking username..."
-                    : createChild.isPending
-                      ? "Creating..."
-                      : "Create Child Account"}
+                  {createChild.isPending
+                    ? "Creating..."
+                    : "Create Child Account"}
                 </Button>
                 <Button
                   type="button"

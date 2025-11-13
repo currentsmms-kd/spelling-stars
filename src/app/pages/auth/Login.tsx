@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -6,6 +6,8 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@/app/hooks/useAuth";
 import { Button } from "@/app/components/Button";
 import { Card } from "@/app/components/Card";
+import { supabase } from "@/app/supabase";
+import { logger } from "@/lib/logger";
 
 const loginSchema = z.object({
   emailOrUsername: z.string().min(1, "Username or email is required"),
@@ -18,6 +20,25 @@ function LoginForm() {
   const { signIn } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Clear any stale auth state on mount
+  useEffect(() => {
+    const clearStaleAuth = async () => {
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+        if (error || (session && error)) {
+          logger.info("Clearing stale auth session on login page");
+          await supabase.auth.signOut();
+        }
+      } catch (err) {
+        logger.warn("Error checking session on login:", err);
+      }
+    };
+    clearStaleAuth();
+  }, []);
 
   const {
     register,

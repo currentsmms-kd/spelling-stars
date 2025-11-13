@@ -915,6 +915,31 @@ export function PlaySaySpell() {
         // - audio_url (text storage path, nullable)
         // - duration_ms (integer, nullable)
         // - started_at (timestamp)
+
+        // Verify we have an active auth session
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+
+        if (sessionError || !session) {
+          logger.error("No active session for insert:", { sessionError });
+          throw new Error(
+            "Authentication session expired. Please sign in again."
+          );
+        }
+
+        // Debug: Log attempt data and auth state
+        logger.log("Attempting to save (online):", {
+          mode: "say-spell",
+          authUser: session.user.id,
+          profileId: profile.id,
+          match: session.user.id === profile.id,
+          wordId,
+          listId,
+          hasSession: !!session,
+        });
+
         const { error } = await supabase.from("attempts").insert({
           child_id: profile.id,
           word_id: wordId,
@@ -927,7 +952,16 @@ export function PlaySaySpell() {
           started_at: new Date().toISOString(),
         });
 
-        if (error) throw error;
+        if (error) {
+          logger.error("INSERT error details:", {
+            error,
+            authUserId: session.user.id,
+            profileId: profile.id,
+            wordId,
+            listId,
+          });
+          throw error;
+        }
 
         // Award stars if first-try correct
         if (correct && isFirstAttempt) {
