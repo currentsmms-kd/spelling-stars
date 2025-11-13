@@ -52,17 +52,22 @@ function LoginForm() {
     setIsLoading(true);
     setError(null);
 
-    // Convert username to internal email format if it doesn't contain @
-    let emailToUse = data.emailOrUsername;
-    if (!emailToUse.includes("@")) {
-      // It's a username, convert to internal email format
-      emailToUse = `${emailToUse}@spellstars.app`;
-    }
+    const emailToUse = data.emailOrUsername;
 
+    // Try to sign in with whatever they entered
+    // If it's a username, they'll need to use the full email (parent+username@domain.com)
     const { error: signInError } = await signIn(emailToUse, data.password);
 
     if (signInError) {
-      setError(signInError.message);
+      // Provide helpful error message for username-only logins
+      if (!emailToUse.includes("@")) {
+        setError(
+          "Please use your full login email. Ask your parent for the email address " +
+            "(it looks like: parentemail+yourname@domain.com)"
+        );
+      } else {
+        setError(signInError.message);
+      }
       setIsLoading(false);
       return;
     }

@@ -173,6 +173,9 @@ export function ChildManagement() {
   const [childName, setChildName] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [createdLoginEmail, setCreatedLoginEmail] = useState<string | null>(
+    null
+  );
 
   // Handler for toggling the add form
   const handleToggleAddForm = () => {
@@ -271,9 +274,30 @@ export function ChildManagement() {
       displayName: string;
       parentId: string;
     }) => {
-      // Generate a unique email from username (internal use only)
-      // Using .app domain (valid TLD) to satisfy Supabase email validation
-      const generatedEmail = `${username}@spellstars.app`;
+      // Use parent's email with plus addressing for child accounts
+      // Format: parent+childusername@domain.com
+      // This way:
+      // - All emails go to the parent (they control everything)
+      // - Each child has a unique, valid email for Supabase Auth
+      // - Children still log in with just their username
+      // - Supabase accepts it as a valid email format
+
+      if (!user?.email) {
+        throw new Error("Parent email not found. Please log in again.");
+      }
+
+      // Extract email parts: user@domain.com -> user + domain.com
+      const emailParts = user.email.split("@");
+      if (emailParts.length !== 2) {
+        throw new Error("Invalid parent email format");
+      }
+
+      const [localPart, domain] = emailParts;
+      // Generate: parent+childusername@domain.com
+      const generatedEmail = `${localPart}+${username}@${domain}`;
+
+      logger.info("Creating child account with username:", username);
+      logger.info("Using parent email plus addressing:", generatedEmail);
 
       // Sign up child account with metadata
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -284,13 +308,23 @@ export function ChildManagement() {
             role: "child",
             display_name: displayName,
             parent_id: parentId,
-            username, // Store username in metadata
+            username, // Store username in metadata for easy lookup
+            parent_email: user.email, // Store parent email for reference
           },
         },
       });
 
-      if (authError) throw authError;
-      if (!authData.user) throw new Error("No user created");
+      if (authError) {
+        logger.error("Supabase auth.signUp error:", authError);
+        throw authError;
+      }
+      if (!authData.user) {
+        const error = new Error("No user created");
+        logger.error("No user returned from signUp");
+        throw error;
+      }
+
+      logger.info("Child user created successfully:", authData.user.id);
 
       // Wait a moment for the trigger to create the profile
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -312,23 +346,39 @@ export function ChildManagement() {
         // Don't throw - the trigger should have created the profile
       }
 
-      return authData.user;
+      return { user: authData.user, loginEmail: generatedEmail };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      const loginInfo = `Login Email: ${data.loginEmail}`;
+
+      // Store the login email to display in UI
+      setCreatedLoginEmail(data.loginEmail);
+
       toast.custom((t) => (
         <Toast
           type="success"
-          message="Child account created successfully"
+          message={`Child account created! ${loginInfo}`}
           onClose={() => toast.dismiss(t.id)}
         />
       ));
+
+      // Show a more detailed message with login instructions
+      logger.info("=".repeat(60));
+      logger.info("CHILD ACCOUNT CREATED SUCCESSFULLY");
+      logger.info("=".repeat(60));
+      logger.info(`Login Email: ${data.loginEmail}`);
+      logger.info(`Username: ${childUsername}`);
+      logger.info("=".repeat(60));
+      logger.info("IMPORTANT: Save this login email!");
+      logger.info("Your child will need this email to log in.");
+      logger.info("=".repeat(60));
+
       queryClient.invalidateQueries({ queryKey: ["children"] });
       setShowAddForm(false);
       setChildUsername("");
       setChildPassword("");
       setChildName("");
       setUsernameError(null);
-      logger.info("Child account created successfully");
     },
     onError: (error) => {
       logger.error("Error creating child account:", error);
@@ -342,21 +392,28 @@ export function ChildManagement() {
       let errorMessage = "Failed to create child account";
 
       if (error instanceof Error) {
+        const errorMsg = error.message.toLowerCase();
+
         if (
-          error.message.toLowerCase().includes("user already registered") ||
-          error.message.toLowerCase().includes("email already exists")
+          errorMsg.includes("user already registered") ||
+          errorMsg.includes("already exists") ||
+          errorMsg.includes("duplicate")
         ) {
           errorMessage =
             "This username is already taken. Please choose a different username.";
           setUsernameError("Username already taken");
-        } else if (error.message.toLowerCase().includes("password")) {
+        } else if (errorMsg.includes("password")) {
           errorMessage =
             "Password does not meet requirements (min 6 characters)";
-        } else if (error.message.toLowerCase().includes("email")) {
+        } else if (
+          errorMsg.includes("invalid") ||
+          errorMsg.includes("format")
+        ) {
           errorMessage =
-            "Invalid username format. Please use only letters and numbers.";
+            "Invalid username format. Please use only letters and numbers, starting with a letter.";
+          setUsernameError("Invalid format");
         } else {
-          errorMessage = `Failed to create account: ${error.message}`;
+          errorMessage = `Failed to create account. Please try again or contact support if the problem persists.`;
         }
       }
 
@@ -512,6 +569,69 @@ export function ChildManagement() {
             Add Child
           </Button>
         </div>
+
+        {/* Login Email Display - Show after successful account creation */}
+        {createdLoginEmail && (
+          <Card className="border-2 border-secondary bg-secondary/10">
+            <div className="space-y-3">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-secondary">
+                    ✓ Child Account Created!
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Save this login information for your child
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setCreatedLoginEmail(null)}
+                  title="Dismiss"
+                >
+                  ✕
+                </Button>
+              </div>
+
+              <div className="bg-background p-3 rounded-lg border">
+                <p className="text-sm font-medium mb-1">Login Email:</p>
+                <div className="flex items-center gap-2">
+                  <code className="text-sm bg-muted px-2 py-1 rounded flex-1">
+                    {createdLoginEmail}
+                  </code>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(createdLoginEmail);
+                      toast.custom((t) => (
+                        <Toast
+                          type="success"
+                          message="Login email copied to clipboard!"
+                          onClose={() => toast.dismiss(t.id)}
+                        />
+                      ));
+                    }}
+                  >
+                    Copy
+                  </Button>
+                </div>
+              </div>
+
+              <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
+                <p className="font-medium mb-1">
+                  📧 How Email Plus Addressing Works:
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  <li>All emails for child accounts go to YOUR email inbox</li>
+                  <li>Your child uses this full email to log in</li>
+                  <li>The "+username" part makes each child's login unique</li>
+                  <li>You control everything through your parent account</li>
+                </ul>
+              </div>
+            </div>
+          </Card>
+        )}
 
         {/* Add Child Form */}
         {showAddForm && (

@@ -64,16 +64,29 @@ function RecordStep({
   handleStartRecording,
   isRecording,
   audioBlob,
+  audioUrl,
   error,
   clearRecording,
+  stopRecording,
+  onContinueToType,
 }: {
   playWord: () => void;
   handleStartRecording: () => Promise<void>;
   isRecording: boolean;
   audioBlob: Blob | null;
+  audioUrl: string | null;
   error: string | null;
   clearRecording: () => void;
+  stopRecording: () => void;
+  onContinueToType: () => void;
 }) {
+  const audioRef = React.useRef<HTMLAudioElement>(null);
+
+  const playRecording = () => {
+    if (audioRef.current) {
+      audioRef.current.play();
+    }
+  };
   return (
     <>
       <div>
@@ -135,8 +148,16 @@ function RecordStep({
               <Mic size={64} className="mx-auto" aria-hidden="true" />
             </div>
             <p className="text-xl text-muted-foreground" aria-live="polite">
-              Recording... (3 seconds)
+              Recording... (up to 15 seconds)
             </p>
+            <Button
+              onClick={stopRecording}
+              size="child"
+              className="w-64 mx-auto flex items-center justify-center gap-3"
+              aria-label="Stop recording early"
+            >
+              Stop Recording
+            </Button>
           </div>
         )}
 
@@ -150,6 +171,41 @@ function RecordStep({
             <p className="text-xl text-muted-foreground" aria-live="polite">
               Recording saved!
             </p>
+
+            {/* Hidden audio element for playback */}
+            {audioUrl && <audio ref={audioRef} src={audioUrl} preload="auto" />}
+
+            {/* Play recording button */}
+            <Button
+              onClick={playRecording}
+              size="child"
+              className="w-64 mx-auto flex items-center justify-center gap-3 bg-secondary hover:bg-secondary/90"
+              aria-label="Listen to your recording"
+            >
+              <Volume2 size={32} />
+              <span>Listen to Your Recording</span>
+            </Button>
+
+            {/* Continue to type button */}
+            <Button
+              onClick={onContinueToType}
+              size="child"
+              className="w-64 mx-auto flex items-center justify-center gap-3"
+              aria-label="Continue to type your spelling"
+            >
+              Continue to Type
+            </Button>
+
+            {/* Re-record button */}
+            <Button
+              onClick={clearRecording}
+              size="default"
+              variant="outline"
+              className="w-64 mx-auto"
+              aria-label="Record again"
+            >
+              Record Again
+            </Button>
           </div>
         )}
       </div>
@@ -193,6 +249,7 @@ function TypeStep({
   isOnline,
   audioBlobId,
   isSaving,
+  isProcessingAudio,
 }: {
   answer: string;
   setAnswer: (value: string) => void;
@@ -207,6 +264,7 @@ function TypeStep({
   isOnline: boolean;
   audioBlobId: number | null;
   isSaving: boolean;
+  isProcessingAudio: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -277,13 +335,36 @@ function TypeStep({
 
       {feedback === null && (
         <div className="space-y-3">
+          {/* Show processing indicator when audio is being queued */}
+          {isProcessingAudio && (
+            <div
+              className="text-center text-xl text-muted-foreground"
+              aria-live="polite"
+            >
+              <span className="flex items-center justify-center gap-2">
+                <span className="animate-spin">⏳</span>
+                Processing recording...
+              </span>
+            </div>
+          )}
+
           <Button
             onClick={checkAnswer}
             size="child"
             className="w-full"
-            disabled={!answer.trim() || (!isOnline && !audioBlobId) || isSaving}
+            disabled={
+              !answer.trim() ||
+              (!isOnline && !audioBlobId) ||
+              isSaving ||
+              isProcessingAudio
+            }
           >
-            {isSaving ? (
+            {isProcessingAudio ? (
+              <span className="flex items-center gap-2">
+                <span className="animate-spin">⏳</span>
+                Processing Recording...
+              </span>
+            ) : isSaving ? (
               <span className="flex items-center gap-2">
                 <span className="animate-spin">⏳</span>
                 Saving...
@@ -388,6 +469,7 @@ function GameContent({
   handleStartRecording,
   isRecording,
   audioBlob,
+  audioUrl,
   error,
   answer,
   setAnswer,
@@ -403,6 +485,9 @@ function GameContent({
   audioBlobId,
   clearRecording,
   isSaving,
+  isProcessingAudio,
+  stopRecording,
+  onContinueToType,
 }: {
   listData: ListWithWords;
   currentWordIndex: number;
@@ -412,6 +497,7 @@ function GameContent({
   handleStartRecording: () => Promise<void>;
   isRecording: boolean;
   audioBlob: Blob | null;
+  audioUrl: string | null;
   error: string | null;
   answer: string;
   setAnswer: (value: string) => void;
@@ -427,6 +513,9 @@ function GameContent({
   audioBlobId: number | null;
   clearRecording: () => void;
   isSaving: boolean;
+  isProcessingAudio: boolean;
+  stopRecording: () => void;
+  onContinueToType: () => void;
 }) {
   const { profile } = useAuth();
 
@@ -468,8 +557,11 @@ function GameContent({
               handleStartRecording={handleStartRecording}
               isRecording={isRecording}
               audioBlob={audioBlob}
+              audioUrl={audioUrl}
               error={error}
               clearRecording={clearRecording}
+              stopRecording={stopRecording}
+              onContinueToType={onContinueToType}
             />
           )}
 
@@ -488,6 +580,7 @@ function GameContent({
               isOnline={isOnline}
               audioBlobId={audioBlobId}
               isSaving={isSaving}
+              isProcessingAudio={isProcessingAudio}
             />
           )}
         </div>
@@ -793,6 +886,7 @@ export function PlaySaySpell() {
   const [step, setStep] = useState<"record" | "type">("record"); // Current game step
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioBlobId, setAudioBlobId] = useState<number | null>(null); // Queued audio ID for offline
+  const [isProcessingAudio, setIsProcessingAudio] = useState(false); // Tracks audio queueing operation
   const [answer, setAnswer] = useState(""); // User's typed spelling
   const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null); // Validation result
   const [showHint, setShowHint] = useState(0); // Hint level: 0=none, 1=first letter, 2=full word
@@ -826,6 +920,7 @@ export function PlaySaySpell() {
     startRecording,
     stopRecording,
     audioBlob: recordedBlob,
+    audioUrl: recordedAudioUrl,
     mimeType,
     clearRecording,
     error,
@@ -1107,6 +1202,7 @@ export function PlaySaySpell() {
           hasListId: !!listId,
           hasWordId: !!currentWord?.id,
         });
+        setIsProcessingAudio(false);
         return;
       }
 
@@ -1115,37 +1211,45 @@ export function PlaySaySpell() {
       // Format: {child_id}/{list_id}/{word_id}_{timestamp}.webm
       const fileName = `${profile.id}/${listId}/${currentWord.id}_${timestamp}.webm`;
 
+      // Set processing state before starting queue operation
+      setIsProcessingAudio(true);
+
       // Comment 1: Await queueAudio to ensure audioBlobId is set before transitioning
       queueAudio(recordedBlob, fileName)
         .then((id) => {
           setAudioBlobId(id);
           console.log("[PlaySaySpell] Audio queued with ID:", id);
-          // Move to typing step only after audio is queued
-          console.log("[PlaySaySpell] Moving to type step");
-          setStep("type");
+          setIsProcessingAudio(false);
+          // Stay on record step - let user listen to recording before typing
+          console.log("[PlaySaySpell] Audio queued, ready for playback");
         })
         .catch((error) => {
           logger.error("Failed to queue audio", error);
-          // Still allow transition to type step even if queueing fails
-          console.log("[PlaySaySpell] Moving to type step despite queue error");
-          setStep("type");
+          setIsProcessingAudio(false);
+          // Show error toast and stay on record step
+          toast.error(
+            "Failed to save your recording. Please try recording again.",
+            { duration: 5000 }
+          );
+          // Do NOT transition to type step - user must retry recording
+          console.log(
+            "[PlaySaySpell] Staying on record step due to queue error"
+          );
         });
-    } else {
-      // Move to typing step immediately when online
-      console.log("[PlaySaySpell] Moving to type step");
-      setStep("type");
     }
+    // Note: We no longer auto-advance to type step - user must click "Continue to Type" button
+    // This allows them to listen to their recording first
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordedBlob]);
 
   /**
    * Initiates audio recording for spelling attempt.
-   * Starts recording and sets 3-second auto-stop timer.
+   * Starts recording and sets 15-second auto-stop timer.
    *
    * @remarks
    * - Clears any existing recording timeout
    * - Stores timeout ID in ref for cleanup
-   * - Recording stops automatically after 3 seconds
+   * - Recording stops automatically after 15 seconds
    * - User can also click "Stop Recording" to end early
    */
   const handleStartRecording = useCallback(async () => {
@@ -1156,15 +1260,15 @@ export function PlaySaySpell() {
     }
 
     console.log(
-      "[PlaySaySpell] Starting recording, will auto-stop in 3 seconds"
+      "[PlaySaySpell] Starting recording, will auto-stop in 15 seconds"
     );
     await startRecording();
 
     // Store timeout ID for cleanup
     recordingTimeoutRef.current = setTimeout(() => {
-      console.log("[PlaySaySpell] Auto-stopping recording after 3 seconds");
+      console.log("[PlaySaySpell] Auto-stopping recording after 15 seconds");
       stopRecording();
-    }, 3000);
+    }, 15000); // Changed from 3000 to 15000 (15 seconds)
   }, [startRecording, stopRecording]);
 
   /**
@@ -1277,7 +1381,10 @@ export function PlaySaySpell() {
     // Ensure we have audio blob ID to link with attempt
     // Comment 1: Guard when offline - ensure audioBlobId is set before checking
     if (!isOnline && !audioBlobId) {
-      logger.warn("Cannot check answer offline: audio not yet queued");
+      logger.error("Cannot check answer offline: audio not yet queued");
+      toast.error("Please wait for recording to finish processing", {
+        duration: 4000,
+      });
       return;
     }
 
@@ -1400,6 +1507,11 @@ export function PlaySaySpell() {
     setFeedback(null);
   }, []);
 
+  const handleContinueToType = useCallback(() => {
+    console.log("[PlaySaySpell] User clicked continue to type");
+    setStep("type");
+  }, []);
+
   const redoRecording = useCallback(() => {
     console.log("[PlaySaySpell] User requested re-record");
     // Clear any pending recording timeout
@@ -1432,6 +1544,7 @@ export function PlaySaySpell() {
         handleStartRecording={handleStartRecording}
         isRecording={isRecording}
         audioBlob={audioBlob}
+        audioUrl={recordedAudioUrl}
         error={error}
         answer={answer}
         setAnswer={setAnswer}
@@ -1447,6 +1560,9 @@ export function PlaySaySpell() {
         audioBlobId={audioBlobId}
         clearRecording={clearRecording}
         isSaving={isSaving}
+        isProcessingAudio={isProcessingAudio}
+        stopRecording={stopRecording}
+        onContinueToType={handleContinueToType}
       />
     </AppShell>
   );

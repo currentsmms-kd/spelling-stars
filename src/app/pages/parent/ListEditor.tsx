@@ -11,7 +11,6 @@ import { z } from "zod";
 import { AppShell } from "@/app/components/AppShell";
 import { Card } from "@/app/components/Card";
 import { Button } from "@/app/components/Button";
-import { AudioRecorder } from "@/app/components/AudioRecorder";
 import { Toast } from "@/app/components/Toast";
 import { AutoSaveIndicator } from "@/app/components/AutoSaveIndicator";
 import { BulkActionToolbar } from "@/app/components/BulkActionToolbar";
@@ -22,7 +21,6 @@ import { useDebounce } from "@/app/hooks/useDebounce";
 import { useBulkSelection } from "@/app/hooks/useBulkSelection";
 import { useKeyboardShortcuts } from "@/app/hooks/useKeyboardShortcuts";
 import { logger } from "@/lib/logger";
-import { useTtsVoices } from "@/app/hooks/useTtsVoices";
 import { toast } from "react-hot-toast";
 import {
   useWordList,
@@ -71,9 +69,10 @@ interface WordRowProps {
   ) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onPlayAudio: (url: string) => void;
+  onUploadAudio: (wordId: string, file: File) => void;
   onDelete: (wordId: string) => void;
   isDeleting: boolean;
-  availableVoices: SpeechSynthesisVoice[];
+  showAdvancedOptions: boolean;
   inputRefCallback?: (el: HTMLInputElement | null) => void;
   rowRefCallback?: (el: HTMLDivElement | null) => void;
 }
@@ -95,12 +94,22 @@ function WordRow({
   onUpdateWord,
   onKeyDown,
   onPlayAudio,
+  onUploadAudio,
   onDelete,
   isDeleting,
-  availableVoices,
+  showAdvancedOptions,
   inputRefCallback,
   rowRefCallback,
 }: WordRowProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onUploadAudio(word.id, file);
+    }
+  };
+
   return (
     <div className="relative">
       {/* Drop indicator line */}
@@ -114,111 +123,162 @@ function WordRow({
         onDragOver={onDragOver}
         onDrop={onDrop}
         onDragEnd={onDragEnd}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onSelect();
-          }
-        }}
-        className={`flex items-center gap-3 p-3 border-2 rounded-lg transition-all ${
+        className={`border-2 rounded-lg transition-all ${
           isSelected
             ? "border-primary bg-primary/10"
             : "border-border hover:border-primary/50"
         } ${isDragOver ? "border-primary bg-primary/5 scale-[1.02]" : ""} ${
           isDragging ? "opacity-50" : ""
-        } ${isSelectionMode ? "cursor-pointer" : "cursor-move"}`}
-        onClick={onSelect}
+        }`}
       >
-        {/* Bulk Selection Checkbox */}
-        {isSelectionMode && (
-          <input
-            type="checkbox"
-            checked={isBulkSelected}
-            onChange={(e) => {
-              e.stopPropagation();
-              onToggleSelect();
-            }}
-            className="h-5 w-5 rounded border-2 border-border bg-background text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2"
-            aria-label={`Select word ${word.text || `#${index + 1}`}`}
-            onClick={(e) => e.stopPropagation()}
-          />
-        )}
-
-        {!isSelectionMode && (
-          <GripVertical
-            size={20}
-            className="text-muted-foreground flex-shrink-0"
-          />
-        )}
-        <div className="w-12 text-muted-foreground text-sm flex-shrink-0">
-          #{index + 1}
-        </div>
-        <input
-          ref={inputRefCallback}
-          type="text"
-          value={word.text}
-          onChange={(e) => onUpdateWord(word.id, "text", e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="Enter word"
-          className={`flex-1 px-2 py-1 border rounded transition-shadow focus:ring-2 focus:ring-primary focus:border-transparent bg-input ${
-            !word.text ? "ring-2 ring-primary/50" : ""
-          }`}
-          onClick={(e) => e.stopPropagation()}
-          autoFocus={!word.text && index === 0}
-        />
-        <input
-          type="text"
-          value={word.phonetic || ""}
-          onChange={(e) => onUpdateWord(word.id, "phonetic", e.target.value)}
-          placeholder="Phonetic (optional)"
-          className="flex-1 px-2 py-1 border rounded focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
-          onClick={(e) => e.stopPropagation()}
-        />
-        <select
-          value={word.tts_voice || ""}
-          onChange={(e) => onUpdateWord(word.id, "tts_voice", e.target.value)}
-          className="px-2 py-1 border rounded text-sm focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
-          onClick={(e) => e.stopPropagation()}
-          title="Text-to-Speech Voice"
+        {/* Main row */}
+        <div
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onSelect();
+            }
+          }}
+          className={`flex items-center gap-3 p-3 ${isSelectionMode ? "cursor-pointer" : "cursor-move"}`}
+          onClick={onSelect}
         >
-          <option value="">Default</option>
-          {availableVoices
-            .filter((v) => v.lang.startsWith("en"))
-            .map((voice) => (
-              <option key={voice.name} value={voice.name}>
-                {voice.name}
-              </option>
-            ))}
-        </select>
-        {word.prompt_audio_url && (
+          {/* Bulk Selection Checkbox */}
+          {isSelectionMode && (
+            <input
+              type="checkbox"
+              checked={isBulkSelected}
+              onChange={(e) => {
+                e.stopPropagation();
+                onToggleSelect();
+              }}
+              className="h-5 w-5 rounded border-2 border-border bg-background text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              aria-label={`Select word ${word.text || `#${index + 1}`}`}
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+
+          {!isSelectionMode && (
+            <GripVertical
+              size={20}
+              className="text-muted-foreground flex-shrink-0"
+            />
+          )}
+
+          <div className="w-12 text-muted-foreground text-sm flex-shrink-0">
+            #{index + 1}
+          </div>
+
+          {/* Word text input - PRIMARY FOCUS */}
+          <input
+            ref={inputRefCallback}
+            type="text"
+            value={word.text}
+            onChange={(e) => onUpdateWord(word.id, "text", e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder="Enter word"
+            className={`flex-1 px-3 py-2 text-base border rounded focus:ring-2 focus:ring-primary focus:border-transparent bg-input ${
+              !word.text ? "ring-2 ring-primary/50" : ""
+            }`}
+            onClick={(e) => e.stopPropagation()}
+            autoFocus={!word.text && index === 0}
+          />
+
+          {/* Audio actions - SECONDARY */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {word.prompt_audio_url ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (word.prompt_audio_url) {
+                      onPlayAudio(word.prompt_audio_url);
+                    }
+                  }}
+                  title="Play audio"
+                  aria-label="Play audio pronunciation"
+                >
+                  <Play size={16} aria-hidden="true" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fileInputRef.current?.click();
+                  }}
+                  title="Change audio"
+                  aria-label="Change audio"
+                >
+                  <Upload size={16} aria-hidden="true" />
+                </Button>
+              </>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fileInputRef.current?.click();
+                }}
+                title="Upload audio"
+                aria-label="Upload audio"
+              >
+                <Upload size={16} aria-hidden="true" />
+                <span className="ml-1 text-xs">Audio</span>
+              </Button>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="audio/*"
+              onChange={handleFileChange}
+              className="hidden"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+
+          {/* Delete button */}
           <Button
             size="sm"
+            variant="ghost"
             onClick={(e) => {
               e.stopPropagation();
-              if (word.prompt_audio_url) {
-                onPlayAudio(word.prompt_audio_url);
-              }
+              onDelete(word.id);
             }}
-            title="Play audio"
-            aria-label="Play audio pronunciation"
+            disabled={isDeleting}
+            title="Delete word"
+            aria-label="Delete word"
           >
-            <Play size={16} aria-hidden="true" />
+            <Trash2 size={16} aria-hidden="true" />
           </Button>
+        </div>
+
+        {/* Advanced options row - collapsed by default */}
+        {showAdvancedOptions && (
+          <div className="px-3 pb-3 pt-0 flex items-center gap-3 border-t border-border/50">
+            <div className="w-12 flex-shrink-0" /> {/* Spacer for alignment */}
+            {!isSelectionMode && (
+              <div className="w-5 flex-shrink-0" /> // Spacer for grip icon
+            )}
+            {isSelectionMode && (
+              <div className="w-5 flex-shrink-0" /> // Spacer for checkbox
+            )}
+            <input
+              type="text"
+              value={word.phonetic || ""}
+              onChange={(e) =>
+                onUpdateWord(word.id, "phonetic", e.target.value)
+              }
+              placeholder="Phonetic spelling (optional)"
+              className="flex-1 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
         )}
-        <Button
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(word.id);
-          }}
-          disabled={isDeleting}
-          title="Delete word"
-          aria-label="Delete word"
-        >
-          <Trash2 size={16} aria-hidden="true" />
-        </Button>
       </div>
     </div>
   );
@@ -381,9 +441,11 @@ function WordsListSection({
   handleUpdateWord,
   handleKeyDown,
   handlePlayAudio,
+  handleUploadAudio,
   handleDeleteWord,
   deleteWordPending,
-  availableVoices,
+  showAdvancedOptions,
+  onToggleAdvancedOptions,
   isSelectionMode,
   onToggleSelectionMode,
   bulkSelection,
@@ -410,9 +472,11 @@ function WordsListSection({
   ) => void;
   handleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   handlePlayAudio: (url: string) => void;
+  handleUploadAudio: (wordId: string, file: File) => void;
   handleDeleteWord: (wordId: string) => void;
   deleteWordPending: boolean;
-  availableVoices: SpeechSynthesisVoice[];
+  showAdvancedOptions: boolean;
+  onToggleAdvancedOptions: () => void;
   isSelectionMode: boolean;
   onToggleSelectionMode: () => void;
   bulkSelection: ReturnType<typeof useBulkSelection>;
@@ -448,6 +512,14 @@ function WordsListSection({
             </h3>
           </div>
           <div className="flex gap-2">
+            <Button
+              variant={showAdvancedOptions ? "default" : "ghost"}
+              size="sm"
+              onClick={onToggleAdvancedOptions}
+              title="Show/hide phonetic fields"
+            >
+              Advanced
+            </Button>
             <Button
               variant={isSelectionMode ? "default" : "ghost"}
               size="sm"
@@ -509,9 +581,10 @@ function WordsListSection({
                 onUpdateWord={handleUpdateWord}
                 onKeyDown={handleKeyDown}
                 onPlayAudio={handlePlayAudio}
+                onUploadAudio={handleUploadAudio}
                 onDelete={handleDeleteWord}
                 isDeleting={deleteWordPending}
-                availableVoices={availableVoices}
+                showAdvancedOptions={showAdvancedOptions}
                 inputRefCallback={(el) => {
                   if (el) {
                     wordInputRefs.current.set(word.id, el);
@@ -612,77 +685,11 @@ function CSVImportSection({
   );
 }
 
-function AudioRecorderSection({
-  selectedWord,
-  handleAudioRecorded,
-  uploadingAudio,
-  handlePlayAudio,
-}: {
-  selectedWord: WordWithIndex | undefined;
-  handleAudioRecorded: (blob: Blob) => void;
-  uploadingAudio: boolean;
-  handlePlayAudio: (url: string) => void;
-}) {
-  return (
-    <div className="lg:col-span-3">
-      <Card>
-        <h3 className="text-lg font-semibold mb-4">Audio Recorder</h3>
-        {selectedWord ? (
-          <div className="space-y-4">
-            <div className="p-3 bg-muted rounded-lg">
-              <p className="text-sm text-muted-foreground mb-1">
-                Selected word:
-              </p>
-              <p className="font-semibold text-lg">{selectedWord.text}</p>
-              {selectedWord.phonetic && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  {selectedWord.phonetic}
-                </p>
-              )}
-            </div>
-            <AudioRecorder
-              onRecordingComplete={handleAudioRecorded}
-              showInstructions={true}
-            />
-            {uploadingAudio && (
-              <p className="text-sm text-muted-foreground">Uploading...</p>
-            )}
-            {selectedWord.prompt_audio_url && (
-              <div className="p-3 bg-secondary/10 border border-secondary rounded-lg">
-                <p className="text-sm text-secondary-foreground mb-2">
-                  ✓ Audio saved
-                </p>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    if (selectedWord.prompt_audio_url) {
-                      handlePlayAudio(selectedWord.prompt_audio_url);
-                    }
-                  }}
-                  className="flex items-center gap-2"
-                >
-                  <Play size={16} />
-                  Play Current
-                </Button>
-              </div>
-            )}
-          </div>
-        ) : (
-          <p className="text-muted-foreground text-center py-8">
-            Select a word to record audio
-          </p>
-        )}
-      </Card>
-    </div>
-  );
-}
-
 export function ListEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const isNewList = !id;
-  const { voices: availableVoices } = useTtsVoices();
 
   // Queries and mutations
   const { data: list, isLoading } = useWordList(id);
@@ -704,7 +711,6 @@ export function ListEditor() {
     dragOverIndex: null,
   });
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [uploadingAudio, setUploadingAudio] = useState(false);
 
   // Auto-save state
   const [autoSaveStatus, setAutoSaveStatus] = useState<
@@ -726,6 +732,7 @@ export function ListEditor() {
 
   // Selection mode state
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
 
   // Refs for word inputs and rows (for auto-focus and scroll)
   const wordInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
@@ -1323,15 +1330,14 @@ export function ListEditor() {
     }
   };
 
-  const handleAudioRecorded = async (blob: Blob) => {
-    if (!selectedWordId || !id) return;
+  const handleUploadAudio = async (wordId: string, file: File) => {
+    if (!id) return;
 
-    setUploadingAudio(true);
     try {
       await uploadAudio.mutateAsync({
-        file: blob,
+        file,
         listId: id,
-        wordId: selectedWordId,
+        wordId,
       });
       toast.custom((t) => (
         <Toast
@@ -1349,8 +1355,6 @@ export function ListEditor() {
           onClose={() => toast.dismiss(t.id)}
         />
       ));
-    } finally {
-      setUploadingAudio(false);
     }
   };
 
@@ -1367,8 +1371,6 @@ export function ListEditor() {
       ));
     });
   };
-
-  const selectedWord = words.find((w) => w.id === selectedWordId);
 
   if (isLoading) {
     return (
@@ -1439,9 +1441,13 @@ export function ListEditor() {
             handleUpdateWord={handleUpdateWord}
             handleKeyDown={handleKeyDown}
             handlePlayAudio={handlePlayAudio}
+            handleUploadAudio={handleUploadAudio}
             handleDeleteWord={handleDeleteWord}
             deleteWordPending={deleteWord.isPending}
-            availableVoices={availableVoices}
+            showAdvancedOptions={showAdvancedOptions}
+            onToggleAdvancedOptions={() =>
+              setShowAdvancedOptions(!showAdvancedOptions)
+            }
             isSelectionMode={isSelectionMode}
             onToggleSelectionMode={() => setIsSelectionMode(!isSelectionMode)}
             bulkSelection={bulkSelection}
@@ -1462,13 +1468,6 @@ export function ListEditor() {
                 addWordPending={addWord.isPending}
               />
             )}
-
-            <AudioRecorderSection
-              selectedWord={selectedWord}
-              handleAudioRecorded={handleAudioRecorded}
-              uploadingAudio={uploadingAudio}
-              handlePlayAudio={handlePlayAudio}
-            />
           </div>
         </div>
 

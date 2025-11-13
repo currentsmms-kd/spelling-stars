@@ -231,12 +231,26 @@ export function useAudioRecorder(): UseAudioRecorderResult {
   }, [isRecording, isPaused, duration]);
 
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && isRecording) {
+    // Check if MediaRecorder exists and is in a state that can be stopped
+    if (!mediaRecorderRef.current) {
+      logger.warn("Cannot stop recording - MediaRecorder doesn't exist");
+      return;
+    }
+
+    const state = mediaRecorderRef.current.state;
+
+    // Only stop if recording or paused (not inactive)
+    if (state === "recording" || state === "paused") {
+      logger.info(`Stopping recording (current state: ${state})...`);
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       setIsPaused(false);
+    } else {
+      logger.warn(
+        `Cannot stop recording - MediaRecorder is in '${state}' state (expected 'recording' or 'paused')`
+      );
     }
-  }, [isRecording]);
+  }, []);
 
   const clearRecording = useCallback(() => {
     if (audioUrl) {
