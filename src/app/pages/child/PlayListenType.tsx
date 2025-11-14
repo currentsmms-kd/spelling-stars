@@ -612,6 +612,10 @@ export function PlayListenType() {
   const ttsRetryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const ttsRetryCountRef = useRef<number>(0);
 
+  // Refs for audio cleanup - prevents multiple simultaneous audio playback
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const lastPlayedWordIdRef = useRef<string | null>(null);
+
   // Hooks for D3/D4 features
   const updateSrs = useUpdateSrs();
   const awardStars = useAwardStars();
@@ -792,14 +796,25 @@ export function PlayListenType() {
    * - Uses getVoiceWithFallback to ensure a voice is always available
    * - Falls back to default speechSynthesis without explicit voice if cap reached
    * - Handles autoplay blocking by prompting user to tap Play button
+   * - Stops any previous audio before playing new audio
    */
   const playAudio = useCallback(() => {
     if (!currentWord) {
       return;
     }
 
+    // Stop any previous audio
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+
+    // Cancel any ongoing TTS speech
+    speechSynthesis.cancel();
+
     if (currentWord.prompt_audio_url) {
       const audio = new Audio(currentWord.prompt_audio_url);
+      audioRef.current = audio;
 
       // Capture the promise from audio.play() and handle autoplay blocking
       audio.play().catch((error) => {
@@ -812,6 +827,11 @@ export function PlayListenType() {
           icon: "🔊",
         });
       });
+
+      // Clean up audio ref when playback ends
+      audio.onended = () => {
+        audioRef.current = null;
+      };
 
       // Reset retry counter when successfully playing audio
       ttsRetryCountRef.current = 0;
@@ -861,16 +881,17 @@ export function PlayListenType() {
     }
   }, [currentWord, getVoiceWithFallback, voicesLoading]);
 
-  // Auto-play on word change
+  // Auto-play ONCE on word change - only when word ID changes
   useEffect(() => {
-    if (currentWord) {
+    if (currentWord && currentWord.id !== lastPlayedWordIdRef.current) {
+      lastPlayedWordIdRef.current = currentWord.id;
       const timer = setTimeout(() => playAudio(), 500);
       return () => clearTimeout(timer);
     }
     return undefined;
   }, [currentWord, playAudio]);
 
-  // Cleanup timeouts on unmount
+  // Cleanup timeouts and audio on unmount
   useEffect(() => {
     const timeout = timeoutRef.current;
     const confettiTimeout = confettiTimeoutRef.current;
@@ -885,6 +906,13 @@ export function PlayListenType() {
       if (ttsRetryTimeout) {
         clearTimeout(ttsRetryTimeout);
       }
+      // Stop any playing audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      // Cancel any ongoing TTS
+      speechSynthesis.cancel();
     };
   }, []);
 
@@ -936,6 +964,18 @@ export function PlayListenType() {
       clearTimeout(confettiTimeoutRef.current);
       confettiTimeoutRef.current = null;
     }
+
+    // Stop any playing audio before moving to next word
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+
+    // Cancel any ongoing TTS
+    speechSynthesis.cancel();
+
+    // Reset last played word ID so new word will auto-play
+    lastPlayedWordIdRef.current = null;
 
     // Use functional state update to avoid stale closure issues
     // Compute next index

@@ -56,7 +56,7 @@ if (state === "recording" || state === "paused") {
 
 ### 3. Child Account Creation - Email Validation Error ✅
 
-**Problem:** Creating child accounts with username "kieran" was failing with: "Email address 'kieran@spellstars.app' is invalid"
+**Problem:** Creating child accounts with username "kieran" was failing with: "Email address '<kieran@spellstars.app>' is invalid"
 
 **Root Cause:** Supabase Auth requires email format, but was rejecting the `@spellstars.app` domain as invalid (possibly due to DNS validation or TLD restrictions).
 
@@ -106,7 +106,7 @@ if (!emailToUse.includes("@")) {
 
 ## Testing Instructions
 
-### Test Audio Recording:
+### Test Audio Recording
 
 1. Navigate to `/child/play/say-spell/:listId`
 2. Click "Start Recording"
@@ -115,7 +115,7 @@ if (!emailToUse.includes("@")) {
 5. Click "Listen to Your Recording" - should play back your audio
 6. Verify no console errors about MediaRecorder
 
-### Test Child Account Creation:
+### Test Child Account Creation
 
 1. Log in as a parent
 2. Navigate to `/parent/children`
@@ -127,13 +127,14 @@ if (!emailToUse.includes("@")) {
 5. Click "Create Child Account"
 6. Should succeed without email validation errors
 7. Check console - should see:
+
    ```
    [INFO] Creating child account with username: kieran123
    [DEBUG] Generated internal email: kieran123@localhost.local
    [INFO] Child user created successfully: [user-id]
    ```
 
-### Test Child Login:
+### Test Child Login
 
 1. Log out
 2. Go to `/login`
@@ -152,7 +153,7 @@ if (!emailToUse.includes("@")) {
 - This is an internal implementation detail never shown to users
 - Children only see and use their username (no email required)
 
-### Authentication Flow:
+### Authentication Flow
 
 ```
 User Input: "kieran123" (username only)
@@ -164,7 +165,7 @@ Stored in metadata: { username: "kieran123", role: "child" }
 Display: "kieran123" (username only in UI)
 ```
 
-### Security Considerations:
+### Security Considerations
 
 - Usernames validated: 3-30 chars, alphanumeric only, must start with letter
 - Reserved usernames blocked (admin, system, etc.)

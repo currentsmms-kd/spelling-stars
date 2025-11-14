@@ -902,6 +902,9 @@ export function PlaySaySpell() {
   const ttsRetryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const ttsRetryCountRef = useRef<number>(0);
 
+  // Ref to track last played word - prevents duplicate TTS playback
+  const lastPlayedWordIdRef = useRef<string | null>(null);
+
   // Hooks for D3/D4 features
   const updateSrs = useUpdateSrs();
   const awardStars = useAwardStars();
@@ -1112,6 +1115,9 @@ export function PlaySaySpell() {
   const playWord = useCallback(() => {
     if (!currentWord) return;
 
+    // Cancel any ongoing TTS speech before playing new word
+    speechSynthesis.cancel();
+
     // Wait for voices to load before using TTS
     if (voicesLoading) {
       // Cap retries at 50 attempts over 5 seconds (100ms each)
@@ -1155,9 +1161,14 @@ export function PlaySaySpell() {
     speechSynthesis.speak(utterance);
   }, [currentWord, getVoiceWithFallback, voicesLoading]);
 
-  // Auto-play on word change
+  // Auto-play ONCE on word change - only when word ID actually changes
   useEffect(() => {
-    if (currentWord && step === "record") {
+    if (
+      currentWord &&
+      step === "record" &&
+      currentWord.id !== lastPlayedWordIdRef.current
+    ) {
+      lastPlayedWordIdRef.current = currentWord.id;
       const timer = setTimeout(() => playWord(), 500);
       return () => clearTimeout(timer);
     }
@@ -1180,6 +1191,8 @@ export function PlaySaySpell() {
       if (ttsRetryTimeoutRef.current) {
         clearTimeout(ttsRetryTimeoutRef.current);
       }
+      // Cancel any ongoing TTS
+      speechSynthesis.cancel();
     };
   }, []);
 
@@ -1322,6 +1335,12 @@ export function PlaySaySpell() {
       clearTimeout(recordingTimeoutRef.current);
       recordingTimeoutRef.current = null;
     }
+
+    // Cancel any ongoing TTS
+    speechSynthesis.cancel();
+
+    // Reset last played word ID so new word will auto-play
+    lastPlayedWordIdRef.current = null;
 
     // Compute next index
     const nextIndex = currentWordIndex + 1;
