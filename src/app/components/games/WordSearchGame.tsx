@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "@/app/components/Card";
 import { Button } from "@/app/components/Button";
 import { cn } from "@/lib/utils";
+import type { CSSProperties } from "react";
 import {
   CellCoord,
   Direction,
@@ -29,6 +30,9 @@ export interface WordSearchGameProps {
   onComplete?: (summary: WordSearchSummary) => void;
   onRestart?: () => void;
   onNewPuzzleRequest?: () => void;
+  onSettingsClick?: () => void;
+  listTitle?: string;
+  usingDemoList?: boolean;
 }
 
 interface NormalizedWord {
@@ -81,6 +85,9 @@ export function WordSearchGame({
   onComplete,
   onRestart,
   onNewPuzzleRequest,
+  onSettingsClick,
+  listTitle = "",
+  usingDemoList = false,
 }: WordSearchGameProps) {
   const [internalSeed, setInternalSeed] = useState(() => seed ?? Date.now());
   const [dragStart, setDragStart] = useState<CellCoord | null>(null);
@@ -90,9 +97,11 @@ export function WordSearchGame({
     Record<string, WordPlacement>
   >({});
   const [hasCompleted, setHasCompleted] = useState(false);
+  const [cellSize, setCellSize] = useState(48);
 
   const pointerActiveRef = useRef(false);
   const dragPathRef = useRef<CellCoord[]>([]);
+  const gridContainerRef = useRef<HTMLDivElement | null>(null);
 
   const isSeedControlled = typeof seed === "number";
 
@@ -174,6 +183,58 @@ export function WordSearchGame({
     return map;
   }, [puzzle]);
 
+  const gridDimension = puzzle?.grid.length ?? size;
+
+  useEffect(() => {
+    if (!gridDimension) {
+      return;
+    }
+
+    const updateCellSize = () => {
+      const container = gridContainerRef.current;
+      if (!container) {
+        return;
+      }
+
+      const containerWidth = container.clientWidth - 16; // account for padding
+      const { top } = container.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const availableHeight = viewportHeight - top - 40; // leave more breathing room to avoid scrolling
+      const limitingAxis = Math.max(
+        0,
+        Math.min(containerWidth, availableHeight)
+      );
+      if (!limitingAxis) {
+        return;
+      }
+      const proposed = Math.floor(limitingAxis / gridDimension);
+      const nextSize = Math.max(28, Math.min(proposed, 56)); // slightly smaller max to ensure visibility
+      setCellSize((prev) => (Number.isFinite(nextSize) ? nextSize : prev));
+    };
+
+    updateCellSize();
+
+    const container = gridContainerRef.current;
+    const supportsResizeObserver = typeof ResizeObserver !== "undefined";
+    let resizeObserver: ResizeObserver | null = null;
+
+    if (supportsResizeObserver) {
+      resizeObserver = new ResizeObserver(updateCellSize);
+      if (container) {
+        resizeObserver.observe(container);
+      }
+    }
+
+    window.addEventListener("resize", updateCellSize);
+    return () => {
+      if (container && resizeObserver) {
+        resizeObserver.unobserve(container);
+      }
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", updateCellSize);
+    };
+  }, [gridDimension]);
+
   const foundWordCount = Object.keys(foundPlacements).length;
   const totalPlaceable = puzzle?.placements.length ?? 0;
   const totalRequested = playableWords.length;
@@ -223,6 +284,14 @@ export function WordSearchGame({
     () => new Set(dragPath.map((cell) => cellKey(cell))),
     [dragPath]
   );
+
+  const gridStyles: CSSProperties | undefined = gridDimension
+    ? {
+        gridTemplateColumns: `repeat(${gridDimension}, ${cellSize}px)`,
+        gridAutoRows: `${cellSize}px`,
+        maxWidth: gridDimension * cellSize,
+      }
+    : undefined;
 
   const handlePointerDown = useCallback((cell: CellCoord) => {
     pointerActiveRef.current = true;
@@ -330,48 +399,68 @@ export function WordSearchGame({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Puzzle: {internalSeed}
+    <Card
+      variant="child"
+      className="p-3 flex flex-col gap-3 h-[calc(100vh-8rem)]"
+      aria-live="polite"
+    >
+      {/* Header with actions */}
+      <div className="flex flex-wrap items-center gap-2 justify-between flex-shrink-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onSettingsClick}
+            className="flex items-center gap-1.5"
+            title="Puzzle settings"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              />
+            </svg>
+            <span className="hidden sm:inline">Settings</span>
+          </Button>
+          <p className="text-sm text-child-foreground/80">
+            Find the hidden words • Drag across letters to highlight
+          </p>
         </div>
-        <div className="ml-auto flex flex-wrap gap-3">
-          <Button variant="secondary" size="child" onClick={handleRestart}>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" size="sm" onClick={handleRestart}>
             Restart
           </Button>
-          <Button size="child" onClick={handleNewPuzzle}>
+          <Button size="sm" onClick={handleNewPuzzle}>
             New Puzzle
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[2fr,1fr]">
-        <Card
-          variant="child"
-          className="p-4 flex flex-col gap-4"
-          aria-live="polite"
+      {/* Main content area with grid and word list */}
+      <div className="flex-1 min-h-0 flex gap-3">
+        {/* Grid Area */}
+        <div
+          ref={gridContainerRef}
+          className="flex-1 min-w-0 min-h-0 flex items-center justify-center"
         >
-          <div className="flex flex-col gap-2">
-            <p className="text-2xl font-bold text-child-foreground">
-              Find the hidden words
-            </p>
-            <p className="text-base text-child-foreground/80">
-              Drag across the letters to highlight each spelling word. You can
-              drag in either direction.
-            </p>
-          </div>
-
           <div
             role="grid"
             aria-label="Word search grid"
-            className="grid gap-0.5 sm:gap-1 touch-none select-none mx-auto max-w-full"
-            style={{
-              gridTemplateColumns: `repeat(${Math.max(
-                puzzle?.grid.length ?? 0,
-                1
-              )}, minmax(0, 1fr))`,
-              maxWidth: "min(100%, 600px)",
-            }}
+            className="grid gap-1.5 sm:gap-2 touch-none select-none bg-child-surface/40 p-2 rounded-xl"
+            style={gridStyles}
           >
             {puzzle?.grid.map((row, rowIndex) =>
               row.map((letter, colIndex) => {
@@ -396,9 +485,9 @@ export function WordSearchGame({
                       handlePointerEnter(coord);
                     }}
                     className={cn(
-                      "aspect-square rounded border-2 border-border font-bold uppercase transition-colors",
+                      "rounded-lg border-2 border-border font-bold uppercase transition-colors shadow-sm",
                       "flex items-center justify-center child-card focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                      "text-lg leading-none",
+                      "text-base sm:text-lg leading-none",
                       isFound && "bg-primary text-primary-foreground",
                       !isFound &&
                         isDragging &&
@@ -407,6 +496,11 @@ export function WordSearchGame({
                         !isDragging &&
                         "bg-background text-foreground/80"
                     )}
+                    style={{
+                      width: cellSize,
+                      height: cellSize,
+                      fontSize: Math.max(16, Math.min(cellSize * 0.5, 28)),
+                    }}
                   >
                     {letter}
                   </button>
@@ -414,19 +508,17 @@ export function WordSearchGame({
               })
             )}
           </div>
-        </Card>
+        </div>
 
-        <Card
-          variant="child"
-          className="p-4 space-y-4 flex flex-col"
-        >
-          <div className="flex items-center justify-between flex-shrink-0">
-            <h3 className="text-xl font-semibold">Word List</h3>
-            <span className="text-sm text-muted-foreground">
+        {/* Word List Sidebar - inside main card */}
+        <div className="w-48 xl:w-56 flex-shrink-0 flex flex-col min-h-0 bg-child-surface/20 rounded-lg p-2">
+          <div className="flex items-center justify-between mb-2 flex-shrink-0">
+            <h3 className="text-sm font-bold">Words</h3>
+            <span className="text-xs font-semibold text-muted-foreground">
               {foundWordCount}/{totalPlaceable}
             </span>
           </div>
-          <ul className="space-y-2 overflow-y-auto flex-1 max-h-[600px]">
+          <ul className="space-y-0.5 overflow-y-auto flex-1 min-h-0 pr-1">
             {normalizedEntries.map((entry) => {
               const isPlaced = Boolean(
                 (puzzle?.placements ?? []).find(
@@ -438,16 +530,16 @@ export function WordSearchGame({
                 <li
                   key={entry.normalized}
                   className={cn(
-                    "rounded-md px-3 py-2 text-lg font-semibold",
+                    "rounded px-2 py-1 text-xs font-semibold transition-colors",
                     isFound
                       ? "bg-primary/20 line-through text-primary"
-                      : "bg-background/40"
+                      : "bg-background/40 hover:bg-background/60"
                   )}
                 >
                   {entry.label}
                   {!isPlaced && (
-                    <span className="ml-2 text-xs uppercase text-muted-foreground">
-                      (not placed)
+                    <span className="ml-1 text-[10px] uppercase text-muted-foreground">
+                      (skip)
                     </span>
                   )}
                 </li>
@@ -455,12 +547,12 @@ export function WordSearchGame({
             })}
           </ul>
           {Boolean(puzzle?.unplaced?.length) && (
-            <p className="text-sm text-muted-foreground">
-              Could not place: {puzzle?.unplaced.join(", ")}
+            <p className="text-[10px] text-muted-foreground mt-1.5 pt-1.5 border-t border-border flex-shrink-0">
+              Skipped: {puzzle?.unplaced.join(", ")}
             </p>
           )}
-        </Card>
+        </div>
       </div>
-    </div>
+    </Card>
   );
 }

@@ -228,192 +228,185 @@ export function PlayWordSearch() {
 
   return (
     <AppShell title="Word Search" variant="child">
-      <div className="space-y-3">
-        <Card variant="child" className="p-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex-1">
-              <h2 className="text-2xl font-bold">Practice Word Search</h2>
-              <p className="text-sm text-child-foreground/80 mt-1">
-                {usingDemoList
-                  ? "Practice with a fun space-themed demo list."
-                  : "Playing: {listTitle}"}
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="default"
-              onClick={() => setShowSettings(!showSettings)}
-              className="flex items-center gap-2"
-            >
-              {showSettings ? (
-                <>
-                  <span>Hide Settings</span>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                  </svg>
-                </>
-              ) : (
-                <>
-                  <span>Settings</span>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </>
-              )}
-            </Button>
-          </div>
-
-          {showSettings && (
-            <div className="mt-4 pt-4 border-t border-border space-y-4">
-              <div className="grid gap-3 md:gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="space-y-1.5 md:space-y-2">
-              <label
-                htmlFor="word-search-list"
-                className="text-xs md:text-sm font-semibold uppercase text-muted-foreground"
-              >
-                Spelling List
-              </label>
-              {isLoadingLists ? (
-                <p className="text-base md:text-lg">Loading lists…</p>
-              ) : availableLists.length > 0 ? (
-                <select
-                  id="word-search-list"
-                  value={selectedListId ?? ""}
-                  onChange={handleListChange}
-                  className="w-full rounded-lg border border-border bg-background px-2 md:px-3 py-1.5 md:py-2 text-base md:text-lg"
-                >
-                  {availableLists.map((list) => (
-                    <option key={list.id} value={list.id}>
-                      {list.title} ({list.word_count ?? 0} words)
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <p className="text-base md:text-lg font-semibold text-muted-foreground">
-                  No lists yet — using demo words.
-                </p>
-              )}
-              {listError && (
-                <p className="text-xs md:text-sm text-destructive">
-                  {listError instanceof Error
-                    ? listError.message
-                    : "Could not load word lists."}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-1.5 md:space-y-2">
-              <label
-                htmlFor="word-search-size"
-                className="text-xs md:text-sm font-semibold uppercase text-muted-foreground"
-              >
-                Grid Size ({gridSize} × {gridSize})
-              </label>
-              <input
-                id="word-search-size"
-                type="range"
-                min={8}
-                max={16}
-                value={gridSize}
-                onChange={(event) => setGridSize(Number(event.target.value))}
-                className="w-full"
-              />
-            </div>
-
-            <div className="space-y-1.5 md:space-y-2">
-              <label
-                htmlFor="word-search-seed"
-                className="text-xs md:text-sm font-semibold uppercase text-muted-foreground"
-              >
-                Puzzle Seed
-              </label>
-              <div className="flex gap-1.5 md:gap-2">
-                <input
-                  id="word-search-seed"
-                  type="number"
-                  value={seedInput}
-                  onChange={(event) => setSeedInput(event.target.value)}
-                  className="flex-1 rounded-lg border border-border bg-background px-2 md:px-3 py-1.5 md:py-2 text-base md:text-lg"
-                  min={1}
-                />
-                <Button size="child" onClick={handleApplySeed}>
-                  Apply
-                </Button>
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto">
+          <Card variant="child" className="w-full max-w-4xl mt-8 mb-8">
+            <div className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold">Puzzle Settings</h2>
                 <Button
-                  size="child"
-                  variant="outline"
-                  onClick={handleRandomSeed}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowSettings(false)}
+                  className="text-2xl leading-none px-3"
                 >
-                  New
+                  ×
                 </Button>
               </div>
-            </div>
-          </div>
 
-          <div className="grid gap-2 md:gap-4 sm:grid-cols-2">
-            <label className="flex items-center gap-2 md:gap-3 rounded-lg border border-border bg-background px-3 md:px-4 py-2 md:py-3">
-              <input
-                type="checkbox"
-                checked={allowDiagonals}
-                onChange={(event) => setAllowDiagonals(event.target.checked)}
-                className="h-4 w-4 md:h-5 md:w-5 rounded"
-              />
-              <div>
-                <p className="text-sm md:text-base font-semibold">
-                  Allow diagonals
-                </p>
-                <p className="text-xs md:text-sm text-muted-foreground">
-                  Words can appear in diagonal directions.
-                </p>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-2">
+                  <label
+                    htmlFor="word-search-list"
+                    className="text-sm font-semibold uppercase text-muted-foreground"
+                  >
+                    Spelling List
+                  </label>
+                  {isLoadingLists ? (
+                    <p className="text-base">Loading lists…</p>
+                  ) : availableLists.length > 0 ? (
+                    <select
+                      id="word-search-list"
+                      value={selectedListId ?? ""}
+                      onChange={handleListChange}
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base"
+                    >
+                      {availableLists.map((list) => (
+                        <option key={list.id} value={list.id}>
+                          {list.title} ({list.word_count ?? 0} words)
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-base font-semibold text-muted-foreground">
+                      No lists yet — using demo words.
+                    </p>
+                  )}
+                  {listError && (
+                    <p className="text-sm text-destructive">
+                      {listError instanceof Error
+                        ? listError.message
+                        : "Could not load word lists."}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label
+                    htmlFor="word-search-size"
+                    className="text-sm font-semibold uppercase text-muted-foreground"
+                  >
+                    Grid Size ({gridSize} × {gridSize})
+                  </label>
+                  <input
+                    id="word-search-size"
+                    type="range"
+                    min={8}
+                    max={16}
+                    value={gridSize}
+                    onChange={(event) =>
+                      setGridSize(Number(event.target.value))
+                    }
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label
+                    htmlFor="word-search-seed"
+                    className="text-sm font-semibold uppercase text-muted-foreground"
+                  >
+                    Puzzle Seed
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      id="word-search-seed"
+                      type="number"
+                      value={seedInput}
+                      onChange={(event) => setSeedInput(event.target.value)}
+                      className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-base"
+                      min={1}
+                    />
+                    <Button size="sm" onClick={handleApplySeed}>
+                      Apply
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleRandomSeed}
+                    >
+                      New
+                    </Button>
+                  </div>
+                </div>
               </div>
-            </label>
-            <label className="flex items-center gap-2 md:gap-3 rounded-lg border border-border bg-background px-3 md:px-4 py-2 md:py-3">
-              <input
-                type="checkbox"
-                checked={allowBackwards}
-                onChange={(event) => setAllowBackwards(event.target.checked)}
-                className="h-4 w-4 md:h-5 md:w-5 rounded"
-              />
-              <div>
-                <p className="text-sm md:text-base font-semibold">
-                  Allow backwards words
-                </p>
-                <p className="text-xs md:text-sm text-muted-foreground">
-                  Words may appear right-to-left or bottom-to-top.
-                </p>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="flex items-center gap-3 rounded-lg border border-border bg-background px-4 py-3 cursor-pointer hover:bg-muted/50">
+                  <input
+                    type="checkbox"
+                    checked={allowDiagonals}
+                    onChange={(event) =>
+                      setAllowDiagonals(event.target.checked)
+                    }
+                    className="h-5 w-5 rounded"
+                  />
+                  <div>
+                    <p className="text-base font-semibold">Allow diagonals</p>
+                    <p className="text-sm text-muted-foreground">
+                      Words can appear in diagonal directions.
+                    </p>
+                  </div>
+                </label>
+                <label className="flex items-center gap-3 rounded-lg border border-border bg-background px-4 py-3 cursor-pointer hover:bg-muted/50">
+                  <input
+                    type="checkbox"
+                    checked={allowBackwards}
+                    onChange={(event) =>
+                      setAllowBackwards(event.target.checked)
+                    }
+                    className="h-5 w-5 rounded"
+                  />
+                  <div>
+                    <p className="text-base font-semibold">
+                      Allow backwards words
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Words may appear right-to-left or bottom-to-top.
+                    </p>
+                  </div>
+                </label>
               </div>
+
+              <div className="flex justify-end">
+                <Button onClick={() => setShowSettings(false)}>Done</Button>
               </div>
             </div>
-          )}
+          </Card>
+        </div>
+      )}
+
+      {/* Error Messages */}
+      {activeListError && (
+        <Card variant="child" className="p-4 mb-3">
+          <p className="text-destructive">
+            {activeListError instanceof Error
+              ? activeListError.message
+              : "Could not load the selected list."}
+          </p>
         </Card>
+      )}
 
-        {activeListError && (
-          <Card variant="child" className="p-4">
-            <p className="text-destructive">
-              {activeListError instanceof Error
-                ? activeListError.message
-                : "Could not load the selected list."}
-            </p>
-          </Card>
-        )}
-
-        {isLoadingActiveList && !usingDemoList ? (
-          <Card variant="child" className="p-4">
-            <p className="text-lg">Loading words…</p>
-          </Card>
-        ) : (
-          <WordSearchGame
-                words={puzzleWords}
-                size={gridSize}
-                allowBackwards={allowBackwards}
-                allowDiagonals={allowDiagonals}
-                seed={seed}
-                onComplete={handleComplete}
-                onNewPuzzleRequest={handleRandomSeed}
-          />
-        )
-        }
-      </div>
+      {/* Game */}
+      {isLoadingActiveList && !usingDemoList ? (
+        <Card variant="child" className="p-4">
+          <p className="text-lg">Loading words…</p>
+        </Card>
+      ) : (
+        <WordSearchGame
+          words={puzzleWords}
+          size={gridSize}
+          allowBackwards={allowBackwards}
+          allowDiagonals={allowDiagonals}
+          seed={seed}
+          onComplete={handleComplete}
+          onNewPuzzleRequest={handleRandomSeed}
+          onSettingsClick={() => setShowSettings(true)}
+          listTitle={listTitle}
+          usingDemoList={usingDemoList}
+        />
+      )}
     </AppShell>
   );
 }
