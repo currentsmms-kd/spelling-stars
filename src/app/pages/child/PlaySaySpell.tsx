@@ -976,10 +976,16 @@ export function PlaySaySpell() {
   } = useAudioRecorder();
 
   // Fetch the selected list
-  const { data: listData, isLoading } = useQuery<ListWithWords>({
+  const {
+    data: listData,
+    isLoading,
+    error: listError,
+  } = useQuery<ListWithWords>({
     queryKey: ["list-with-words", listId],
     queryFn: async () => {
       if (!listId) throw new Error("No list selected");
+
+      logger.debug("[PlaySaySpell] Fetching list:", { listId });
 
       const { data: list, error: listError } = await supabase
         .from("word_lists")
@@ -987,7 +993,12 @@ export function PlaySaySpell() {
         .eq("id", listId)
         .single();
 
-      if (listError) throw listError;
+      if (listError) {
+        logger.error("[PlaySaySpell] Error fetching word list:", listError);
+        throw listError;
+      }
+
+      logger.debug("[PlaySaySpell] List fetched:", { list });
 
       const { data: listWords, error: wordsError } = await supabase
         .from("list_words")
@@ -995,7 +1006,14 @@ export function PlaySaySpell() {
         .eq("list_id", listId)
         .order("sort_index", { ascending: true });
 
-      if (wordsError) throw wordsError;
+      if (wordsError) {
+        logger.error("[PlaySaySpell] Error fetching list words:", wordsError);
+        throw wordsError;
+      }
+
+      logger.debug("[PlaySaySpell] List words fetched:", {
+        count: listWords?.length,
+      });
 
       const words = listWords?.map((lw) => lw.words as Word) || [];
 
@@ -1005,6 +1023,9 @@ export function PlaySaySpell() {
       };
     },
     enabled: Boolean(listId),
+    retry: 2,
+    retryDelay: 1000,
+    staleTime: 1000 * 60 * 5,
   });
 
   /**
@@ -1032,47 +1053,16 @@ export function PlaySaySpell() {
       quality: number;
       audioBlobId?: number;
     }) => {
-      if (!profile?.id || !listId) return;
+      if (!profile?.id || !listId) {
+        logger.warn("Cannot save attempt: missing profile or listId", {
+          hasProfile: !!profile?.id,
+          hasListId: !!listId,
+        });
+        return;
+      }
 
       if (isOnline) {
-        // Upload audio if it exists
-        let audioPath: string | undefined;
-        if (audioBlob && profile?.id) {
-          const timestamp = Date.now();
-          // CRITICAL: Path format must be {child_id}/{list_id}/{word_id}_{timestamp}.webm
-          // This format is required by RLS policies: (storage.foldername(name))[1] = child_id
-          const fileName = `${profile.id}/${listId}/${wordId}_${timestamp}.webm`;
-
-          const { data, error } = await supabase.storage
-            .from("audio-recordings")
-            .upload(fileName, audioBlob, {
-              contentType: mimeType || "audio/webm", // Use detected MIME type
-              cacheControl: String(
-                CACHE_CONSTANTS.SIGNED_URL_CACHE_CONTROL_SECONDS
-              ),
-            });
-
-          if (!error && data) {
-            // Store the path, not a URL
-            // Signed URLs will be generated on-demand when audio needs to be played
-            // Use getSignedAudioUrl() from supa.ts or useAttempts() hook for playback
-            audioPath = data.path;
-          }
-        }
-
-        // Required columns for attempts table:
-        // - child_id (uuid, FK to profiles)
-        // - word_id (uuid, FK to words)
-        // - list_id (uuid, FK to word_lists)
-        // - mode (text: 'listen-type' | 'say-spell' | 'flash')
-        // - correct (boolean)
-        // - quality (integer, 0-5, nullable)
-        // - typed_answer (text, nullable)
-        // - audio_url (text storage path, nullable)
-        // - duration_ms (integer, nullable)
-        // - started_at (timestamp)
-
-        // Verify we have an active auth session
+        // Verify we have an active auth session FIRST (needed for both audio upload and insert)
         const {
           data: { session },
           error: sessionError,
@@ -1085,8 +1075,48 @@ export function PlaySaySpell() {
           );
         }
 
+        // Upload audio if it exists
+        let audioPath: string | undefined;
+        if (audioBlob && profile?.id) {
+          const timestamp = Date.now();
+          // CRITICAL: Path format must be {child_id}/{list_id}/{word_id}_{timestamp}.webm
+          // Use session.user.id to match auth.uid() in RLS policies
+          const fileName = `${session.user.id}/${listId}/${wordId}_${timestamp}.webm`;
+
+          const { data, error } = await supabase.storage
+            .from("audio-recordings")
+            .upload(fileName, audioBlob, {
+              contentType: mimeType || "audio/webm", // Use detected MIME type
+              cacheControl: String(
+                CACHE_CONSTANTS.SIGNED_URL_CACHE_CONTROL_SECONDS
+              ),
+            });
+
+          if (error) {
+            logger.error("Failed to upload audio:", error);
+            // Continue without audio path - attempt will be saved without recording
+          } else if (data) {
+            // Store the path, not a URL
+            // Signed URLs will be generated on-demand when audio needs to be played
+            // Use getSignedAudioUrl() from supa.ts or useAttempts() hook for playback
+            audioPath = data.path;
+            logger.debug("Audio uploaded successfully:", { path: audioPath });
+          }
+        }
+
+        // Required columns for attempts table:
+        // - child_id (uuid, FK to profiles)
+        // - word_id (uuid, FK to words)
+        // - list_id (uuid, FK to word_lists)
+        // - mode (text: 'listen-type' | 'say-spell' | 'flash')\n        // - correct (boolean)
+        // - quality (integer, 0-5, nullable)
+        // - typed_answer (text, nullable)
+        // - audio_url (text storage path, nullable)
+        // - duration_ms (integer, nullable)
+        // - started_at (timestamp)
+
         // Debug: Log attempt data and auth state
-        logger.log("Attempting to save (online):", {
+        logger.debug("Attempting to save (online):", {
           mode: "say-spell",
           authUser: session.user.id,
           profileId: profile.id,
@@ -1094,23 +1124,30 @@ export function PlaySaySpell() {
           wordId,
           listId,
           hasSession: !!session,
+          hasAudioPath: !!audioPath,
         });
 
-        const { error } = await supabase.from("attempts").insert({
-          child_id: profile.id,
-          word_id: wordId,
-          list_id: listId,
-          mode: "say-spell",
-          correct,
-          quality, // Quality score (0-5) based on correctness, first-try, hints
-          typed_answer: typedAnswer,
-          audio_url: audioPath, // Store path instead of URL
-          started_at: new Date().toISOString(),
-        });
+        const { data, error } = await supabase
+          .from("attempts")
+          .insert({
+            child_id: session.user.id, // CRITICAL: Must match auth.uid() in RLS policy
+            word_id: wordId,
+            list_id: listId,
+            mode: "say-spell" as const,
+            correct,
+            quality, // Quality score (0-5) based on correctness, first-try, hints
+            typed_answer: typedAnswer,
+            audio_url: audioPath, // Store path instead of URL
+            started_at: new Date().toISOString(),
+          })
+          .select();
 
         if (error) {
           logger.error("INSERT error details:", {
             error,
+            errorCode: error.code,
+            errorMessage: error.message,
+            errorDetails: error.details,
             authUserId: session.user.id,
             profileId: profile.id,
             wordId,
@@ -1119,18 +1156,41 @@ export function PlaySaySpell() {
           throw error;
         }
 
+        logger.debug("Attempt saved successfully:", {
+          insertedId: data?.[0]?.id,
+        });
+
         // Award stars if first-try correct
         if (correct && isFirstAttempt) {
-          await awardStars.mutateAsync({
-            userId: profile.id,
-            amount: 1,
-            reason: "correct_word",
-          });
+          try {
+            await awardStars.mutateAsync({
+              userId: profile.id,
+              amount: 1,
+              reason: "correct_word",
+            });
+          } catch (starError) {
+            // Log but don't block on star award failure
+            logger.warn("Failed to award stars, continuing:", starError);
+          }
         }
+
+        return data;
       } else {
-        // Queue for later sync
+        // Offline: queue for later sync
+        logger.debug("Queueing attempt offline:", {
+          wordId,
+          listId,
+          audioBlobId,
+        });
+
+        // Get session for consistent user ID (fallback to profile.id if session unavailable)
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const userId = session?.user?.id || profile.id;
+
         await queueAttempt(
-          profile.id,
+          userId, // Use auth user ID to match RLS policy
           wordId,
           listId,
           "say-spell",
@@ -1141,9 +1201,12 @@ export function PlaySaySpell() {
 
         // Queue star transaction
         if (correct && isFirstAttempt) {
-          await queueStarTransaction(profile.id, 1, "correct_word");
+          await queueStarTransaction(userId, 1, "correct_word");
         }
       }
+    },
+    onSuccess: (data) => {
+      logger.debug("SaveAttemptMutation completed successfully", { data });
     },
     onError: (error) => {
       const errorMessage =
@@ -1163,6 +1226,9 @@ export function PlaySaySpell() {
           duration: 6000,
         }
       );
+    },
+    onSettled: () => {
+      logger.debug("SaveAttemptMutation settled (completed or errored)");
     },
   });
 
@@ -1602,6 +1668,37 @@ export function PlaySaySpell() {
 
   if (!listId) {
     return <NoListSelected />;
+  }
+
+  if (listError) {
+    return (
+      <AppShell title="Say & Spell" variant="child">
+        <div className="max-w-3xl mx-auto">
+          <Card variant="child">
+            <div className="text-center space-y-6">
+              <h3 className="text-3xl font-bold text-destructive">
+                Error Loading List
+              </h3>
+              <p className="text-xl text-muted-foreground">
+                {listError instanceof Error
+                  ? listError.message
+                  : "Failed to load the word list"}
+              </p>
+              <div className="flex flex-col gap-4">
+                <Button size="child" onClick={() => window.location.reload()}>
+                  Try Again
+                </Button>
+                <Link to="/child/home">
+                  <Button size="child" variant="outline">
+                    Go to Home
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </AppShell>
+    );
   }
 
   if (isLoading || !listData) {

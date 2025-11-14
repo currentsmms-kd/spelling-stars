@@ -653,10 +653,16 @@ export function PlayListenType() {
   }, [profile?.id, hasUpdatedStreak, setHasUpdatedStreak, updateStreak]);
 
   // Fetch the selected list or show list selector
-  const { data: listData, isLoading } = useQuery<ListWithWords>({
+  const {
+    data: listData,
+    isLoading,
+    error: listError,
+  } = useQuery<ListWithWords>({
     queryKey: ["list-with-words", listId],
     queryFn: async () => {
       if (!listId) throw new Error("No list selected");
+
+      logger.debug("[PlayListenType] Fetching list:", { listId });
 
       const { data: list, error: listError } = await supabase
         .from("word_lists")
@@ -664,7 +670,12 @@ export function PlayListenType() {
         .eq("id", listId)
         .single();
 
-      if (listError) throw listError;
+      if (listError) {
+        logger.error("[PlayListenType] Error fetching word list:", listError);
+        throw listError;
+      }
+
+      logger.debug("[PlayListenType] List fetched:", { list });
 
       const { data: listWords, error: wordsError } = await supabase
         .from("list_words")
@@ -672,7 +683,14 @@ export function PlayListenType() {
         .eq("list_id", listId)
         .order("sort_index", { ascending: true });
 
-      if (wordsError) throw wordsError;
+      if (wordsError) {
+        logger.error("[PlayListenType] Error fetching list words:", wordsError);
+        throw wordsError;
+      }
+
+      logger.debug("[PlayListenType] List words fetched:", {
+        count: listWords?.length,
+      });
 
       const words = listWords?.map((lw) => lw.words as Word) || [];
 
@@ -682,6 +700,9 @@ export function PlayListenType() {
       };
     },
     enabled: Boolean(listId),
+    retry: 2,
+    retryDelay: 1000,
+    staleTime: 1000 * 60 * 5,
   });
 
   /**
@@ -707,7 +728,13 @@ export function PlayListenType() {
       typedAnswer: string;
       quality: number;
     }) => {
-      if (!profile?.id || !listId) return;
+      if (!profile?.id || !listId) {
+        logger.warn("Cannot save attempt: missing profile or listId", {
+          hasProfile: !!profile?.id,
+          hasListId: !!listId,
+        });
+        return;
+      }
 
       // Required columns for attempts table:
       // - child_id (uuid, FK to profiles)
@@ -720,16 +747,6 @@ export function PlayListenType() {
       // - audio_url (text storage path, nullable)
       // - duration_ms (integer, nullable)
       // - started_at (timestamp)
-      const attemptData = {
-        child_id: profile.id,
-        word_id: wordId,
-        list_id: listId,
-        mode: "listen-type",
-        correct,
-        quality, // Quality score (0-5) based on correctness, first-try, hints
-        typed_answer: typedAnswer,
-        started_at: new Date().toISOString(),
-      };
 
       if (isOnline) {
         // Online: save directly to Supabase
@@ -746,8 +763,20 @@ export function PlayListenType() {
           );
         }
 
+        // CRITICAL: Use session.user.id (not profile.id) to match auth.uid() in RLS policy
+        const attemptData = {
+          child_id: session.user.id, // Must match auth.uid() in RLS policy
+          word_id: wordId,
+          list_id: listId,
+          mode: "listen-type" as const,
+          correct,
+          quality, // Quality score (0-5) based on correctness, first-try, hints
+          typed_answer: typedAnswer,
+          started_at: new Date().toISOString(),
+        };
+
         // Debug: Log attempt data and auth state
-        logger.log("Attempting to save (online):", {
+        logger.debug("Attempting to save (online):", {
           attemptData,
           authUser: session.user.id,
           profileId: profile.id,
@@ -755,10 +784,16 @@ export function PlayListenType() {
           hasSession: !!session,
         });
 
-        const { error } = await supabase.from("attempts").insert(attemptData);
+        const { data, error } = await supabase
+          .from("attempts")
+          .insert(attemptData)
+          .select();
         if (error) {
           logger.error("INSERT error details:", {
             error,
+            errorCode: error.code,
+            errorMessage: error.message,
+            errorDetails: error.details,
             attemptData,
             authUserId: session.user.id,
             profileId: profile.id,
@@ -766,19 +801,37 @@ export function PlayListenType() {
           throw error;
         }
 
+        logger.debug("Attempt saved successfully:", {
+          insertedId: data?.[0]?.id,
+        });
+
         // Award stars if first-try correct
         if (correct && isFirstAttempt) {
-          await awardStars.mutateAsync({
-            userId: profile.id,
-            amount: 1,
-            reason: "correct_word",
-          });
+          try {
+            await awardStars.mutateAsync({
+              userId: profile.id,
+              amount: 1,
+              reason: "correct_word",
+            });
+          } catch (starError) {
+            // Log but don't block on star award failure
+            logger.warn("Failed to award stars, continuing:", starError);
+          }
         }
+
+        return data;
       } else {
         // Offline: queue in IndexedDB for background sync when connection restored
-        // Queue for later sync
+        logger.debug("Queueing attempt offline:", { wordId, listId });
+
+        // Get session for consistent user ID
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const userId = session?.user?.id || profile.id;
+
         await queueAttempt(
-          profile.id,
+          userId, // Use auth user ID to match RLS policy
           wordId,
           listId,
           "listen-type",
@@ -788,9 +841,12 @@ export function PlayListenType() {
 
         // Queue star transaction
         if (correct && isFirstAttempt) {
-          await queueStarTransaction(profile.id, 1, "correct_word");
+          await queueStarTransaction(userId, 1, "correct_word");
         }
       }
+    },
+    onSuccess: (data) => {
+      logger.debug("SaveAttemptMutation completed successfully", { data });
     },
     onError: (error) => {
       const errorMessage =
@@ -810,6 +866,9 @@ export function PlayListenType() {
           duration: 6000,
         }
       );
+    },
+    onSettled: () => {
+      logger.debug("SaveAttemptMutation settled (completed or errored)");
     },
   });
 
@@ -1219,6 +1278,37 @@ export function PlayListenType() {
       <AppShell title="Listen & Type" variant="child">
         <div className="max-w-3xl mx-auto space-y-8">
           <ListSelector />
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (listError) {
+    return (
+      <AppShell title="Listen & Type" variant="child">
+        <div className="max-w-3xl mx-auto">
+          <Card variant="child">
+            <div className="text-center space-y-6">
+              <h3 className="text-3xl font-bold text-destructive">
+                Error Loading List
+              </h3>
+              <p className="text-xl text-muted-foreground">
+                {listError instanceof Error
+                  ? listError.message
+                  : "Failed to load the word list"}
+              </p>
+              <div className="flex flex-col gap-4">
+                <Button size="child" onClick={() => window.location.reload()}>
+                  Try Again
+                </Button>
+                <Link to="/child/home">
+                  <Button size="child" variant="outline">
+                    Go to Home
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </Card>
         </div>
       </AppShell>
     );

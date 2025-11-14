@@ -243,4 +243,48 @@
   .safe-area-inset-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
+
+  /* Word found pop animation */
+  @keyframes wordPop {
+    0% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.15) rotate(2deg);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  @keyframes wordBurst {
+    0% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    20% {
+      transform: scale(1.2);
+    }
+    40% {
+      transform: scale(0.95);
+    }
+    60% {
+      transform: scale(1.05);
+    }
+    80% {
+      transform: scale(0.98);
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  .animate-word-pop {
+    animation: wordPop 0.4s ease-out;
+  }
+
+  .animate-word-burst {
+    animation: wordBurst 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
 }
