@@ -1103,7 +1103,7 @@ export function PlayListenType() {
    * - SRS updates queued for later sync
    * - Star transactions queued for later sync
    */
-  const checkAnswer = useCallback(async () => {
+  const checkAnswer = useCallback(() => {
     if (!currentWord || !profile?.id) return;
 
     const normalizedAnswer = normalizeAnswer(answer);
@@ -1133,7 +1133,8 @@ export function PlayListenType() {
       }
 
       // Save attempt with quality (errors handled by mutation's onError)
-      await saveAttemptMutation.mutateAsync({
+      // Use mutate instead of mutateAsync - game continues even if save fails
+      saveAttemptMutation.mutate({
         wordId: currentWord.id,
         correct: true,
         typedAnswer: answer,
@@ -1169,7 +1170,8 @@ export function PlayListenType() {
       setIsFirstAttempt(false);
 
       // Save incorrect attempt with quality (errors handled by mutation's onError)
-      await saveAttemptMutation.mutateAsync({
+      // Use mutate instead of mutateAsync - game continues even if save fails
+      saveAttemptMutation.mutate({
         wordId: currentWord.id,
         correct: false,
         typedAnswer: answer,

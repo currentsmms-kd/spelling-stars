@@ -62,7 +62,7 @@ function BadgeIcon({
   return (
     <div className="relative">
       <div
-        className={`w-24 h-24 mx-auto mb-4 rounded-full flex items-center justify-center text-5xl ${
+        className={`w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 mx-auto mb-3 sm:mb-4 rounded-full flex items-center justify-center text-3xl sm:text-4xl md:text-5xl ${
           earned
             ? "bg-primary/20 shadow-lg"
             : canEarn
@@ -73,13 +73,13 @@ function BadgeIcon({
         {earned || canEarn ? (
           icon
         ) : (
-          <Lock className="text-muted-foreground" size={32} />
+          <Lock className="text-muted-foreground" size={24} />
         )}
       </div>
 
       {earned && (
-        <div className="absolute -top-2 -right-2">
-          <Award className="text-secondary fill-secondary/20" size={32} />
+        <div className="absolute -top-1 sm:-top-2 -right-1 sm:-right-2">
+          <Award className="text-secondary fill-secondary/20" size={24} />
         </div>
       )}
     </div>
@@ -109,14 +109,14 @@ function BadgeCard({
       <BadgeIcon earned={earned} canEarn={canEarn} icon={badge.icon} />
 
       <h3
-        className={`font-bold text-lg mb-1 ${
+        className={`font-bold text-base sm:text-lg mb-1 ${
           earned ? "text-foreground" : "text-muted-foreground"
         }`}
       >
         {badge.name}
       </h3>
       <p
-        className={`text-sm mb-3 ${
+        className={`text-xs sm:text-sm mb-2 sm:mb-3 ${
           earned ? "text-foreground" : "text-muted-foreground"
         }`}
       >
@@ -141,9 +141,11 @@ function StatsCard({
   label: string;
 }) {
   return (
-    <Card className="text-center">
-      <div className="text-3xl font-bold text-primary">{value}</div>
-      <div className="text-muted-foreground mt-1">{label}</div>
+    <Card className="text-center p-3 sm:p-4">
+      <div className="text-2xl sm:text-3xl font-bold text-primary">{value}</div>
+      <div className="text-xs sm:text-sm text-muted-foreground mt-1">
+        {label}
+      </div>
     </Card>
   );
 }
@@ -157,23 +159,31 @@ function BadgeStatsGrid({
   totalCount: number;
 }) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
       <StatsCard value={earnedCount} label="Earned" />
-      <Card className="text-center">
-        <div className="text-3xl font-bold text-muted-foreground">
+      <Card className="text-center p-3 sm:p-4">
+        <div className="text-2xl sm:text-3xl font-bold text-muted-foreground">
           {totalCount - earnedCount}
         </div>
-        <div className="text-muted-foreground mt-1">Locked</div>
+        <div className="text-xs sm:text-sm text-muted-foreground mt-1">
+          Locked
+        </div>
       </Card>
-      <Card className="text-center">
-        <div className="text-3xl font-bold text-secondary">
+      <Card className="text-center p-3 sm:p-4">
+        <div className="text-2xl sm:text-3xl font-bold text-secondary">
           {Math.round((earnedCount / totalCount) * 100)}%
         </div>
-        <div className="text-muted-foreground mt-1">Complete</div>
+        <div className="text-xs sm:text-sm text-muted-foreground mt-1">
+          Complete
+        </div>
       </Card>
-      <Card className="text-center">
-        <div className="text-3xl font-bold text-accent">{totalCount}</div>
-        <div className="text-muted-foreground mt-1">Total</div>
+      <Card className="text-center p-3 sm:p-4">
+        <div className="text-2xl sm:text-3xl font-bold text-accent">
+          {totalCount}
+        </div>
+        <div className="text-xs sm:text-sm text-muted-foreground mt-1">
+          Total
+        </div>
       </Card>
     </div>
   );
@@ -195,18 +205,22 @@ function EmptyBadgeState() {
 // Extracted Header Component
 function StickerBookHeader({ totalStars }: { totalStars: number }) {
   return (
-    <Card className="child-card bg-gradient-to-br from-secondary-100 to-secondary-200 flex items-center justify-between">
-      <div>
-        <h1 className="text-4xl font-bold mb-2">My Sticker Book</h1>
-        <p className="text-xl text-muted-foreground">
+    <Card className="child-card bg-gradient-to-br from-secondary-100 to-secondary-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="text-center sm:text-left">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2">
+          My Sticker Book
+        </h1>
+        <p className="text-base sm:text-lg md:text-xl text-muted-foreground">
           Collect stickers by practicing!
         </p>
       </div>
-      <div className="flex items-center gap-3 bg-card px-6 py-4 rounded-2xl shadow-lg">
-        <Star className="text-secondary fill-current" size={48} />
+      <div className="flex items-center gap-2 sm:gap-3 bg-card px-4 py-3 sm:px-6 sm:py-4 rounded-2xl shadow-lg">
+        <Star className="text-secondary fill-current" size={36} />
         <div>
-          <div className="text-4xl font-bold">{totalStars}</div>
-          <div className="text-sm text-muted-foreground">Total Stars</div>
+          <div className="text-3xl sm:text-4xl font-bold">{totalStars}</div>
+          <div className="text-xs sm:text-sm text-muted-foreground">
+            Total Stars
+          </div>
         </div>
       </div>
     </Card>
@@ -224,7 +238,7 @@ function BadgesGrid({
   canEarnBadge: (badge: Badge) => boolean;
 }) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
       {badges.map((badge) => {
         const earned = isBadgeEarned(badge);
         const canEarn = canEarnBadge(badge);
@@ -311,8 +325,7 @@ export function StickerBook() {
           .eq("child_id", profile.id)
           .single();
 
-        if (rewardsError?.code !== "PGRST116")
-          throw rewardsError;
+        if (rewardsError?.code !== "PGRST116") throw rewardsError;
 
         setBadges(badgesData || []);
         setEarnedBadges(

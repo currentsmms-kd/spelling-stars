@@ -8,6 +8,7 @@ import {
   Palette,
   Gift,
   Users,
+  Search,
 } from "lucide-react";
 
 export interface NavItem {
@@ -49,6 +50,11 @@ export const childNavItems: NavItem[] = [
     to: "/child/home",
     icon: <Home size={32} />,
     label: "Home",
+  },
+  {
+    to: "/child/play/word-search",
+    icon: <Search size={32} />,
+    label: "Word Search",
   },
   {
     to: "/child/rewards",

@@ -1992,3 +1992,54 @@ export function useUpdateDailyStreak() {
     },
   });
 }
+
+/**
+ * Update child profile (for parents editing their children's profiles)
+ */
+export async function updateChildProfile(
+  childId: string,
+  updates: {
+    display_name?: string;
+    age?: number | null;
+    birthday?: string | null;
+    equipped_avatar?: string | null;
+    favorite_color?: string | null;
+  }
+) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .update(updates)
+    .eq("id", childId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Hook to update child profile
+ */
+export function useUpdateChildProfile() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      childId,
+      updates,
+    }: {
+      childId: string;
+      updates: {
+        display_name?: string;
+        age?: number | null;
+        birthday?: string | null;
+        equipped_avatar?: string | null;
+        favorite_color?: string | null;
+      };
+    }) => updateChildProfile(childId, updates),
+    onSuccess: (_, { childId }) => {
+      queryClient.invalidateQueries({ queryKey: ["children"] });
+      queryClient.invalidateQueries({ queryKey: ["profile", childId] });
+    },
+  });
+}

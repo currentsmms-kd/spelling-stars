@@ -202,12 +202,15 @@ export type Database = {
       };
       profiles: {
         Row: {
+          age: number | null;
           avatar_url: string | null;
+          birthday: string | null;
           color_theme: string | null;
           created_at: string | null;
           display_name: string | null;
           equipped_avatar: string | null;
           equipped_theme: string | null;
+          favorite_color: string | null;
           id: string;
           last_active: string | null;
           parent_id: string | null;
@@ -217,12 +220,15 @@ export type Database = {
           updated_at: string | null;
         };
         Insert: {
+          age?: number | null;
           avatar_url?: string | null;
+          birthday?: string | null;
           color_theme?: string | null;
           created_at?: string | null;
           display_name?: string | null;
           equipped_avatar?: string | null;
           equipped_theme?: string | null;
+          favorite_color?: string | null;
           id: string;
           last_active?: string | null;
           parent_id?: string | null;
@@ -232,12 +238,15 @@ export type Database = {
           updated_at?: string | null;
         };
         Update: {
+          age?: number | null;
           avatar_url?: string | null;
+          birthday?: string | null;
           color_theme?: string | null;
           created_at?: string | null;
           display_name?: string | null;
           equipped_avatar?: string | null;
           equipped_theme?: string | null;
+          favorite_color?: string | null;
           id?: string;
           last_active?: string | null;
           parent_id?: string | null;

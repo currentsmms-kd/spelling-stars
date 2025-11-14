@@ -1457,7 +1457,7 @@ export function PlaySaySpell() {
    * - Links typed answer to recorded audio
    * - Enables playback review in parent dashboard
    */
-  const checkAnswer = useCallback(async () => {
+  const checkAnswer = useCallback(() => {
     if (!currentWord || !profile?.id) return;
 
     // Ensure we have audio blob ID to link with attempt
@@ -1497,7 +1497,8 @@ export function PlaySaySpell() {
       }
 
       // Save attempt with quality (errors handled by mutation's onError)
-      await saveAttemptMutation.mutateAsync({
+      // Use mutate instead of mutateAsync - game continues even if save fails
+      saveAttemptMutation.mutate({
         wordId: currentWord.id,
         correct: true,
         typedAnswer: answer,
@@ -1514,7 +1515,7 @@ export function PlaySaySpell() {
           isCorrectFirstTry: isFirstAttempt,
         });
       } else {
-        await queueSrsUpdate(profile.id, currentWord.id, isFirstAttempt);
+        queueSrsUpdate(profile.id, currentWord.id, isFirstAttempt);
       }
 
       // Move to next word after configured delay (default 3 seconds, configurable in parental settings)
@@ -1532,7 +1533,8 @@ export function PlaySaySpell() {
       setIsFirstAttempt(false);
 
       // Save incorrect attempt with quality (errors handled by mutation's onError)
-      await saveAttemptMutation.mutateAsync({
+      // Use mutate instead of mutateAsync - game continues even if save fails
+      saveAttemptMutation.mutate({
         wordId: currentWord.id,
         correct: false,
         typedAnswer: answer,
@@ -1549,7 +1551,7 @@ export function PlaySaySpell() {
           isCorrectFirstTry: false,
         });
       } else if (!isOnline && isFirstAttempt) {
-        await queueSrsUpdate(profile.id, currentWord.id, false);
+        queueSrsUpdate(profile.id, currentWord.id, false);
       }
 
       // Show hint progressively

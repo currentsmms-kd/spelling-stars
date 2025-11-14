@@ -28,14 +28,16 @@ interface NgramErrorPattern {
 function MistakePatternRow({ pattern }: { pattern: NgramErrorPattern }) {
   return (
     <tr className="border-b border-border hover:bg-muted">
-      <td className="py-2 px-3 font-mono font-semibold text-primary">
+      <td className="py-2 px-2 sm:px-3 font-mono text-xs sm:text-sm font-semibold text-primary break-all">
         {pattern.pattern}
       </td>
-      <td className="py-2 px-3 font-mono text-destructive">
+      <td className="py-2 px-2 sm:px-3 font-mono text-xs sm:text-sm text-destructive break-all">
         {pattern.common_error}
       </td>
-      <td className="py-2 px-3 text-center font-bold">{pattern.occurrences}</td>
-      <td className="py-2 px-3 text-sm text-muted-foreground">
+      <td className="py-2 px-2 sm:px-3 text-center text-xs sm:text-sm font-bold">
+        {pattern.occurrences}
+      </td>
+      <td className="py-2 px-2 sm:px-3 text-xs sm:text-sm text-muted-foreground hidden sm:table-cell">
         {new Date(pattern.last_seen).toLocaleDateString()}
       </td>
     </tr>
@@ -46,9 +48,11 @@ function MistakePatternRow({ pattern }: { pattern: NgramErrorPattern }) {
 function CommonMistakesTable({ patterns }: { patterns: NgramErrorPattern[] }) {
   return (
     <Card>
-      <div className="flex items-center gap-3 mb-4">
-        <AlertTriangle className="text-destructive" size={24} />
-        <h3 className="text-xl font-bold">Common Spelling Mistakes</h3>
+      <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+        <AlertTriangle className="text-destructive" size={20} />
+        <h3 className="text-base sm:text-lg md:text-xl font-bold">
+          Common Spelling Mistakes
+        </h3>
       </div>
       <MistakePatternTable patterns={patterns} />
     </Card>
@@ -79,10 +83,18 @@ function MistakePatternTableHeader() {
   return (
     <thead>
       <tr className="border-b-2 border-border">
-        <th className="text-left py-2 px-3 font-semibold">Pattern</th>
-        <th className="text-left py-2 px-3 font-semibold">Common Error</th>
-        <th className="text-center py-2 px-3 font-semibold">Occurrences</th>
-        <th className="text-left py-2 px-3 font-semibold">Last Seen</th>
+        <th className="text-left py-2 px-2 sm:px-3 text-xs sm:text-sm font-semibold">
+          Pattern
+        </th>
+        <th className="text-left py-2 px-2 sm:px-3 text-xs sm:text-sm font-semibold">
+          Error
+        </th>
+        <th className="text-center py-2 px-2 sm:px-3 text-xs sm:text-sm font-semibold">
+          #
+        </th>
+        <th className="text-left py-2 px-2 sm:px-3 text-xs sm:text-sm font-semibold hidden sm:table-cell">
+          Last Seen
+        </th>
       </tr>
     </thead>
   );
@@ -97,24 +109,26 @@ function HardestWordsSection({
 }) {
   return (
     <Card>
-      <div className="flex items-center gap-3 mb-4">
-        <AlertTriangle className="text-destructive" size={24} />
-        <h3 className="text-xl font-bold">Hardest Words</h3>
+      <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+        <AlertTriangle className="text-destructive" size={20} />
+        <h3 className="text-base sm:text-lg md:text-xl font-bold">
+          Hardest Words
+        </h3>
       </div>
       <div className="space-y-2">
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         {hardestWords.map((entry: any) => (
           <div
             key={entry.word_id}
-            className="flex items-center justify-between p-2 bg-destructive/10 rounded"
+            className="flex items-center justify-between p-2 bg-destructive/10 rounded text-sm sm:text-base"
           >
-            <div>
-              <p className="font-semibold">{entry.word}</p>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold truncate">{entry.word}</p>
               <p className="text-xs text-muted-foreground">
                 Error rate: {entry.error_rate?.toFixed(0)}%
               </p>
             </div>
-            <div className="text-sm text-destructive font-bold">
+            <div className="text-xs sm:text-sm text-destructive font-bold ml-2">
               Ease: {entry.ease.toFixed(1)}
             </div>
           </div>
@@ -144,11 +158,17 @@ function QuickActionCard({
 }) {
   return (
     <Card>
-      <div className="flex items-start gap-4">
-        <div className={`p-3 ${iconBgClass} rounded-lg`}>{icon}</div>
-        <div className="flex-1">
-          <h3 className="font-semibold text-lg mb-1">{title}</h3>
-          <p className="text-muted-foreground text-sm mb-3">{description}</p>
+      <div className="flex items-start gap-3 sm:gap-4">
+        <div className={`p-2 sm:p-3 ${iconBgClass} rounded-lg shrink-0`}>
+          {icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-sm sm:text-base md:text-lg mb-1">
+            {title}
+          </h3>
+          <p className="text-muted-foreground text-xs sm:text-sm mb-2 sm:mb-3">
+            {description}
+          </p>
           {linkTo ? (
             <Link to={linkTo}>
               <Button size="sm" {...buttonProps}>
@@ -179,11 +199,7 @@ function ChildViewPreview({ onSwitch }: { onSwitch: () => void }) {
           <p className="text-muted-foreground text-sm mb-3">
             See how your child experiences the spelling activities
           </p>
-          <Button
-            size="sm"
-            onClick={onSwitch}
-            variant="secondary"
-          >
+          <Button size="sm" onClick={onSwitch} variant="secondary">
             Switch to Child View
           </Button>
         </div>
@@ -193,12 +209,16 @@ function ChildViewPreview({ onSwitch }: { onSwitch: () => void }) {
 }
 
 // Component for Quick Actions Grid
-function QuickActionsGrid({ onSwitchToChild }: { onSwitchToChild: () => void }) {
+function QuickActionsGrid({
+  onSwitchToChild,
+}: {
+  onSwitchToChild: () => void;
+}) {
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
         <QuickActionCard
-          icon={<List className="text-primary" size={24} />}
+          icon={<List className="text-primary" size={20} />}
           iconBgClass="bg-primary/20"
           title="Spelling Lists"
           description="Create and manage spelling word lists"
@@ -206,7 +226,7 @@ function QuickActionsGrid({ onSwitchToChild }: { onSwitchToChild: () => void }) 
           linkTo="/parent/lists"
         />
         <QuickActionCard
-          icon={<TrendingUp className="text-secondary" size={24} />}
+          icon={<TrendingUp className="text-secondary" size={20} />}
           iconBgClass="bg-secondary/20"
           title="Progress"
           description="View your child's spelling progress"
@@ -214,7 +234,7 @@ function QuickActionsGrid({ onSwitchToChild }: { onSwitchToChild: () => void }) 
           buttonProps={{ disabled: true }}
         />
         <QuickActionCard
-          icon={<Plus className="text-accent-foreground" size={24} />}
+          icon={<Plus className="text-accent-foreground" size={20} />}
           iconBgClass="bg-accent/20"
           title="Quick Actions"
           description="Create a new spelling list"
@@ -329,9 +349,12 @@ export function Dashboard() {
   }, [navigate]);
 
   // Handler for time range change
-  const handleTimeRangeChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
-    setTimeRange(e.target.value as typeof timeRange);
-  }, []);
+  const handleTimeRangeChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      setTimeRange(e.target.value as typeof timeRange);
+    },
+    []
+  );
 
   // Auto-select parent ID for testing (in production would use actual child selector)
   useEffect(() => {
@@ -381,14 +404,14 @@ export function Dashboard() {
 
   return (
     <AppShell title="SpellStars" variant="parent">
-      <div className="max-w-6xl mx-auto space-y-6">
+      <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6">
         {/* Welcome Section */}
         <div>
-          <h2 className="text-2xl font-bold text-foreground mb-2">
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-2">
             Welcome back
             {profile?.display_name ? `, ${profile.display_name}` : ""}!
           </h2>
-          <p className="text-muted-foreground">
+          <p className="text-sm sm:text-base text-muted-foreground">
             Manage your child&apos;s spelling lists and track their progress.
           </p>
         </div>

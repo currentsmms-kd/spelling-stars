@@ -2,13 +2,15 @@ import { useState } from "react";
 import { AppShell } from "@/app/components/AppShell";
 import { Card } from "@/app/components/Card";
 import { Button } from "@/app/components/Button";
-import { Plus, User, Trash2 } from "lucide-react";
+import { Plus, Trash2, Edit } from "lucide-react";
 import { useAuth } from "@/app/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/app/supabase";
 import { logger } from "@/lib/logger";
 import { toast } from "react-hot-toast";
 import { Toast } from "@/app/components/Toast";
+import { ChildProfileEditor } from "@/app/components/ChildProfileEditor";
+import { AvatarDisplay } from "@/app/components/AvatarSelector";
 
 interface ChildProfile {
   id: string;
@@ -16,6 +18,10 @@ interface ChildProfile {
   created_at: string | null;
   stars: number | null;
   streak_days: number | null;
+  equipped_avatar: string | null;
+  age: number | null;
+  birthday: string | null;
+  favorite_color: string | null;
 }
 
 // Reserved usernames that cannot be used
@@ -88,6 +94,7 @@ interface ChildCardProps {
   onDeleteClick: (childId: string) => void;
   onDeleteConfirm: (childId: string) => void;
   onDeleteCancel: () => void;
+  onEditClick: (childId: string) => void;
   isDeleting: boolean;
 }
 
@@ -97,6 +104,7 @@ function ChildCard({
   onDeleteClick,
   onDeleteConfirm,
   onDeleteCancel,
+  onEditClick,
   isDeleting,
 }: ChildCardProps) {
   const isConfirmingDelete = deleteConfirm === child.id;
@@ -109,18 +117,27 @@ function ChildCard({
     onDeleteConfirm(child.id);
   };
 
+  const handleEditClick = () => {
+    onEditClick(child.id);
+  };
+
   // Standard Card layout pattern - 5 levels of nesting is acceptable for UI components
   return (
     <Card>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-            <User className="text-primary" size={24} />
-          </div>
+          <AvatarDisplay avatarId={child.equipped_avatar} size="lg" />
           <div>
             <h3 className="font-semibold text-lg">
               {child.display_name || "Unnamed Child"}
             </h3>
+            {child.age && (
+              <p className="text-sm text-muted-foreground">
+                {child.age} years old
+                {child.birthday &&
+                  ` • 🎂 ${new Date(child.birthday).toLocaleDateString("en-US", { month: "long", day: "numeric" })}`}
+              </p>
+            )}
             <p className="text-sm text-muted-foreground">
               ⭐ {child.stars || 0} stars • 🔥 {child.streak_days || 0} day
               streak
@@ -149,14 +166,24 @@ function ChildCard({
               </Button>
             </>
           ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleDeleteClick}
-              title="Delete child account"
-            >
-              <Trash2 size={16} />
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleEditClick}
+                title="Edit profile"
+              >
+                <Edit size={16} />
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleDeleteClick}
+                title="Delete child account"
+              >
+                <Trash2 size={16} />
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -176,6 +203,7 @@ export function ChildManagement() {
   const [createdLoginEmail, setCreatedLoginEmail] = useState<string | null>(
     null
   );
+  const [editingChild, setEditingChild] = useState<ChildProfile | null>(null);
 
   // Handler for toggling the add form
   const handleToggleAddForm = () => {
@@ -256,6 +284,10 @@ export function ChildManagement() {
         created_at: child.created_at,
         stars: child.stars,
         streak_days: child.streak_days,
+        equipped_avatar: child.equipped_avatar,
+        age: child.age,
+        birthday: child.birthday,
+        favorite_color: child.favorite_color,
       })) as ChildProfile[];
     },
     enabled: Boolean(user?.id),
@@ -535,6 +567,17 @@ export function ChildManagement() {
     setUsernameError(null); // Clear error when user types
   };
 
+  const handleEditChild = (childId: string) => {
+    const child = children?.find((c) => c.id === childId);
+    if (child) {
+      setEditingChild(child);
+    }
+  };
+
+  const handleCloseEditor = () => {
+    setEditingChild(null);
+  };
+
   if (!profile || profile.role !== "parent") {
     return (
       <AppShell title="Child Accounts" variant="parent">
@@ -553,6 +596,19 @@ export function ChildManagement() {
   return (
     <AppShell title="Child Accounts" variant="parent">
       <div className="max-w-4xl mx-auto space-y-6">
+        {/* Profile Editor Modal */}
+        {editingChild && (
+          <ChildProfileEditor
+            childId={editingChild.id}
+            childName={editingChild.display_name || "Child"}
+            currentAvatar={editingChild.equipped_avatar}
+            currentAge={editingChild.age}
+            currentBirthday={editingChild.birthday}
+            currentFavoriteColor={editingChild.favorite_color}
+            onClose={handleCloseEditor}
+          />
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -756,6 +812,7 @@ export function ChildManagement() {
                 onDeleteClick={setDeleteConfirm}
                 onDeleteConfirm={handleDeleteChild}
                 onDeleteCancel={handleClearDeleteConfirm}
+                onEditClick={handleEditChild}
                 isDeleting={deleteChild.isPending}
               />
             ))}

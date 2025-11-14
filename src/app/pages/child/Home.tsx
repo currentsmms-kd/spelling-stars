@@ -10,6 +10,7 @@ import {
   Calendar,
   ArrowLeft,
   Target,
+  Search,
   type LucideIcon,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -28,7 +29,7 @@ interface ListProgress {
 }
 
 // Color mapping to avoid dynamic class construction (which Tailwind purges)
-type GameCardColor = "primary" | "secondary";
+type GameCardColor = "primary" | "secondary" | "accent";
 
 interface GameCardColorClasses {
   background: string;
@@ -43,6 +44,10 @@ const GAME_CARD_COLOR_MAP: Record<GameCardColor, GameCardColorClasses> = {
   secondary: {
     background: "bg-secondary/20",
     icon: "text-secondary",
+  },
+  accent: {
+    background: "bg-accent/20",
+    icon: "text-accent",
   },
 } as const;
 
@@ -63,18 +68,22 @@ function GameCard({
 
   return (
     <Card variant="child">
-      <div className="text-center space-y-6">
+      <div className="text-center space-y-3 sm:space-y-4 md:space-y-6">
         <div
           className={cn(
-            "w-24 h-24 rounded-full flex items-center justify-center mx-auto",
+            "w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center mx-auto",
             colorClasses.background
           )}
         >
-          <Icon className={cn(colorClasses.icon)} size={48} />
+          <Icon className={cn(colorClasses.icon)} size={36} />
         </div>
         <div>
-          <h3 className="text-3xl font-bold text-foreground mb-2">{title}</h3>
-          <p className="text-xl text-muted-foreground">{description}</p>
+          <h3 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground mb-1 sm:mb-2">
+            {title}
+          </h3>
+          <p className="text-sm sm:text-base md:text-xl text-muted-foreground">
+            {description}
+          </p>
         </div>
         <Link to={href} className="block">
           <Button size="child" className="w-full">
@@ -111,13 +120,13 @@ function ListProgressCard({
   }, [list.id, list.last_mode, onContinue]);
 
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
       <ListProgressInfo list={list} />
       {list.last_mode && list.word_count > 0 && (
         <Button
           size="child"
           onClick={handleContinue}
-          className="ml-4"
+          className="w-full sm:w-auto sm:ml-4 shrink-0"
           aria-label={`Continue practicing ${list.title} in ${list.last_mode} mode`}
         >
           Continue
@@ -129,15 +138,17 @@ function ListProgressCard({
 
 function ListProgressInfo({ list }: { list: ListProgress }) {
   return (
-    <div className="flex-1">
-      <p className="text-xl font-semibold">{list.title}</p>
-      <div className="flex items-center gap-4 mt-2 text-muted-foreground">
-        <span className="text-lg">
+    <div className="flex-1 min-w-0">
+      <p className="text-base sm:text-lg md:text-xl font-semibold truncate">
+        {list.title}
+      </p>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-2 text-muted-foreground">
+        <span className="text-sm sm:text-base md:text-lg">
           {list.word_count} {list.word_count === 1 ? "word" : "words"}
         </span>
         <div className="flex items-center gap-2">
-          <TrendingUp size={18} />
-          <span className="text-lg font-medium">
+          <TrendingUp size={16} />
+          <span className="text-sm sm:text-base md:text-lg font-medium">
             {list.progress_percentage}% complete
           </span>
         </div>
@@ -159,16 +170,18 @@ function DueWordCard({
   };
 }) {
   return (
-    <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg">
-      <div>
-        <p className="text-xl font-semibold">{dueWord.word.text}</p>
-        <p className="text-sm text-muted-foreground">
+    <div className="flex items-center justify-between p-2 sm:p-3 bg-primary/10 rounded-lg">
+      <div className="min-w-0 flex-1">
+        <p className="text-base sm:text-lg md:text-xl font-semibold truncate">
+          {dueWord.word.text}
+        </p>
+        <p className="text-xs sm:text-sm text-muted-foreground truncate">
           {dueWord.lists.length > 0
             ? dueWord.lists.map((l: { title: string }) => l.title).join(", ")
             : "No list"}
         </p>
       </div>
-      <div className="text-right text-sm text-muted-foreground">
+      <div className="text-right text-xs sm:text-sm text-muted-foreground ml-2">
         <div>Ease: {dueWord.ease.toFixed(1)}</div>
         <div>Reps: {dueWord.reps}</div>
       </div>
@@ -191,11 +204,11 @@ function DueWordsSection({
 
   return (
     <Card variant="child">
-      <div className="flex items-center gap-3 mb-4">
-        <Calendar className="text-primary" size={28} aria-hidden="true" />
-        <h3 className="text-2xl font-bold">Due Today</h3>
+      <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+        <Calendar className="text-primary" size={24} aria-hidden="true" />
+        <h3 className="text-xl sm:text-2xl font-bold">Due Today</h3>
       </div>
-      <p className="text-lg text-muted-foreground mb-4">
+      <p className="text-sm sm:text-base md:text-lg text-muted-foreground mb-3 sm:mb-4">
         {dueWords.length} {dueWords.length === 1 ? "word" : "words"} ready for
         review
       </p>
@@ -205,7 +218,7 @@ function DueWordsSection({
         ))}
       </div>
       {dueWords.length > 5 && (
-        <p className="text-center text-muted-foreground mt-3">
+        <p className="text-center text-sm sm:text-base text-muted-foreground mt-3">
           And {dueWords.length - 5} more...
         </p>
       )}
@@ -224,12 +237,14 @@ function ListsSection({
 
   return (
     <Card variant="child">
-      <h3 className="text-2xl font-bold mb-4">Your Spelling Lists</h3>
+      <h3 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4">
+        Your Spelling Lists
+      </h3>
       <div className="space-y-3">
         {lists.map((list) => (
           <div
             key={list.id}
-            className="p-4 bg-muted/50 rounded-xl border border-border hover:border-primary transition-colors"
+            className="p-3 sm:p-4 bg-muted/50 rounded-xl border border-border hover:border-primary transition-colors"
           >
             <ListProgressCard list={list} onContinue={onContinue} />
           </div>
@@ -262,59 +277,73 @@ function NextUpCounter({ childId }: { childId: string }) {
 
   return (
     <Card variant="child">
-      <div className="flex items-center gap-4 mb-4">
-        <Target className="text-primary" size={32} aria-hidden="true" />
-        <h3 className="text-3xl font-bold">Next Up</h3>
+      <div className="flex items-center gap-2 sm:gap-3 md:gap-4 mb-3 sm:mb-4">
+        <Target className="text-primary" size={24} aria-hidden="true" />
+        <h3 className="text-xl sm:text-2xl md:text-3xl font-bold">Next Up</h3>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="text-center p-4 bg-primary/10 rounded-xl">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+        <div className="text-center p-2 sm:p-3 md:p-4 bg-primary/10 rounded-xl">
           <VisuallyHidden>{dueCount} words due for review</VisuallyHidden>
-          <div className="text-4xl font-bold text-primary" aria-hidden="true">
+          <div
+            className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary"
+            aria-hidden="true"
+          >
             {dueCount}
           </div>
-          <p className="text-lg text-muted-foreground mt-1">Due</p>
+          <p className="text-sm sm:text-base md:text-lg text-muted-foreground mt-1">
+            Due
+          </p>
         </div>
 
         {leechCount > 0 && (
-          <div className="text-center p-4 bg-destructive/10 rounded-xl">
+          <div className="text-center p-2 sm:p-3 md:p-4 bg-destructive/10 rounded-xl">
             <VisuallyHidden>{leechCount} words need work</VisuallyHidden>
             <div
-              className="text-4xl font-bold text-destructive"
+              className="text-2xl sm:text-3xl md:text-4xl font-bold text-destructive"
               aria-hidden="true"
             >
               {leechCount}
             </div>
-            <p className="text-lg text-muted-foreground mt-1">Needs Work</p>
+            <p className="text-sm sm:text-base md:text-lg text-muted-foreground mt-1">
+              Needs Work
+            </p>
           </div>
         )}
 
         {reviewCount > 0 && (
-          <div className="text-center p-4 bg-secondary/10 rounded-xl">
+          <div className="text-center p-2 sm:p-3 md:p-4 bg-secondary/10 rounded-xl">
             <VisuallyHidden>{reviewCount} words for review</VisuallyHidden>
             <div
-              className="text-4xl font-bold text-secondary"
+              className="text-2xl sm:text-3xl md:text-4xl font-bold text-secondary"
               aria-hidden="true"
             >
               {reviewCount}
             </div>
-            <p className="text-lg text-muted-foreground mt-1">Review</p>
+            <p className="text-sm sm:text-base md:text-lg text-muted-foreground mt-1">
+              Review
+            </p>
           </div>
         )}
 
         {newCount > 0 && (
-          <div className="text-center p-4 bg-accent/10 rounded-xl">
+          <div className="text-center p-2 sm:p-3 md:p-4 bg-accent/10 rounded-xl">
             <VisuallyHidden>{newCount} new words</VisuallyHidden>
-            <div className="text-4xl font-bold text-accent" aria-hidden="true">
+            <div
+              className="text-2xl sm:text-3xl md:text-4xl font-bold text-accent"
+              aria-hidden="true"
+            >
               {newCount}
             </div>
-            <p className="text-lg text-muted-foreground mt-1">New</p>
+            <p className="text-sm sm:text-base md:text-lg text-muted-foreground mt-1">
+              New
+            </p>
           </div>
         )}
       </div>
 
-      <div className="mt-4 text-center">
-        <p className="text-xl text-muted-foreground">
+      <div className="mt-3 sm:mt-4 text-center">
+        <p className="text-base sm:text-lg md:text-xl text-muted-foreground">
           <span className="font-bold text-foreground">{totalDue}</span> words
           ready to practice
         </p>
@@ -414,24 +443,24 @@ export function ChildHome() {
 
   return (
     <AppShell title="SpellStars" variant="child">
-      <div className="max-w-4xl mx-auto space-y-8">
+      <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 md:space-y-8">
         {/* Back to Parent Button */}
         <div className="flex justify-end">
           <Button
             size="sm"
             onClick={handleBackToParent}
-            className="bg-muted hover:bg-muted/90 text-muted-foreground"
+            className="bg-muted hover:bg-muted/90 text-muted-foreground text-xs sm:text-sm"
           >
-            <ArrowLeft size={16} className="mr-2" />
+            <ArrowLeft size={14} className="mr-1 sm:mr-2" />
             Back to Parent Dashboard
           </Button>
         </div>
 
-        <div className="text-center">
-          <h2 className="text-4xl font-bold text-primary mb-4">
+        <div className="text-center px-2">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary mb-2 sm:mb-3 md:mb-4">
             Ready to practice spelling?
           </h2>
-          <p className="text-2xl text-muted-foreground">
+          <p className="text-base sm:text-lg md:text-2xl text-muted-foreground">
             Choose a game to play!
           </p>
         </div>
@@ -439,7 +468,7 @@ export function ChildHome() {
         {/* Next Up Counter */}
         {profile?.id && <NextUpCounter childId={profile.id} />}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6 lg:gap-8">
           <GameCard
             icon={Headphones}
             title="Listen & Type"
@@ -453,6 +482,13 @@ export function ChildHome() {
             description="Say the spelling out loud"
             href="/child/play/say-spell"
             color="secondary"
+          />
+          <GameCard
+            icon={Search}
+            title="Word Search"
+            description="Find your spelling words in a grid"
+            href="/child/play/word-search"
+            color="accent"
           />
         </div>
 

@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { TopBar, NavRail } from "./Navigation";
+import { BottomNav } from "./BottomNav";
 import { parentNavItems, childNavItems } from "./navItems";
 import { useAuth } from "../hooks/useAuth";
 import { SyncStatusBadge } from "./SyncStatusBadge";
@@ -35,16 +36,21 @@ export function AppShell({
       </header>
       <VisuallyHidden as="h1">{title}</VisuallyHidden>
       <div className="flex-1 flex overflow-hidden">
-        <NavRail items={navItems} isChild={isChild} />
+        <NavRail
+          items={navItems}
+          isChild={isChild}
+          className="hidden md:flex"
+        />
         <main
           id="main-content"
           role="main"
           tabIndex={-1}
-          className="flex-1 overflow-auto p-4 md:p-6 lg:p-8 bg-background focus:outline-none"
+          className="flex-1 overflow-auto p-2 sm:p-4 md:p-6 lg:p-8 bg-background focus:outline-none pb-20 md:pb-8"
         >
           {children}
         </main>
       </div>
+      {isChild && <BottomNav items={navItems} />}
       <NetworkStatusIndicator variant={variant} />
     </div>
   );

@@ -190,12 +190,12 @@
 @layer components {
   /* Child UI - Big touch targets (48px minimum for A11y) */
   .child-button {
-    @apply min-h-[88px] min-w-[88px] text-2xl font-bold rounded-2xl;
-    /* Increased from 80px to 88px for better touch target */
+    @apply min-h-[56px] sm:min-h-[72px] md:min-h-[88px] min-w-[56px] sm:min-w-[72px] md:min-w-[88px] text-lg sm:text-xl md:text-2xl font-bold rounded-xl sm:rounded-2xl px-3 sm:px-4 md:px-6;
+    /* Responsive sizing: mobile 56px, tablet 72px, desktop 88px */
   }
 
   .child-card {
-    @apply p-8 rounded-3xl shadow-lg;
+    @apply p-3 sm:p-5 md:p-8 rounded-2xl sm:rounded-3xl shadow-lg;
   }
 
   /* Parent UI - Standard sizing with good touch targets */
@@ -237,5 +237,10 @@
     overflow: visible;
     clip: auto;
     white-space: normal;
+  }
+
+  /* Safe area for notched devices */
+  .safe-area-inset-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }
