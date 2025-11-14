@@ -16,7 +16,8 @@ import { useSessionStore } from "@/app/store/session";
 import { queueAttempt } from "@/lib/sync";
 import { logger } from "@/lib/logger";
 import { toast } from "react-hot-toast";
-import { normalizeSpellingAnswer } from "@/lib/utils";
+import { normalizeSpellingAnswer, getHintText } from "@/lib/utils";
+import { TTS_CONSTANTS, UI_CONSTANTS } from "@/lib/constants";
 import {
   useUpdateSrs,
   useAwardStars,
@@ -45,6 +46,7 @@ interface AnswerSectionProps {
   onRetry: () => void;
   onNextWord: () => void;
   isSaving: boolean;
+  ignorePunctuation: boolean;
 }
 
 interface GameHeaderProps {
@@ -73,6 +75,7 @@ interface GameContentProps {
   onRetry: () => void;
   onNextWord: () => void;
   isSaving: boolean;
+  ignorePunctuation: boolean;
 }
 
 interface PlayWordButtonProps {
@@ -344,6 +347,7 @@ function GameContent({
   onRetry,
   onNextWord,
   isSaving,
+  ignorePunctuation,
 }: GameContentProps) {
   const { profile } = useAuth();
 
@@ -355,7 +359,7 @@ function GameContent({
         {feedback === "wrong" && showHint === 0 && "Incorrect. Try again."}
         {feedback === "wrong" &&
           showHint === 1 &&
-          `Hint: The word starts with ${currentWord?.text[0].toUpperCase()}`}
+          `Hint: ${getHintText(currentWord?.text || "", ignorePunctuation)}`}
         {feedback === "wrong" &&
           showHint === 2 &&
           `The correct spelling is ${currentWord?.text}`}
@@ -402,6 +406,7 @@ function GameContent({
             onRetry={onRetry}
             onNextWord={onNextWord}
             isSaving={isSaving}
+            ignorePunctuation={ignorePunctuation}
           />
         </div>
       </Card>
@@ -431,6 +436,7 @@ function AnswerSection({
   onRetry,
   onNextWord,
   isSaving,
+  ignorePunctuation,
 }: AnswerSectionProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -485,8 +491,8 @@ function AnswerSection({
         <div className="text-center" id="hint-text">
           {showHint === 1 && (
             <p className="text-2xl text-secondary">
-              Hint: It starts with &quot;
-              {currentWord?.text[0].toUpperCase()}&quot;
+              Hint: &quot;
+              {getHintText(currentWord?.text || "", ignorePunctuation)}&quot;
             </p>
           )}
           {showHint === 2 && (
@@ -595,8 +601,13 @@ export function PlayListenType() {
   const { profile } = useAuth();
   const isOnline = useOnline();
   const { getVoiceWithFallback, isLoading: voicesLoading } = useTtsVoices();
-  const { enforceCaseSensitivity, ignorePunctuation } =
+  const { enforceCaseSensitivity, ignorePunctuation, autoAdvanceDelaySeconds } =
     useParentalSettingsStore();
+
+  // Calculate auto-advance delay in milliseconds from parental setting
+  const autoAdvanceDelayMs =
+    (autoAdvanceDelaySeconds ||
+      UI_CONSTANTS.DEFAULT_AUTO_ADVANCE_DELAY_SECONDS) * 1000;
 
   const [currentWordIndex, setCurrentWordIndex] = useState(0); // Index in words array (0-based)
   const [answer, setAnswer] = useState(""); // User's typed input
@@ -620,16 +631,24 @@ export function PlayListenType() {
   // Hooks for D3/D4 features
   const updateSrs = useUpdateSrs();
   const awardStars = useAwardStars();
-  const updateStreak = useUpdateDailyStreak();
 
   // Get shared session state for streak tracking
   const { hasUpdatedStreak, setHasUpdatedStreak } = useSessionStore();
 
+  const updateStreak = useUpdateDailyStreak();
+
   // Update streak when component mounts (first practice of session)
   useEffect(() => {
     if (profile?.id && !hasUpdatedStreak) {
-      updateStreak.mutate(profile.id);
-      setHasUpdatedStreak(true);
+      updateStreak.mutate(profile.id, {
+        onSuccess: () => {
+          setHasUpdatedStreak(true);
+        },
+        onError: (error) => {
+          logger.warn("Failed to update daily streak", error);
+          // Leave hasUpdatedStreak as false to allow retry
+        },
+      });
     }
   }, [profile?.id, hasUpdatedStreak, setHasUpdatedStreak, updateStreak]);
 
@@ -852,8 +871,8 @@ export function PlayListenType() {
     } else {
       // Wait for voices to load before using TTS
       if (voicesLoading) {
-        // Cap retries at 50 attempts over 5 seconds (100ms each)
-        if (ttsRetryCountRef.current >= 50) {
+        // Cap retries at TTS_CONSTANTS.MAX_RETRY_COUNT attempts
+        if (ttsRetryCountRef.current >= TTS_CONSTANTS.MAX_RETRY_COUNT) {
           logger.warn(
             "TTS voices failed to load after 50 retries, proceeding with default voice"
           );
@@ -876,7 +895,7 @@ export function PlayListenType() {
         }
 
         logger.warn(
-          `TTS voices still loading, retry ${ttsRetryCountRef.current + 1}/50`
+          `TTS voices still loading, retry ${ttsRetryCountRef.current + 1}/${TTS_CONSTANTS.MAX_RETRY_COUNT}`
         );
         ttsRetryCountRef.current += 1;
 
@@ -890,7 +909,10 @@ export function PlayListenType() {
         if (ttsRetryTimeoutRef.current) {
           clearTimeout(ttsRetryTimeoutRef.current);
         }
-        ttsRetryTimeoutRef.current = setTimeout(() => playAudio(), 100);
+        ttsRetryTimeoutRef.current = setTimeout(
+          () => playAudio(),
+          TTS_CONSTANTS.RETRY_INTERVAL_MS
+        );
         return;
       }
 
@@ -1060,7 +1082,7 @@ export function PlayListenType() {
    * 3. Award star if first attempt
    * 4. Save attempt to database (async, non-blocking)
    * 5. Update SRS with success (async, non-blocking)
-   * 6. Schedule auto-advance to next word (5 seconds)
+   * 6. Schedule auto-advance to next word (configured delay, default 3 seconds)
    *
    * Incorrect Answer Flow:
    * 1. Set feedback to "wrong"
@@ -1103,7 +1125,7 @@ export function PlayListenType() {
       }
       confettiTimeoutRef.current = setTimeout(
         () => setShowConfetti(false),
-        2000
+        UI_CONSTANTS.CONFETTI_DURATION_MS
       );
 
       if (isFirstAttempt) {
@@ -1130,18 +1152,17 @@ export function PlayListenType() {
         queueSrsUpdate(profile.id, currentWord.id, isFirstAttempt);
       }
 
-      // Auto-advance after 5 seconds, but user can click "Next Word" to skip wait
-      // Move to next word after delay (auto-advance in 5 seconds)
+      // Auto-advance after configured delay (default 3 seconds, configurable in parental settings)
       // User can also click "Next Word" button to proceed immediately
       logger.debug(
-        "[PlayListenType] Answer correct, scheduling auto-advance in 5s"
+        `[PlayListenType] Answer correct, scheduling auto-advance in ${autoAdvanceDelaySeconds}s`
       );
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
       timeoutRef.current = setTimeout(() => {
         nextWord();
-      }, 5000);
+      }, autoAdvanceDelayMs);
     } else {
       // Incorrect answer path: save attempt, update SRS on first miss, show hints
       setFeedback("wrong");
@@ -1187,6 +1208,8 @@ export function PlayListenType() {
     updateSrs,
     nextWord,
     normalizeAnswer,
+    autoAdvanceDelayMs,
+    autoAdvanceDelaySeconds,
   ]);
 
   if (!listId) {
@@ -1227,6 +1250,7 @@ export function PlayListenType() {
         onRetry={retry}
         onNextWord={nextWord}
         isSaving={isSaving}
+        ignorePunctuation={ignorePunctuation}
       />
     </AppShell>
   );

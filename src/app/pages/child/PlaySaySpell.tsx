@@ -17,7 +17,13 @@ import { useSessionStore } from "@/app/store/session";
 import { queueAttempt, queueAudio } from "@/lib/sync";
 import { logger } from "@/lib/logger";
 import { toast } from "react-hot-toast";
-import { normalizeSpellingAnswer } from "@/lib/utils";
+import { normalizeSpellingAnswer, getHintText } from "@/lib/utils";
+import {
+  TTS_CONSTANTS,
+  UI_CONSTANTS,
+  RECORDING_CONSTANTS,
+  CACHE_CONSTANTS,
+} from "@/lib/constants";
 import {
   useUpdateSrs,
   useAwardStars,
@@ -70,6 +76,7 @@ function RecordStep({
   clearRecording,
   stopRecording,
   onContinueToType,
+  isProcessingAudio,
 }: {
   playWord: () => void;
   handleStartRecording: () => Promise<void>;
@@ -80,6 +87,7 @@ function RecordStep({
   clearRecording: () => void;
   stopRecording: () => void;
   onContinueToType: () => void;
+  isProcessingAudio: boolean;
 }) {
   const audioRef = React.useRef<HTMLAudioElement>(null);
 
@@ -187,14 +195,28 @@ function RecordStep({
               <span>Listen to Your Recording</span>
             </Button>
 
+            {/* Show processing indicator when audio is being queued */}
+            {isProcessingAudio && (
+              <div
+                className="text-center text-xl text-muted-foreground"
+                aria-live="polite"
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <span className="animate-spin">⏳</span>
+                  Processing recording...
+                </span>
+              </div>
+            )}
+
             {/* Continue to type button */}
             <Button
               onClick={onContinueToType}
               size="child"
               className="w-64 mx-auto flex items-center justify-center gap-3"
+              disabled={isProcessingAudio}
               aria-label="Continue to type your spelling"
             >
-              Continue to Type
+              {isProcessingAudio ? "Processing..." : "Continue to Type"}
             </Button>
 
             {/* Re-record button */}
@@ -251,6 +273,7 @@ function TypeStep({
   audioBlobId,
   isSaving,
   isProcessingAudio,
+  ignorePunctuation,
 }: {
   answer: string;
   setAnswer: (value: string) => void;
@@ -266,6 +289,7 @@ function TypeStep({
   audioBlobId: number | null;
   isSaving: boolean;
   isProcessingAudio: boolean;
+  ignorePunctuation: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -282,12 +306,13 @@ function TypeStep({
         e.key === "Enter" &&
         answer.trim() &&
         feedback === null &&
-        !isSaving
+        !isSaving &&
+        !isProcessingAudio
       ) {
         checkAnswer();
       }
     },
-    [answer, feedback, checkAnswer, isSaving]
+    [answer, feedback, checkAnswer, isSaving, isProcessingAudio]
   );
 
   // Auto-focus input when step changes to 'type'
@@ -322,7 +347,8 @@ function TypeStep({
         <div className="text-center" id="hint-text-say">
           {showHint === 1 && (
             <p className="text-2xl text-secondary">
-              Hint: It starts with &quot;{currentWord?.text[0].toUpperCase()}
+              Hint: &quot;
+              {getHintText(currentWord?.text || "", ignorePunctuation)}
               &quot;
             </p>
           )}
@@ -489,6 +515,7 @@ function GameContent({
   isProcessingAudio,
   stopRecording,
   onContinueToType,
+  ignorePunctuation,
 }: {
   listData: ListWithWords;
   currentWordIndex: number;
@@ -517,6 +544,7 @@ function GameContent({
   isProcessingAudio: boolean;
   stopRecording: () => void;
   onContinueToType: () => void;
+  ignorePunctuation: boolean;
 }) {
   const { profile } = useAuth();
 
@@ -563,6 +591,7 @@ function GameContent({
               clearRecording={clearRecording}
               stopRecording={stopRecording}
               onContinueToType={onContinueToType}
+              isProcessingAudio={isProcessingAudio}
             />
           )}
 
@@ -582,6 +611,7 @@ function GameContent({
               audioBlobId={audioBlobId}
               isSaving={isSaving}
               isProcessingAudio={isProcessingAudio}
+              ignorePunctuation={ignorePunctuation}
             />
           )}
         </div>
@@ -880,8 +910,13 @@ export function PlaySaySpell() {
   const { profile } = useAuth();
   const isOnline = useOnline();
   const { getVoiceWithFallback, isLoading: voicesLoading } = useTtsVoices();
-  const { enforceCaseSensitivity, ignorePunctuation } =
+  const { enforceCaseSensitivity, ignorePunctuation, autoAdvanceDelaySeconds } =
     useParentalSettingsStore();
+
+  // Calculate auto-advance delay in milliseconds from parental setting
+  const autoAdvanceDelayMs =
+    (autoAdvanceDelaySeconds ||
+      UI_CONSTANTS.DEFAULT_AUTO_ADVANCE_DELAY_SECONDS) * 1000;
 
   const [currentWordIndex, setCurrentWordIndex] = useState(0); // Index in words array
   const [step, setStep] = useState<"record" | "type">("record"); // Current game step
@@ -908,16 +943,24 @@ export function PlaySaySpell() {
   // Hooks for D3/D4 features
   const updateSrs = useUpdateSrs();
   const awardStars = useAwardStars();
-  const updateStreak = useUpdateDailyStreak();
 
   // Get shared session state for streak tracking
   const { hasUpdatedStreak, setHasUpdatedStreak } = useSessionStore();
 
+  const updateStreak = useUpdateDailyStreak();
+
   // Update streak when component mounts (first practice of session)
   useEffect(() => {
     if (profile?.id && !hasUpdatedStreak) {
-      updateStreak.mutate(profile.id);
-      setHasUpdatedStreak(true);
+      updateStreak.mutate(profile.id, {
+        onSuccess: () => {
+          setHasUpdatedStreak(true);
+        },
+        onError: (error) => {
+          logger.warn("Failed to update daily streak", error);
+          // Leave hasUpdatedStreak as false to allow retry
+        },
+      });
     }
   }, [profile?.id, hasUpdatedStreak, setHasUpdatedStreak, updateStreak]);
 
@@ -1004,7 +1047,9 @@ export function PlaySaySpell() {
             .from("audio-recordings")
             .upload(fileName, audioBlob, {
               contentType: mimeType || "audio/webm", // Use detected MIME type
-              cacheControl: "3600",
+              cacheControl: String(
+                CACHE_CONSTANTS.SIGNED_URL_CACHE_CONTROL_SECONDS
+              ),
             });
 
           if (!error && data) {
@@ -1133,8 +1178,8 @@ export function PlaySaySpell() {
 
     // Wait for voices to load before using TTS
     if (voicesLoading) {
-      // Cap retries at 50 attempts over 5 seconds (100ms each)
-      if (ttsRetryCountRef.current >= 50) {
+      // Cap retries at TTS_CONSTANTS.MAX_RETRY_COUNT attempts
+      if (ttsRetryCountRef.current >= TTS_CONSTANTS.MAX_RETRY_COUNT) {
         logger.warn(
           "TTS voices failed to load after 50 retries, proceeding with default voice"
         );
@@ -1147,7 +1192,7 @@ export function PlaySaySpell() {
       }
 
       logger.warn(
-        `TTS voices still loading, retry ${ttsRetryCountRef.current + 1}/50`
+        `TTS voices still loading, retry ${ttsRetryCountRef.current + 1}/${TTS_CONSTANTS.MAX_RETRY_COUNT}`
       );
       ttsRetryCountRef.current += 1;
 
@@ -1155,7 +1200,10 @@ export function PlaySaySpell() {
       if (ttsRetryTimeoutRef.current) {
         clearTimeout(ttsRetryTimeoutRef.current);
       }
-      ttsRetryTimeoutRef.current = setTimeout(() => playWord(), 100);
+      ttsRetryTimeoutRef.current = setTimeout(
+        () => playWord(),
+        TTS_CONSTANTS.RETRY_INTERVAL_MS
+      );
       return;
     }
 
@@ -1286,15 +1334,17 @@ export function PlaySaySpell() {
     }
 
     logger.debug(
-      "[PlaySaySpell] Starting recording, will auto-stop in 15 seconds"
+      `[PlaySaySpell] Starting recording, will auto-stop in ${RECORDING_CONSTANTS.AUTO_STOP_DURATION_MS / 1000} seconds`
     );
     await startRecording();
 
     // Store timeout ID for cleanup
     recordingTimeoutRef.current = setTimeout(() => {
-      logger.debug("[PlaySaySpell] Auto-stopping recording after 15 seconds");
+      logger.debug(
+        `[PlaySaySpell] Auto-stopping recording after ${RECORDING_CONSTANTS.AUTO_STOP_DURATION_MS / 1000} seconds`
+      );
       stopRecording();
-    }, 15000); // Changed from 3000 to 15000 (15 seconds)
+    }, RECORDING_CONSTANTS.AUTO_STOP_DURATION_MS);
   }, [startRecording, stopRecording]);
 
   /**
@@ -1393,7 +1443,7 @@ export function PlaySaySpell() {
    * 3. Award star if first attempt
    * 4. Save attempt with audio blob ID
    * 5. Update SRS with success
-   * 6. Schedule auto-advance (5 seconds)
+   * 6. Schedule auto-advance (configured delay, default 3 seconds)
    *
    * Incorrect Answer Flow:
    * 1. Set feedback to "wrong"
@@ -1439,7 +1489,7 @@ export function PlaySaySpell() {
       }
       confettiTimeoutRef.current = setTimeout(
         () => setShowConfetti(false),
-        2000
+        UI_CONSTANTS.CONFETTI_DURATION_MS
       );
 
       if (isFirstAttempt) {
@@ -1467,14 +1517,16 @@ export function PlaySaySpell() {
         await queueSrsUpdate(profile.id, currentWord.id, isFirstAttempt);
       }
 
-      // Move to next word after delay
-      logger.debug("[PlaySaySpell] Answer correct, scheduling nextWord in 2s");
+      // Move to next word after configured delay (default 3 seconds, configurable in parental settings)
+      logger.debug(
+        `[PlaySaySpell] Answer correct, scheduling nextWord in ${autoAdvanceDelaySeconds}s`
+      );
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
       timeoutRef.current = setTimeout(() => {
         nextWord();
-      }, 2000);
+      }, autoAdvanceDelayMs);
     } else {
       setFeedback("wrong");
       setIsFirstAttempt(false);
@@ -1519,6 +1571,8 @@ export function PlaySaySpell() {
     updateSrs,
     nextWord,
     normalizeAnswer,
+    autoAdvanceDelayMs,
+    autoAdvanceDelaySeconds,
   ]);
 
   const retry = useCallback(() => {
@@ -1582,6 +1636,7 @@ export function PlaySaySpell() {
         isProcessingAudio={isProcessingAudio}
         stopRecording={stopRecording}
         onContinueToType={handleContinueToType}
+        ignorePunctuation={ignorePunctuation}
       />
     </AppShell>
   );

@@ -7,6 +7,7 @@ import { useParentalSettingsStore } from "@/app/store/parentalSettings";
 import { useThemeStore } from "@/app/store/theme";
 import { useAuth } from "@/app/hooks/useAuth";
 import { supabase } from "@/app/supabase";
+import { UI_CONSTANTS } from "@/lib/constants";
 import {
   Lock,
   Save,
@@ -33,6 +34,7 @@ import type { Tables } from "@/types/database.types";
 // until database types are regenerated
 type ParentalSettingsRow = Tables<"parental_settings"> & {
   ignore_punctuation?: boolean | null;
+  auto_advance_delay_seconds?: number | null;
 };
 
 // Extracted PIN Settings Component
@@ -290,6 +292,59 @@ function SessionLimits({
         />
         <p className="text-sm text-muted-foreground mt-2">
           Child will be gently prompted to take a break after this time
+        </p>
+      </div>
+    </Card>
+  );
+}
+
+// Extracted Auto-Advance Settings Component
+function AutoAdvanceSettings({
+  autoAdvanceDelaySeconds,
+  onDelayChange,
+}: {
+  autoAdvanceDelaySeconds: number;
+  onDelayChange: (seconds: number) => void;
+}) {
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value =
+        parseInt(e.target.value) ||
+        UI_CONSTANTS.DEFAULT_AUTO_ADVANCE_DELAY_SECONDS;
+      // Clamp value between min and max
+      const clampedValue = Math.max(
+        UI_CONSTANTS.MIN_AUTO_ADVANCE_DELAY_SECONDS,
+        Math.min(UI_CONSTANTS.MAX_AUTO_ADVANCE_DELAY_SECONDS, value)
+      );
+      onDelayChange(clampedValue);
+    },
+    [onDelayChange]
+  );
+
+  return (
+    <Card>
+      <h2 className="text-xl font-bold mb-4">Auto-Advance Timing</h2>
+      <div>
+        <label
+          htmlFor="auto-advance-delay"
+          className="block text-sm font-medium text-foreground mb-2"
+        >
+          Delay before next word (seconds)
+        </label>
+        <input
+          id="auto-advance-delay"
+          type="number"
+          min={UI_CONSTANTS.MIN_AUTO_ADVANCE_DELAY_SECONDS}
+          max={UI_CONSTANTS.MAX_AUTO_ADVANCE_DELAY_SECONDS}
+          step="1"
+          value={autoAdvanceDelaySeconds}
+          onChange={handleChange}
+          className="w-full md:w-48 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
+        />
+        <p className="text-sm text-muted-foreground mt-2">
+          How long to wait after a correct answer before automatically moving to
+          the next word. Range: {UI_CONSTANTS.MIN_AUTO_ADVANCE_DELAY_SECONDS}-
+          {UI_CONSTANTS.MAX_AUTO_ADVANCE_DELAY_SECONDS} seconds.
         </p>
       </div>
     </Card>
@@ -907,6 +962,7 @@ export function ParentalSettings() {
     dailySessionLimitMinutes,
     defaultTtsVoice,
     strictSpacedMode,
+    autoAdvanceDelaySeconds,
     setSettings,
     setPinCode,
   } = useParentalSettingsStore();
@@ -922,6 +978,7 @@ export function ParentalSettings() {
     dailySessionLimitMinutes,
     defaultTtsVoice,
     strictSpacedMode,
+    autoAdvanceDelaySeconds,
   });
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{
@@ -967,6 +1024,8 @@ export function ParentalSettings() {
               settingsData.daily_session_limit_minutes ?? 20,
             defaultTtsVoice: settingsData.default_tts_voice ?? "en-US",
             strictSpacedMode: settingsData.strict_spaced_mode ?? false,
+            autoAdvanceDelaySeconds:
+              settingsData.auto_advance_delay_seconds ?? 3,
           };
           setLocalSettings(newSettings);
           setSettings(newSettings);
@@ -1028,6 +1087,7 @@ export function ParentalSettings() {
         default_tts_voice: localSettings.defaultTtsVoice,
         color_theme: currentTheme,
         strict_spaced_mode: localSettings.strictSpacedMode,
+        auto_advance_delay_seconds: localSettings.autoAdvanceDelaySeconds,
       });
 
       if (error) throw error;
@@ -1071,6 +1131,13 @@ export function ParentalSettings() {
 
   const handleVoiceChange = useCallback((voice: string) => {
     setLocalSettings((prev) => ({ ...prev, defaultTtsVoice: voice }));
+  }, []);
+
+  const handleAutoAdvanceDelayChange = useCallback((seconds: number) => {
+    setLocalSettings((prev) => ({
+      ...prev,
+      autoAdvanceDelaySeconds: seconds,
+    }));
   }, []);
 
   return (
@@ -1143,6 +1210,12 @@ export function ParentalSettings() {
         <SessionLimits
           dailySessionLimitMinutes={localSettings.dailySessionLimitMinutes}
           onLimitChange={handleLimitChange}
+        />
+
+        {/* Auto-Advance Timing */}
+        <AutoAdvanceSettings
+          autoAdvanceDelaySeconds={localSettings.autoAdvanceDelaySeconds}
+          onDelayChange={handleAutoAdvanceDelayChange}
         />
 
         {/* TTS Settings */}

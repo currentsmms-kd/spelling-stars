@@ -14,6 +14,11 @@ export interface ParentalSettings {
   failedAttempts: number; // Track failed PIN attempts
   lockoutUntil: number | null; // Timestamp when lockout expires
   strictSpacedMode: boolean; // Only show due words and leeches in practice
+  /**
+   * Delay in seconds before automatically advancing to the next word after a correct answer
+   * Range: 2-8 seconds, default: 3 seconds
+   */
+  autoAdvanceDelaySeconds: number;
 }
 
 interface ParentalSettingsState extends ParentalSettings {
@@ -43,6 +48,11 @@ export const useParentalSettingsStore = create<ParentalSettingsState>()(
       failedAttempts: 0,
       lockoutUntil: null,
       strictSpacedMode: false, // Default to false for more forgiving practice
+      /**
+       * Delay in seconds before automatically advancing to the next word after a correct answer
+       * Default: 3 seconds (standardized from previous hardcoded values of 2-5 seconds)
+       */
+      autoAdvanceDelaySeconds: 3,
 
       setSettings: (settings) => set((state) => ({ ...state, ...settings })),
 
@@ -116,6 +126,7 @@ export const useParentalSettingsStore = create<ParentalSettingsState>()(
         dailySessionLimitMinutes: state.dailySessionLimitMinutes,
         defaultTtsVoice: state.defaultTtsVoice,
         strictSpacedMode: state.strictSpacedMode,
+        autoAdvanceDelaySeconds: state.autoAdvanceDelaySeconds,
       }),
     }
   )

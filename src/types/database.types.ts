@@ -143,6 +143,7 @@ export type Database = {
       };
       parental_settings: {
         Row: {
+          auto_advance_delay_seconds: number | null;
           auto_readback_spelling: boolean | null;
           color_theme: string | null;
           created_at: string | null;
@@ -150,6 +151,7 @@ export type Database = {
           default_tts_voice: string | null;
           enforce_case_sensitivity: boolean | null;
           id: string;
+          ignore_punctuation: boolean | null;
           parent_id: string;
           pin_code: string;
           show_hints_on_first_miss: boolean | null;
@@ -157,6 +159,7 @@ export type Database = {
           updated_at: string | null;
         };
         Insert: {
+          auto_advance_delay_seconds?: number | null;
           auto_readback_spelling?: boolean | null;
           color_theme?: string | null;
           created_at?: string | null;
@@ -164,6 +167,7 @@ export type Database = {
           default_tts_voice?: string | null;
           enforce_case_sensitivity?: boolean | null;
           id?: string;
+          ignore_punctuation?: boolean | null;
           parent_id: string;
           pin_code: string;
           show_hints_on_first_miss?: boolean | null;
@@ -171,6 +175,7 @@ export type Database = {
           updated_at?: string | null;
         };
         Update: {
+          auto_advance_delay_seconds?: number | null;
           auto_readback_spelling?: boolean | null;
           color_theme?: string | null;
           created_at?: string | null;
@@ -178,6 +183,7 @@ export type Database = {
           default_tts_voice?: string | null;
           enforce_case_sensitivity?: boolean | null;
           id?: string;
+          ignore_punctuation?: boolean | null;
           parent_id?: string;
           pin_code?: string;
           show_hints_on_first_miss?: boolean | null;
