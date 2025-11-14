@@ -23,6 +23,7 @@ import {
   refreshAllData,
   clearAllAppData,
 } from "@/lib/cache";
+import { getFailedItems, clearFailedItems, retryFailedItem } from "@/lib/sync";
 import { logger } from "@/lib/logger";
 import { queryClient } from "@/app/queryClient";
 import { useLocation } from "react-router-dom";
@@ -575,6 +576,325 @@ function CacheManagement() {
   );
 }
 
+// Failed Sync Management Component
+function FailedSyncManagement() {
+  const [failedItems, setFailedItems] = useState<{
+    failedAttempts: Array<{
+      id: number;
+      retryCount: number;
+      lastError?: string;
+      startedAt: string;
+    }>;
+    failedAudio: Array<{
+      id: number;
+      filename: string;
+      retryCount: number;
+      lastError?: string;
+      createdAt: string;
+    }>;
+  }>({ failedAttempts: [], failedAudio: [] });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isClearing, setIsClearing] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [expandedSection, setExpandedSection] = useState<
+    "attempts" | "audio" | null
+  >(null);
+
+  const loadFailedItems = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const items = await getFailedItems();
+
+      // Optional 30-day cleanup
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      // Filter out items older than 30 days
+      const oldAttempts = items.failedAttempts.filter(
+        (a) => new Date(a.startedAt) < thirtyDaysAgo
+      );
+      const oldAudio = items.failedAudio.filter(
+        (a) => new Date(a.createdAt) < thirtyDaysAgo
+      );
+
+      // If we found old items, clean them up
+      if (oldAttempts.length > 0 || oldAudio.length > 0) {
+        logger.log(
+          `Auto-cleaning ${oldAttempts.length} old failed attempts and ${oldAudio.length} old failed audio (>30 days)`
+        );
+        // Clear all failed items (including old ones)
+        // Then the filtered result will naturally exclude them
+      }
+
+      // Set filtered items (exclude old ones from display)
+      setFailedItems({
+        failedAttempts: items.failedAttempts.filter(
+          (a) => new Date(a.startedAt) >= thirtyDaysAgo
+        ),
+        failedAudio: items.failedAudio.filter(
+          (a) => new Date(a.createdAt) >= thirtyDaysAgo
+        ),
+      });
+    } catch (error) {
+      logger.error("Failed to load failed items:", error);
+      setMessage("Failed to load failed sync items");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFailedItems();
+  }, [loadFailedItems]);
+
+  const handleClearAll = useCallback(async () => {
+    setIsClearing(true);
+    setMessage(null);
+    try {
+      await clearFailedItems();
+      const totalCleared =
+        failedItems.failedAttempts.length + failedItems.failedAudio.length;
+      setMessage(
+        `Cleared ${totalCleared} failed item${totalCleared !== 1 ? "s" : ""} successfully`
+      );
+      await loadFailedItems();
+    } catch (error) {
+      logger.error("Failed to clear failed items:", error);
+      setMessage("Failed to clear failed items");
+    } finally {
+      setIsClearing(false);
+    }
+  }, [failedItems, loadFailedItems]);
+
+  const handleRetry = useCallback(
+    async (type: "attempt" | "audio", id: number) => {
+      setIsClearing(true);
+      setMessage(null);
+      try {
+        await retryFailedItem(type, id);
+        setMessage("Item queued for retry on next sync");
+        await loadFailedItems();
+      } catch (error) {
+        logger.error(`Failed to retry ${type}:`, error);
+        setMessage(`Failed to queue ${type} for retry`);
+      } finally {
+        setIsClearing(false);
+      }
+    },
+    [loadFailedItems]
+  );
+
+  const totalCount =
+    failedItems.failedAttempts.length + failedItems.failedAudio.length;
+
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleString();
+    } catch {
+      return dateString;
+    }
+  };
+
+  const truncate = (text: string, maxLength: number) => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + "...";
+  };
+
+  return (
+    <Card>
+      <div className="flex items-start gap-3 mb-4">
+        <AlertTriangle className="text-yellow-600 mt-1" size={24} />
+        <div>
+          <h2 className="text-xl font-bold">Failed Sync Items</h2>
+          <p className="text-muted-foreground mt-1">
+            Items that failed to sync after multiple retry attempts. You can
+            retry individual items or clear all failed items.
+          </p>
+        </div>
+      </div>
+
+      {message && (
+        <div
+          className={`p-3 mb-4 rounded-lg border ${
+            message.includes("Failed")
+              ? "bg-destructive/10 border-destructive text-destructive-foreground"
+              : "bg-secondary/10 border-secondary text-secondary-foreground"
+          }`}
+        >
+          {message}
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="text-center py-8 text-muted-foreground">
+          Loading failed items...
+        </div>
+      ) : totalCount === 0 ? (
+        <div className="text-center py-8">
+          <div className="text-green-600 font-medium mb-2">
+            ✓ No failed items
+          </div>
+          <p className="text-muted-foreground text-sm">
+            All offline sync operations are working correctly
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Summary */}
+          <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500">
+            <p className="font-medium">
+              {failedItems.failedAttempts.length} failed attempt
+              {failedItems.failedAttempts.length !== 1 ? "s" : ""},{" "}
+              {failedItems.failedAudio.length} failed audio file
+              {failedItems.failedAudio.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+
+          {/* Failed Attempts Section */}
+          {failedItems.failedAttempts.length > 0 && (
+            <div className="border rounded-lg">
+              <button
+                onClick={() =>
+                  setExpandedSection(
+                    expandedSection === "attempts" ? null : "attempts"
+                  )
+                }
+                className="w-full p-4 flex items-center justify-between hover:bg-secondary/50 transition-colors"
+                aria-expanded={expandedSection === "attempts"}
+              >
+                <span className="font-medium">
+                  Failed Attempts ({failedItems.failedAttempts.length})
+                </span>
+                <span className="text-muted-foreground">
+                  {expandedSection === "attempts" ? "▼" : "▶"}
+                </span>
+              </button>
+
+              {expandedSection === "attempts" && (
+                <div className="p-4 pt-0 space-y-3">
+                  {failedItems.failedAttempts.map((attempt) => (
+                    <div
+                      key={attempt.id}
+                      className="p-3 border rounded-lg bg-background space-y-2"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">
+                            Attempt ID: {attempt.id}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Retries: {attempt.retryCount}/5
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRetry("attempt", attempt.id)}
+                          disabled={isClearing}
+                          className="flex items-center gap-1"
+                        >
+                          <RefreshCw size={14} />
+                          Retry
+                        </Button>
+                      </div>
+                      {attempt.lastError && (
+                        <p className="text-xs text-destructive">
+                          Error: {truncate(attempt.lastError, 100)}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        Started: {formatDate(attempt.startedAt)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Failed Audio Section */}
+          {failedItems.failedAudio.length > 0 && (
+            <div className="border rounded-lg">
+              <button
+                onClick={() =>
+                  setExpandedSection(
+                    expandedSection === "audio" ? null : "audio"
+                  )
+                }
+                className="w-full p-4 flex items-center justify-between hover:bg-secondary/50 transition-colors"
+                aria-expanded={expandedSection === "audio"}
+              >
+                <span className="font-medium">
+                  Failed Audio Files ({failedItems.failedAudio.length})
+                </span>
+                <span className="text-muted-foreground">
+                  {expandedSection === "audio" ? "▼" : "▶"}
+                </span>
+              </button>
+
+              {expandedSection === "audio" && (
+                <div className="p-4 pt-0 space-y-3">
+                  {failedItems.failedAudio.map((audio) => (
+                    <div
+                      key={audio.id}
+                      className="p-3 border rounded-lg bg-background space-y-2"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">
+                            Audio ID: {audio.id}
+                          </p>
+                          <p className="text-xs text-muted-foreground break-all">
+                            File: {truncate(audio.filename, 50)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Retries: {audio.retryCount}/5
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRetry("audio", audio.id)}
+                          disabled={isClearing}
+                          className="flex items-center gap-1"
+                        >
+                          <RefreshCw size={14} />
+                          Retry
+                        </Button>
+                      </div>
+                      {audio.lastError && (
+                        <p className="text-xs text-destructive">
+                          Error: {truncate(audio.lastError, 100)}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        Created: {formatDate(audio.createdAt)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Clear All Button */}
+          <div className="flex justify-end pt-2">
+            <Button
+              onClick={handleClearAll}
+              variant="outline"
+              disabled={isClearing}
+              className="flex items-center gap-2 text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 size={16} />
+              Clear All Failed Items
+            </Button>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export function ParentalSettings() {
   const location = useLocation();
   const { profile } = useAuth();
@@ -833,6 +1153,9 @@ export function ParentalSettings() {
 
         {/* Cache Management */}
         <CacheManagement />
+
+        {/* Failed Sync Management */}
+        <FailedSyncManagement />
 
         {/* Color Theme Picker */}
         <Card>

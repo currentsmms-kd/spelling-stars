@@ -13,6 +13,7 @@ import { useOnline } from "@/app/hooks/useOnline";
 import { useAudioRecorder } from "@/app/hooks/useAudioRecorder";
 import { useTtsVoices } from "@/app/hooks/useTtsVoices";
 import { useParentalSettingsStore } from "@/app/store/parentalSettings";
+import { useSessionStore } from "@/app/store/session";
 import { queueAttempt, queueAudio } from "@/lib/sync";
 import { logger } from "@/lib/logger";
 import { toast } from "react-hot-toast";
@@ -613,7 +614,7 @@ function NoListSelected() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ["word_lists_for_child"],
+    queryKey: ["word_lists_for_child", profile?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("word_lists")
@@ -893,7 +894,6 @@ export function PlaySaySpell() {
   const [starsEarned, setStarsEarned] = useState(0); // Stars earned this session
   const [isFirstAttempt, setIsFirstAttempt] = useState(true); // True until first wrong answer
   const [showConfetti, setShowConfetti] = useState(false); // Confetti animation trigger
-  const [hasUpdatedStreak, setHasUpdatedStreak] = useState(false); // Prevents duplicate streak updates
 
   // Refs for timeout cleanup
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -910,13 +910,16 @@ export function PlaySaySpell() {
   const awardStars = useAwardStars();
   const updateStreak = useUpdateDailyStreak();
 
+  // Get shared session state for streak tracking
+  const { hasUpdatedStreak, setHasUpdatedStreak } = useSessionStore();
+
   // Update streak when component mounts (first practice of session)
   useEffect(() => {
     if (profile?.id && !hasUpdatedStreak) {
       updateStreak.mutate(profile.id);
       setHasUpdatedStreak(true);
     }
-  }, [profile?.id, hasUpdatedStreak, updateStreak]);
+  }, [profile?.id, hasUpdatedStreak, setHasUpdatedStreak, updateStreak]);
 
   const {
     isRecording,
@@ -961,7 +964,17 @@ export function PlaySaySpell() {
     enabled: Boolean(listId),
   });
 
-  // Save attempt mutation
+  /**
+   * Mutation to save spelling attempt with audio recording (online or offline).
+   *
+   * Error Handling Strategy:
+   * - Errors are handled centrally via onError handler
+   * - User-facing toast notification shown on failure
+   * - Game flow continues even if save fails (non-blocking)
+   * - No try/catch needed at call sites
+   *
+   * @see onError handler for error logging and user feedback
+   */
   const saveAttemptMutation = useMutation({
     mutationFn: async ({
       wordId,
@@ -1201,12 +1214,12 @@ export function PlaySaySpell() {
     // Guard clause: only process when we have a recording blob and we're in record step
     if (!recordedBlob || step !== "record") return;
 
-    console.log("[PlaySaySpell] Recording blob received, processing...");
+    logger.debug("[PlaySaySpell] Recording blob received, processing...");
     setAudioBlob(recordedBlob);
 
     // Queue audio offline
     if (!isOnline) {
-      console.log("[PlaySaySpell] Queuing audio offline");
+      logger.debug("[PlaySaySpell] Queuing audio offline");
 
       // Comment 3: Guard against undefined IDs when queueing audio offline
       if (!profile?.id || !listId || !currentWord?.id) {
@@ -1231,10 +1244,10 @@ export function PlaySaySpell() {
       queueAudio(recordedBlob, fileName)
         .then((id) => {
           setAudioBlobId(id);
-          console.log("[PlaySaySpell] Audio queued with ID:", id);
+          logger.debug("[PlaySaySpell] Audio queued with ID:", id);
           setIsProcessingAudio(false);
           // Stay on record step - let user listen to recording before typing
-          console.log("[PlaySaySpell] Audio queued, ready for playback");
+          logger.debug("[PlaySaySpell] Audio queued, ready for playback");
         })
         .catch((error) => {
           logger.error("Failed to queue audio", error);
@@ -1245,7 +1258,7 @@ export function PlaySaySpell() {
             { duration: 5000 }
           );
           // Do NOT transition to type step - user must retry recording
-          console.log(
+          logger.debug(
             "[PlaySaySpell] Staying on record step due to queue error"
           );
         });
@@ -1272,14 +1285,14 @@ export function PlaySaySpell() {
       recordingTimeoutRef.current = null;
     }
 
-    console.log(
+    logger.debug(
       "[PlaySaySpell] Starting recording, will auto-stop in 15 seconds"
     );
     await startRecording();
 
     // Store timeout ID for cleanup
     recordingTimeoutRef.current = setTimeout(() => {
-      console.log("[PlaySaySpell] Auto-stopping recording after 15 seconds");
+      logger.debug("[PlaySaySpell] Auto-stopping recording after 15 seconds");
       stopRecording();
     }, 15000); // Changed from 3000 to 15000 (15 seconds)
   }, [startRecording, stopRecording]);
@@ -1344,20 +1357,20 @@ export function PlaySaySpell() {
 
     // Compute next index
     const nextIndex = currentWordIndex + 1;
-    console.log(
+    logger.debug(
       `[PlaySaySpell] Advancing from word ${currentWordIndex} to ${nextIndex} of ${listData.words.length}`
     );
 
     if (nextIndex >= listData.words.length) {
       // Completed all words - navigate without updating state
-      console.log("[PlaySaySpell] All words complete, navigating to rewards");
+      logger.debug("[PlaySaySpell] All words complete, navigating to rewards");
       navigate("/child/rewards");
       return;
     }
 
     // Always start at record step for new word
     // Move to next word - update index and reset local state
-    console.log("[PlaySaySpell] Clearing recording state for next word");
+    logger.debug("[PlaySaySpell] Clearing recording state for next word");
     setCurrentWordIndex((prev) => prev + 1);
     setStep("record");
     setAnswer("");
@@ -1433,21 +1446,14 @@ export function PlaySaySpell() {
         setStarsEarned((prev) => prev + 1);
       }
 
-      // Online: save directly; Offline: queue for sync
-      // Save attempt with quality
-      // Wrap in try/catch to ensure game continues even if save fails
-      try {
-        await saveAttemptMutation.mutateAsync({
-          wordId: currentWord.id,
-          correct: true,
-          typedAnswer: answer,
-          quality,
-          audioBlobId: audioBlobId || undefined,
-        });
-      } catch (error) {
-        // Error already handled by onError, just log and continue
-        logger.warn("Save attempt failed, continuing game flow", error);
-      }
+      // Save attempt with quality (errors handled by mutation's onError)
+      await saveAttemptMutation.mutateAsync({
+        wordId: currentWord.id,
+        correct: true,
+        typedAnswer: answer,
+        quality,
+        audioBlobId: audioBlobId || undefined,
+      });
 
       // Update spaced repetition algorithm based on performance
       // Update SRS: first-try correct
@@ -1462,7 +1468,7 @@ export function PlaySaySpell() {
       }
 
       // Move to next word after delay
-      console.log("[PlaySaySpell] Answer correct, scheduling nextWord in 2s");
+      logger.debug("[PlaySaySpell] Answer correct, scheduling nextWord in 2s");
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
@@ -1473,20 +1479,14 @@ export function PlaySaySpell() {
       setFeedback("wrong");
       setIsFirstAttempt(false);
 
-      // Save incorrect attempt with quality
-      // Wrap in try/catch to ensure game continues even if save fails
-      try {
-        await saveAttemptMutation.mutateAsync({
-          wordId: currentWord.id,
-          correct: false,
-          typedAnswer: answer,
-          quality,
-          audioBlobId: audioBlobId || undefined,
-        });
-      } catch (error) {
-        // Error already handled by onError, just log and continue
-        logger.warn("Save attempt failed, continuing game flow", error);
-      }
+      // Save incorrect attempt with quality (errors handled by mutation's onError)
+      await saveAttemptMutation.mutateAsync({
+        wordId: currentWord.id,
+        correct: false,
+        typedAnswer: answer,
+        quality,
+        audioBlobId: audioBlobId || undefined,
+      });
 
       // Update SRS: not first-try correct (miss)
       if (isOnline && isFirstAttempt) {
@@ -1527,12 +1527,12 @@ export function PlaySaySpell() {
   }, []);
 
   const handleContinueToType = useCallback(() => {
-    console.log("[PlaySaySpell] User clicked continue to type");
+    logger.debug("[PlaySaySpell] User clicked continue to type");
     setStep("type");
   }, []);
 
   const redoRecording = useCallback(() => {
-    console.log("[PlaySaySpell] User requested re-record");
+    logger.debug("[PlaySaySpell] User requested re-record");
     // Clear any pending recording timeout
     if (recordingTimeoutRef.current) {
       clearTimeout(recordingTimeoutRef.current);

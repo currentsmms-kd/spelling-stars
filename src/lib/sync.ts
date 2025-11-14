@@ -2,6 +2,7 @@ import { db } from "@/data/db";
 import type { QueuedAttempt } from "@/data/db";
 import { supabase } from "@/app/supabase";
 import { logger } from "@/lib/logger";
+import type { Transaction } from "dexie";
 
 /**
  * Maximum number of retry attempts before marking as permanently failed
@@ -96,12 +97,11 @@ async function inferListIdForAttempt(
  * Called during IndexedDB version 5 upgrade
  *
  * @param attempts - Array of queued attempts from IndexedDB
- * @param trans - Dexie transaction for updating records (typed as any to avoid circular dependency)
+ * @param trans - Dexie transaction for updating records
  */
 export async function enrichLegacyAttempts(
   attempts: QueuedAttempt[],
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  trans: any
+  trans: Transaction
 ): Promise<void> {
   logger.log(
     `Enriching ${attempts.length} legacy queued attempts with list_id...`
@@ -123,9 +123,11 @@ export async function enrichLegacyAttempts(
     if (result.success && result.listId) {
       // Successfully inferred - update record
       if (attempt.id !== undefined) {
-        await trans.table("queuedAttempts").update(attempt.id, {
-          list_id: result.listId,
-        });
+        await trans
+          .table<QueuedAttempt, number>("queuedAttempts")
+          .update(attempt.id, {
+            list_id: result.listId,
+          });
         logger.log(
           `Enriched attempt ${attempt.id} with list_id ${result.listId}`
         );
@@ -135,9 +137,11 @@ export async function enrichLegacyAttempts(
       // Network/transient error - update last_error but don't mark as failed
       // This allows retry during sync
       if (attempt.id !== undefined) {
-        await trans.table("queuedAttempts").update(attempt.id, {
-          last_error: result.error,
-        });
+        await trans
+          .table<QueuedAttempt, number>("queuedAttempts")
+          .update(attempt.id, {
+            last_error: result.error,
+          });
         logger.warn(
           `Deferred enrichment for attempt ${attempt.id}: ${result.error}`
         );
@@ -146,10 +150,12 @@ export async function enrichLegacyAttempts(
     } else {
       // Non-retriable data issue - mark as permanently failed
       if (attempt.id !== undefined) {
-        await trans.table("queuedAttempts").update(attempt.id, {
-          failed: true,
-          last_error: result.error,
-        });
+        await trans
+          .table<QueuedAttempt, number>("queuedAttempts")
+          .update(attempt.id, {
+            failed: true,
+            last_error: result.error,
+          });
         logger.error(
           `Permanently failed enrichment for attempt ${attempt.id}: ${result.error}`
         );

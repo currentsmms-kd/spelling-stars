@@ -12,6 +12,7 @@ import { useAuth } from "@/app/hooks/useAuth";
 import { useOnline } from "@/app/hooks/useOnline";
 import { useTtsVoices } from "@/app/hooks/useTtsVoices";
 import { useParentalSettingsStore } from "@/app/store/parentalSettings";
+import { useSessionStore } from "@/app/store/session";
 import { queueAttempt } from "@/lib/sync";
 import { logger } from "@/lib/logger";
 import { toast } from "react-hot-toast";
@@ -113,7 +114,7 @@ function ListSelector() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ["word_lists_for_child"],
+    queryKey: ["word_lists_for_child", profile?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("word_lists")
@@ -604,7 +605,6 @@ export function PlayListenType() {
   const [starsEarned, setStarsEarned] = useState(0); // Stars earned this session (max 5 per session)
   const [isFirstAttempt, setIsFirstAttempt] = useState(true); // True until first wrong answer
   const [showConfetti, setShowConfetti] = useState(false); // Confetti animation trigger
-  const [hasUpdatedStreak, setHasUpdatedStreak] = useState(false); // Prevents duplicate streak updates
 
   // Refs for timeout cleanup
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -615,11 +615,15 @@ export function PlayListenType() {
   // Refs for audio cleanup - prevents multiple simultaneous audio playback
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastPlayedWordIdRef = useRef<string | null>(null);
+  const isMountedRef = useRef<boolean>(true);
 
   // Hooks for D3/D4 features
   const updateSrs = useUpdateSrs();
   const awardStars = useAwardStars();
   const updateStreak = useUpdateDailyStreak();
+
+  // Get shared session state for streak tracking
+  const { hasUpdatedStreak, setHasUpdatedStreak } = useSessionStore();
 
   // Update streak when component mounts (first practice of session)
   useEffect(() => {
@@ -627,7 +631,7 @@ export function PlayListenType() {
       updateStreak.mutate(profile.id);
       setHasUpdatedStreak(true);
     }
-  }, [profile?.id, hasUpdatedStreak, updateStreak]);
+  }, [profile?.id, hasUpdatedStreak, setHasUpdatedStreak, updateStreak]);
 
   // Fetch the selected list or show list selector
   const { data: listData, isLoading } = useQuery<ListWithWords>({
@@ -661,7 +665,17 @@ export function PlayListenType() {
     enabled: Boolean(listId),
   });
 
-  // Save attempt mutation
+  /**
+   * Mutation to save spelling attempt (online or offline).
+   *
+   * Error Handling Strategy:
+   * - Errors are handled centrally via onError handler
+   * - User-facing toast notification shown on failure
+   * - Game flow continues even if save fails (non-blocking)
+   * - No try/catch needed at call sites
+   *
+   * @see onError handler for error logging and user feedback
+   */
   const saveAttemptMutation = useMutation({
     mutationFn: async ({
       wordId,
@@ -845,6 +859,16 @@ export function PlayListenType() {
           );
           // Proceed with default speechSynthesis without explicit voice
           const utterance = new SpeechSynthesisUtterance(currentWord.text);
+
+          // Add error handler for TTS failures
+          utterance.onerror = (event) => {
+            logger.warn("TTS error on default voice fallback", event);
+            toast("👆 Tap the Play button to hear the word", {
+              duration: 3000,
+              icon: "🔊",
+            });
+          };
+
           speechSynthesis.speak(utterance);
           // Reset retry counter for next word
           ttsRetryCountRef.current = 0;
@@ -855,6 +879,12 @@ export function PlayListenType() {
           `TTS voices still loading, retry ${ttsRetryCountRef.current + 1}/50`
         );
         ttsRetryCountRef.current += 1;
+
+        // Check if component is still mounted before scheduling retry
+        if (!isMountedRef.current) {
+          logger.debug("TTS retry cancelled: component unmounted");
+          return;
+        }
 
         // Track timeout for cleanup
         if (ttsRetryTimeoutRef.current) {
@@ -877,6 +907,15 @@ export function PlayListenType() {
       }
       // If voice is null, browser will use default voice
 
+      // Add error handler for TTS failures
+      utterance.onerror = (event) => {
+        logger.warn("TTS error on selected voice", event);
+        toast("👆 Tap the Play button to hear the word", {
+          duration: 3000,
+          icon: "🔊",
+        });
+      };
+
       speechSynthesis.speak(utterance);
     }
   }, [currentWord, getVoiceWithFallback, voicesLoading]);
@@ -893,18 +932,21 @@ export function PlayListenType() {
 
   // Cleanup timeouts and audio on unmount
   useEffect(() => {
-    const timeout = timeoutRef.current;
-    const confettiTimeout = confettiTimeoutRef.current;
-    const ttsRetryTimeout = ttsRetryTimeoutRef.current;
     return () => {
-      if (timeout) {
-        clearTimeout(timeout);
+      // Mark component as unmounted to prevent state updates
+      isMountedRef.current = false;
+
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
-      if (confettiTimeout) {
-        clearTimeout(confettiTimeout);
+      if (confettiTimeoutRef.current) {
+        clearTimeout(confettiTimeoutRef.current);
+        confettiTimeoutRef.current = null;
       }
-      if (ttsRetryTimeout) {
-        clearTimeout(ttsRetryTimeout);
+      if (ttsRetryTimeoutRef.current) {
+        clearTimeout(ttsRetryTimeoutRef.current);
+        ttsRetryTimeoutRef.current = null;
       }
       // Stop any playing audio
       if (audioRef.current) {
@@ -980,14 +1022,16 @@ export function PlayListenType() {
     // Use functional state update to avoid stale closure issues
     // Compute next index
     const nextIndex = currentWordIndex + 1;
-    console.log(
+    logger.debug(
       `[PlayListenType] Advancing from word ${currentWordIndex} to ${nextIndex} of ${listData.words.length}`
     );
 
     // Check completion before updating state to avoid unnecessary renders
     if (nextIndex >= listData.words.length) {
       // Completed all words - navigate without updating state
-      console.log("[PlayListenType] All words complete, navigating to rewards");
+      logger.debug(
+        "[PlayListenType] All words complete, navigating to rewards"
+      );
       navigate("/child/rewards");
       return;
     }
@@ -1066,19 +1110,13 @@ export function PlayListenType() {
         setStarsEarned((prev) => prev + 1);
       }
 
-      // Save attempt with quality (async, don't block UI)
-      // Wrap in try/catch to ensure game continues even if save fails
-      try {
-        await saveAttemptMutation.mutateAsync({
-          wordId: currentWord.id,
-          correct: true,
-          typedAnswer: answer,
-          quality,
-        });
-      } catch (error) {
-        // Error already handled by onError, just log and continue
-        logger.warn("Save attempt failed, continuing game flow", error);
-      }
+      // Save attempt with quality (errors handled by mutation's onError)
+      await saveAttemptMutation.mutateAsync({
+        wordId: currentWord.id,
+        correct: true,
+        typedAnswer: answer,
+        quality,
+      });
 
       // Update SRS algorithm: correct first-try improves retention, retries don't
       // Update SRS: first-try correct (async, don't block UI)
@@ -1095,7 +1133,7 @@ export function PlayListenType() {
       // Auto-advance after 5 seconds, but user can click "Next Word" to skip wait
       // Move to next word after delay (auto-advance in 5 seconds)
       // User can also click "Next Word" button to proceed immediately
-      console.log(
+      logger.debug(
         "[PlayListenType] Answer correct, scheduling auto-advance in 5s"
       );
       if (timeoutRef.current) {
@@ -1109,19 +1147,13 @@ export function PlayListenType() {
       setFeedback("wrong");
       setIsFirstAttempt(false);
 
-      // Save incorrect attempt with quality (async, don't block UI)
-      // Wrap in try/catch to ensure game continues even if save fails
-      try {
-        await saveAttemptMutation.mutateAsync({
-          wordId: currentWord.id,
-          correct: false,
-          typedAnswer: answer,
-          quality,
-        });
-      } catch (error) {
-        // Error already handled by onError, just log and continue
-        logger.warn("Save attempt failed, continuing game flow", error);
-      }
+      // Save incorrect attempt with quality (errors handled by mutation's onError)
+      await saveAttemptMutation.mutateAsync({
+        wordId: currentWord.id,
+        correct: false,
+        typedAnswer: answer,
+        quality,
+      });
 
       // Only update SRS on first miss to avoid over-penalizing retries
       // Update SRS: not first-try correct (miss) (async, don't block UI)
