@@ -81,7 +81,8 @@ export default defineConfig({
                 url.pathname.includes("/audio-recordings/");
               const hasSignedToken = url.searchParams.has("token");
               // Don't cache if it's audio-recordings bucket OR has a signed URL token
-              return isStorage && (isAudioRecordings || hasSignedToken);
+              const isPrivateAudioUrl = isStorage && (isAudioRecordings || hasSignedToken);
+              return isPrivateAudioUrl;
             },
             handler: "NetworkOnly",
             options: {

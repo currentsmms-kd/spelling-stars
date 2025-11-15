@@ -747,7 +747,8 @@ export async function hasPendingSync(): Promise<boolean> {
     .filter((audio) => audio.synced === false && audio.failed === false)
     .count();
 
-  return pendingAttempts > 0 || pendingAudio > 0;
+  const hasUnsyncedData = pendingAttempts > 0 || pendingAudio > 0;
+  return hasUnsyncedData;
 }
 
 /**
