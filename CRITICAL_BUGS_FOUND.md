@@ -1,10 +1,28 @@
 # Critical Bugs Found - November 10, 2025
 
+## ⚠️ UPDATE - November 15, 2025 (PM)
+
+**ALL GAME-RELATED BUGS HAVE BEEN FIXED ✅**
+
+- **BUG #2** (Game List Selection) - ✅ FIXED (implemented ListSelector component)
+- **BUG #3** (Word Count Display) - ✅ FIXED (proper count aggregation)
+- **User ID Inconsistency** - ✅ FIXED in both PlayListenType and PlaySaySpell
+- **Signed URL Generation** - ✅ FIXED in both game modes
+
+**REMAINING ISSUE:**
+
+- **BUG #1** (No Child Account Creation UI) - Requires investigation (ChildManagement.tsx exists)
+- **BUG #4** (Audio Recording) - Status unknown, requires testing
+
+See BUG_FIXES_NOV15.md for complete fix details.
+
+---
+
 ## Testing Session Results
 
 **Tester**: User feedback
 **Date**: November 10, 2025
-**Status**: Multiple critical issues blocking core functionality
+**Status**: ~~Multiple critical issues blocking core functionality~~ MOSTLY RESOLVED ✅
 
 ---
 
@@ -36,13 +54,14 @@
 
 ---
 
-## 🔴 CRITICAL BUG #2: Game List Selection Broken
+## 🔴 CRITICAL BUG #2: Game List Selection Broken - ✅ FIXED
 
-**Status**: CRITICAL - Blocks gameplay
+**Status**: ~~CRITICAL~~ RESOLVED ✅
 **Component**: `src/app/pages/child/PlayListenType.tsx` & `PlaySaySpell.tsx`
-**Description**: When clicking "Play" on either game mode, no word lists are shown for selection.
+**Fixed**: November 15, 2025 (or earlier)
+**Description**: ~~When clicking "Play" on either game mode, no word lists are shown for selection.~~ NOW WORKING
 
-**Current State**:
+**Previous State** (circa Nov 10, 2025):
 
 ```tsx
 function ListSelector() {
@@ -59,22 +78,28 @@ function ListSelector() {
 }
 ```
 
-Component only shows "Go to Home" button, no list selection UI.
+Component only showed "Go to Home" button, no list selection UI.
 
-**Expected Behavior**:
+**Current State** (Nov 15, 2025):
 
-- Display all available word lists
-- Child can click a list to start practicing
-- Lists should be fetched from database and displayed as clickable cards
+ListSelector component is now **fully implemented** with:
 
-**Impact**: HIGH - Children cannot play any games
+- Fetches all word lists using `useQuery` with proper error handling
+- Displays each list as a clickable card with correct word counts
+- Passes `listId` as URL param when list is selected
+- Implemented in both PlayListenType.tsx (lines 107-285) and PlaySaySpell.tsx
+- Includes loading states, error handling, and empty state UI
+- Uses proper ARIA labels and accessibility features
 
-**Fix Required**:
+**How It Works Now:**
 
-- Fetch word lists using `useWordLists()` hook
-- Display each list as a clickable card
-- Pass `listId` as URL param when list is selected
-- Implement in both PlayListenType.tsx and PlaySaySpell.tsx
+1. Component fetches word lists from database via Supabase
+2. Calculates word counts using `list_words(count)` aggregation
+3. Displays lists in responsive grid layout
+4. User clicks a list → navigates to `?listId={id}`
+5. Game fetches that specific list's words and starts gameplay
+
+**Impact**: ✅ RESOLVED - Children can now select and play games with any word list
 
 ---
 

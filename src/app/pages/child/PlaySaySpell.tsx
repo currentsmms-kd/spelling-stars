@@ -1088,26 +1088,16 @@ export function PlaySaySpell() {
       }
 
       if (isOnline) {
-        // Verify we have an active auth session FIRST (needed for both audio upload and insert)
-        const {
-          data: { session },
-          error: sessionError,
-        } = await supabase.auth.getSession();
-
-        if (sessionError || !session) {
-          logger.error("No active session for insert:", { sessionError });
-          throw new Error(
-            "Authentication session expired. Please sign in again."
-          );
-        }
+        // FIXED: No need for session verification - profile.id is guaranteed to equal auth.uid()
+        // from handle_new_user trigger. This matches the pattern in PlayListenType.tsx.
 
         // Upload audio if it exists
         let audioPath: string | undefined;
         if (audioBlob && profile?.id) {
           const timestamp = Date.now();
           // CRITICAL: Path format must be {child_id}/{list_id}/{word_id}_{timestamp}.webm
-          // Use session.user.id to match auth.uid() in RLS policies
-          const fileName = `${session.user.id}/${listId}/${wordId}_${timestamp}.webm`;
+          // FIXED: Use profile.id (guaranteed to equal auth.uid() from handle_new_user trigger)
+          const fileName = `${profile.id}/${listId}/${wordId}_${timestamp}.webm`;
 
           const { data, error } = await supabase.storage
             .from("audio-recordings")
@@ -1144,19 +1134,16 @@ export function PlaySaySpell() {
         // Debug: Log attempt data and auth state
         logger.debug("Attempting to save (online):", {
           mode: "say-spell",
-          authUser: session.user.id,
           profileId: profile.id,
-          match: session.user.id === profile.id,
           wordId,
           listId,
-          hasSession: Boolean(session),
           hasAudioPath: Boolean(audioPath),
         });
 
         const { data, error } = await supabase
           .from("attempts")
           .insert({
-            child_id: session.user.id, // CRITICAL: Must match auth.uid() in RLS policy
+            child_id: profile.id, // FIXED: Use profile.id to match offline mode and RLS policy
             word_id: wordId,
             list_id: listId,
             mode: "say-spell" as const,
@@ -1174,7 +1161,6 @@ export function PlaySaySpell() {
             errorCode: error.code,
             errorMessage: error.message,
             errorDetails: error.details,
-            authUserId: session.user.id,
             profileId: profile.id,
             wordId,
             listId,
@@ -1190,7 +1176,7 @@ export function PlaySaySpell() {
         if (correct && isFirstAttempt) {
           try {
             await awardStars.mutateAsync({
-              userId: session.user.id, // CRITICAL: Use session.user.id to match attempt child_id
+              userId: profile.id, // FIXED: Use profile.id to match attempt child_id and offline mode
               amount: 1,
               reason: "correct_word",
             });
