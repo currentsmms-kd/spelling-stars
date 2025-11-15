@@ -197,7 +197,7 @@ function SignupForm() {
               role: data.role,
             },
           },
-        }
+        },
       );
 
       if (signUpError) throw signUpError;

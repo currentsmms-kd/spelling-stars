@@ -181,7 +181,7 @@ function ListSelector() {
     (listId: string) => {
       navigate(`?listId=${listId}`);
     },
-    [navigate]
+    [navigate],
   );
 
   if (error) {
@@ -362,7 +362,7 @@ function AnswerSection({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       onAnswerChange(e.target.value);
     },
-    [onAnswerChange]
+    [onAnswerChange],
   );
 
   const handleKeyDown = useCallback(
@@ -376,7 +376,7 @@ function AnswerSection({
         onCheckAnswer();
       }
     },
-    [answer, feedback, onCheckAnswer, isSaving]
+    [answer, feedback, onCheckAnswer, isSaving],
   );
 
   // Auto-focus input on mount and when feedback resets
@@ -708,7 +708,7 @@ export function PlayListenType() {
       // CRITICAL FIX: Generate signed URLs for prompt audio (private bucket)
       const pathsToSign = words
         .filter((w): w is typeof w & { prompt_audio_path: string } =>
-          Boolean(w.prompt_audio_path)
+          Boolean(w.prompt_audio_path),
         )
         .map((w) => w.prompt_audio_path);
 
@@ -811,7 +811,7 @@ export function PlayListenType() {
         if (sessionError || !session) {
           logger.error("No active session for insert:", { sessionError });
           throw new Error(
-            "Authentication session expired. Please sign in again."
+            "Authentication session expired. Please sign in again.",
           );
         }
 
@@ -883,7 +883,7 @@ export function PlayListenType() {
           listId,
           "listen_type", // FIXED: Use underscore to match CHECK constraint
           correct,
-          typedAnswer
+          typedAnswer,
         );
 
         // Queue star transaction with same ID
@@ -911,7 +911,7 @@ export function PlayListenType() {
         "Failed to save your answer. Don't worry, you can continue playing!",
         {
           duration: 6000,
-        }
+        },
       );
     },
     onSettled: () => {
@@ -971,7 +971,7 @@ export function PlayListenType() {
             // Fall back to TTS
             const utterance = new SpeechSynthesisUtterance(currentWord.text);
             const voice = getVoiceWithFallback(
-              currentWord.tts_voice || undefined
+              currentWord.tts_voice || undefined,
             );
             if (voice) {
               utterance.voice = voice;
@@ -1000,7 +1000,7 @@ export function PlayListenType() {
         // Cap retries at TTS_CONSTANTS.MAX_RETRY_COUNT attempts
         if (ttsRetryCountRef.current >= TTS_CONSTANTS.MAX_RETRY_COUNT) {
           logger.warn(
-            "TTS voices failed to load after 50 retries, proceeding with default voice"
+            "TTS voices failed to load after 50 retries, proceeding with default voice",
           );
           // Proceed with default speechSynthesis without explicit voice
           const utterance = new SpeechSynthesisUtterance(currentWord.text);
@@ -1021,7 +1021,7 @@ export function PlayListenType() {
         }
 
         logger.warn(
-          `TTS voices still loading, retry ${ttsRetryCountRef.current + 1}/${TTS_CONSTANTS.MAX_RETRY_COUNT}`
+          `TTS voices still loading, retry ${ttsRetryCountRef.current + 1}/${TTS_CONSTANTS.MAX_RETRY_COUNT}`,
         );
         ttsRetryCountRef.current += 1;
 
@@ -1037,7 +1037,7 @@ export function PlayListenType() {
         }
         ttsRetryTimeoutRef.current = setTimeout(
           () => playAudio(),
-          TTS_CONSTANTS.RETRY_INTERVAL_MS
+          TTS_CONSTANTS.RETRY_INTERVAL_MS,
         );
         return;
       }
@@ -1123,7 +1123,7 @@ export function PlayListenType() {
         ignorePunctuation,
       });
     },
-    [enforceCaseSensitivity, ignorePunctuation]
+    [enforceCaseSensitivity, ignorePunctuation],
   );
 
   /**
@@ -1174,14 +1174,14 @@ export function PlayListenType() {
     // Compute next index
     const nextIndex = currentWordIndex + 1;
     logger.debug(
-      `[PlayListenType] Advancing from word ${currentWordIndex} to ${nextIndex} of ${listData.words.length}`
+      `[PlayListenType] Advancing from word ${currentWordIndex} to ${nextIndex} of ${listData.words.length}`,
     );
 
     // Check completion before updating state to avoid unnecessary renders
     if (nextIndex >= listData.words.length) {
       // Completed all words - navigate without updating state
       logger.debug(
-        "[PlayListenType] All words complete, navigating to rewards"
+        "[PlayListenType] All words complete, navigating to rewards",
       );
       navigate("/child/rewards");
       return;
@@ -1254,7 +1254,7 @@ export function PlayListenType() {
       }
       confettiTimeoutRef.current = setTimeout(
         () => setShowConfetti(false),
-        UI_CONSTANTS.CONFETTI_DURATION_MS
+        UI_CONSTANTS.CONFETTI_DURATION_MS,
       );
 
       if (isFirstAttempt) {
@@ -1285,7 +1285,7 @@ export function PlayListenType() {
       // Auto-advance after configured delay (default 3 seconds, configurable in parental settings)
       // User can also click "Next Word" button to proceed immediately
       logger.debug(
-        `[PlayListenType] Answer correct, scheduling auto-advance in ${autoAdvanceDelaySeconds}s`
+        `[PlayListenType] Answer correct, scheduling auto-advance in ${autoAdvanceDelaySeconds}s`,
       );
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
