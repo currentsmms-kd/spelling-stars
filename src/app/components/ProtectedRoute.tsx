@@ -33,7 +33,7 @@ export function ProtectedRoute({
       profile?.role === "parent" &&
       requiredRole === "child"
     ) {
-      return <>{children}</>;
+      return children;
     }
 
     // Redirect to appropriate area based on role
@@ -44,5 +44,5 @@ export function ProtectedRoute({
     }
   }
 
-  return <>{children}</>;
+  return children;
 }
