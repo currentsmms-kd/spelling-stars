@@ -65,7 +65,7 @@ interface WordRowProps {
   onUpdateWord: (
     wordId: string,
     field: "text" | "phonetic" | "tts_voice",
-    value: string,
+    value: string
   ) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onPlayAudio: (url: string) => void;
@@ -467,7 +467,7 @@ function WordsListSection({
   handleUpdateWord: (
     wordId: string,
     field: "text" | "phonetic" | "tts_voice",
-    value: string,
+    value: string
   ) => void;
   handleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   handlePlayAudio: (url: string) => void;
@@ -733,6 +733,10 @@ export function ListEditor() {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
 
+  // Audio preview state
+  const [playingAudioUrl, setPlayingAudioUrl] = useState<string | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement>(null);
+
   // Refs for word inputs and rows (for auto-focus and scroll)
   const wordInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
   const wordRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -939,11 +943,11 @@ export function ListEditor() {
   const handleUpdateWord = (
     wordId: string,
     field: "text" | "phonetic" | "tts_voice",
-    value: string,
+    value: string
   ) => {
     // Optimistically update local state
     setWords((prev) =>
-      prev.map((w) => (w.id === wordId ? { ...w, [field]: value } : w)),
+      prev.map((w) => (w.id === wordId ? { ...w, [field]: value } : w))
     );
 
     // Add to pending changes for auto-save
@@ -974,7 +978,7 @@ export function ListEditor() {
               id: wordId,
               updates: changes,
             });
-          },
+          }
         );
 
         await Promise.all(promises);
@@ -984,7 +988,7 @@ export function ListEditor() {
         // Only clear the keys that were successfully saved
         setPendingChanges((prev) => {
           const filtered = new Map(
-            [...prev].filter(([id]) => !savedIds.has(id)),
+            [...prev].filter(([id]) => !savedIds.has(id))
           );
           return filtered;
         });
@@ -1010,7 +1014,7 @@ export function ListEditor() {
             id: wordId,
             updates: changes,
           });
-        },
+        }
       );
 
       await Promise.all(promises);
@@ -1028,7 +1032,7 @@ export function ListEditor() {
     if (!id || bulkSelection.selectedCount === 0) return;
 
     const confirmDelete = confirm(
-      `Delete ${bulkSelection.selectedCount} word${bulkSelection.selectedCount !== 1 ? "s" : ""}?`,
+      `Delete ${bulkSelection.selectedCount} word${bulkSelection.selectedCount !== 1 ? "s" : ""}?`
     );
     if (!confirmDelete) return;
 
@@ -1082,11 +1086,11 @@ export function ListEditor() {
 
       // Additional deduplication against existing words
       const existingTexts = new Set(
-        words.map((w) => normalizeForDedupe(w.text)),
+        words.map((w) => normalizeForDedupe(w.text))
       );
 
       const uniqueWords = parsed.filter(
-        (word) => !existingTexts.has(normalizeForDedupe(word.text)),
+        (word) => !existingTexts.has(normalizeForDedupe(word.text))
       );
 
       setCsvData(uniqueWords);
@@ -1103,7 +1107,7 @@ export function ListEditor() {
       // Deduplicate against existing words
       const existingTexts = new Set(words.map((w) => w.text.toLowerCase()));
       const uniqueWords = csvData.filter(
-        (word) => !existingTexts.has(word.text.toLowerCase()),
+        (word) => !existingTexts.has(word.text.toLowerCase())
       );
 
       if (uniqueWords.length === 0) {
@@ -1146,7 +1150,7 @@ export function ListEditor() {
 
       // Reset file input
       const fileInput = document.getElementById(
-        "csv-file-input",
+        "csv-file-input"
       ) as HTMLInputElement;
       if (fileInput) fileInput.value = "";
     } catch (error) {
@@ -1286,7 +1290,7 @@ export function ListEditor() {
     // Deduplicate
     const existingWords = new Set(words.map((w) => w.text.toLowerCase()));
     const newWords = lines.filter(
-      (line) => !existingWords.has(line.toLowerCase()),
+      (line) => !existingWords.has(line.toLowerCase())
     );
 
     if (newWords.length === 0) {
@@ -1358,17 +1362,21 @@ export function ListEditor() {
   };
 
   const handlePlayAudio = (url: string) => {
-    const audio = new Audio(url);
-    audio.play().catch((error) => {
-      logger.error("Error playing audio:", error);
-      toast.custom((t) => (
-        <Toast
-          type="error"
-          message="Failed to play audio"
-          onClose={() => toast.dismiss(t.id)}
-        />
-      ));
-    });
+    setPlayingAudioUrl(url);
+
+    // Wait for audio element to update, then play
+    setTimeout(() => {
+      previewAudioRef.current?.play().catch((error: Error) => {
+        logger.error("Error playing audio:", error);
+        toast.custom((t) => (
+          <Toast
+            type="error"
+            message="Failed to play audio"
+            onClose={() => toast.dismiss(t.id)}
+          />
+        ));
+      });
+    }, 100);
   };
 
   if (isLoading) {
@@ -1386,6 +1394,17 @@ export function ListEditor() {
       title={isNewList ? "New List" : list?.title || "Edit List"}
       variant="parent"
     >
+      {/* Hidden audio element with track for accessibility (JS-0754) */}
+      <audio
+        ref={previewAudioRef}
+        src={playingAudioUrl || ""}
+        onEnded={() => setPlayingAudioUrl(null)}
+        aria-label="Audio preview"
+        style={{ display: "none" }}
+      >
+        <track kind="captions" srcLang="en" label="English captions" />
+      </audio>
+
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Auto-save Indicator */}
         {!isNewList && (
