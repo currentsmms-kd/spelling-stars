@@ -695,9 +695,35 @@ export function PlayListenType() {
 
       const words = listWords?.map((lw) => lw.words as Word) || [];
 
+      // CRITICAL FIX: Generate signed URLs for prompt audio (private bucket)
+      // Import getSignedPromptAudioUrls from supa.ts for batch signed URL generation
+      const { getSignedPromptAudioUrls } = await import("@/app/api/supa");
+
+      const pathsToSign = words
+        .filter((w): w is typeof w & { prompt_audio_path: string } =>
+          Boolean(w.prompt_audio_path)
+        )
+        .map((w) => w.prompt_audio_path);
+
+      const signedUrlMap =
+        pathsToSign.length > 0
+          ? await getSignedPromptAudioUrls(pathsToSign)
+          : {};
+
+      // Add signed URLs to words
+      const wordsWithSignedUrls = words.map((word) => {
+        if (word.prompt_audio_path && signedUrlMap[word.prompt_audio_path]) {
+          return {
+            ...word,
+            prompt_audio_url: signedUrlMap[word.prompt_audio_path],
+          };
+        }
+        return word;
+      });
+
       return {
         ...list,
-        words,
+        words: wordsWithSignedUrls,
       };
     },
     enabled: Boolean(listId),
@@ -825,14 +851,14 @@ export function PlayListenType() {
         // Offline: queue in IndexedDB for background sync when connection restored
         logger.debug("Queueing attempt offline:", { wordId, listId });
 
-        // Get session for consistent user ID
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        const userId = session?.user?.id || profile.id;
+        // CRITICAL FIX: Always use profile.id for consistency
+        // During offline mode, we must use the profile ID that was loaded during authentication
+        // This ensures the queued attempt uses the same ID that will match auth.uid() when synced
+        // The profile.id is set from auth.uid() during initial authentication (see useAuth.ts)
+        const userId = profile.id;
 
         await queueAttempt(
-          userId, // Use auth user ID to match RLS policy
+          userId, // Use profile.id which matches auth.uid() from initial auth
           wordId,
           listId,
           "listen-type",

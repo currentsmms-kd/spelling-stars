@@ -1183,14 +1183,14 @@ export function PlaySaySpell() {
           audioBlobId,
         });
 
-        // Get session for consistent user ID (fallback to profile.id if session unavailable)
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        const userId = session?.user?.id || profile.id;
+        // CRITICAL FIX: Always use profile.id for consistency
+        // During offline mode, we must use the profile ID that was loaded during authentication
+        // This ensures the queued attempt uses the same ID that will match auth.uid() when synced
+        // The profile.id is set from auth.uid() during initial authentication (see useAuth.ts)
+        const userId = profile.id;
 
         await queueAttempt(
-          userId, // Use auth user ID to match RLS policy
+          userId, // Use profile.id which matches auth.uid() from initial auth
           wordId,
           listId,
           "say-spell",
