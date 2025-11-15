@@ -201,7 +201,7 @@ export function ChildManagement() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [createdLoginEmail, setCreatedLoginEmail] = useState<string | null>(
-    null
+    null,
   );
   const [editingChild, setEditingChild] = useState<ChildProfile | null>(null);
 
@@ -217,7 +217,7 @@ export function ChildManagement() {
 
   // Handler wrapper for child name input onChange
   const handleChildNameInputChange = (
-    e: React.ChangeEvent<HTMLInputElement>
+    e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     handleChildNameChange(e.target.value);
   };
@@ -229,7 +229,7 @@ export function ChildManagement() {
 
   // Handler wrapper for child password input onChange
   const handleChildPasswordInputChange = (
-    e: React.ChangeEvent<HTMLInputElement>
+    e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     handleChildPasswordChange(e.target.value);
   };
@@ -245,7 +245,7 @@ export function ChildManagement() {
 
   // Handler wrapper for username input onChange
   const handleUsernameInputChange = (
-    e: React.ChangeEvent<HTMLInputElement>
+    e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     handleUsernameChange(e.target.value);
   };
@@ -382,7 +382,7 @@ export function ChildManagement() {
       if (profileError) {
         logger.warn(
           "Profile update after creation failed (might be okay):",
-          profileError
+          profileError,
         );
         // Don't throw - the trigger should have created the profile
       }
