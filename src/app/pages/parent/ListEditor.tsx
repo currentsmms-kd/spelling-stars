@@ -65,7 +65,7 @@ interface WordRowProps {
   onUpdateWord: (
     wordId: string,
     field: "text" | "phonetic" | "tts_voice",
-    value: string
+    value: string,
   ) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onPlayAudio: (url: string) => void;
@@ -470,7 +470,7 @@ function WordsListSection({
   handleUpdateWord: (
     wordId: string,
     field: "text" | "phonetic" | "tts_voice",
-    value: string
+    value: string,
   ) => void;
   handleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   handlePlayAudio: (url: string) => void;
@@ -995,11 +995,11 @@ export function ListEditor() {
   const handleUpdateWord = (
     wordId: string,
     field: "text" | "phonetic" | "tts_voice",
-    value: string
+    value: string,
   ) => {
     // Optimistically update local state
     setWords((prev) =>
-      prev.map((w) => (w.id === wordId ? { ...w, [field]: value } : w))
+      prev.map((w) => (w.id === wordId ? { ...w, [field]: value } : w)),
     );
 
     // Add to pending changes for auto-save
@@ -1030,7 +1030,7 @@ export function ListEditor() {
               id: wordId,
               updates: changes,
             });
-          }
+          },
         );
 
         await Promise.all(promises);
@@ -1040,7 +1040,7 @@ export function ListEditor() {
         // Only clear the keys that were successfully saved
         setPendingChanges((prev) => {
           const filtered = new Map(
-            [...prev].filter(([id]) => !savedIds.has(id))
+            [...prev].filter(([id]) => !savedIds.has(id)),
           );
           return filtered;
         });
@@ -1066,7 +1066,7 @@ export function ListEditor() {
             id: wordId,
             updates: changes,
           });
-        }
+        },
       );
 
       await Promise.all(promises);
@@ -1146,11 +1146,11 @@ export function ListEditor() {
 
       // Additional deduplication against existing words
       const existingTexts = new Set(
-        words.map((w) => normalizeForDedupe(w.text))
+        words.map((w) => normalizeForDedupe(w.text)),
       );
 
       const uniqueWords = parsed.filter(
-        (word) => !existingTexts.has(normalizeForDedupe(word.text))
+        (word) => !existingTexts.has(normalizeForDedupe(word.text)),
       );
 
       setCsvData(uniqueWords);
@@ -1167,7 +1167,7 @@ export function ListEditor() {
       // Deduplicate against existing words
       const existingTexts = new Set(words.map((w) => w.text.toLowerCase()));
       const uniqueWords = csvData.filter(
-        (word) => !existingTexts.has(word.text.toLowerCase())
+        (word) => !existingTexts.has(word.text.toLowerCase()),
       );
 
       if (uniqueWords.length === 0) {
@@ -1210,7 +1210,7 @@ export function ListEditor() {
 
       // Reset file input
       const fileInput = document.getElementById(
-        "csv-file-input"
+        "csv-file-input",
       ) as HTMLInputElement;
       if (fileInput) fileInput.value = "";
     } catch (error) {
@@ -1350,7 +1350,7 @@ export function ListEditor() {
     // Deduplicate
     const existingWords = new Set(words.map((w) => w.text.toLowerCase()));
     const newWords = lines.filter(
-      (line) => !existingWords.has(line.toLowerCase())
+      (line) => !existingWords.has(line.toLowerCase()),
     );
 
     if (newWords.length === 0) {
