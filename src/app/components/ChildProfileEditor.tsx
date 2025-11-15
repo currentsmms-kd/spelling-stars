@@ -142,7 +142,7 @@ export function ChildProfileEditor({
           <div className="space-y-3 mb-6">
             <div className="flex items-center gap-2">
               <Calendar className="text-primary" size={20} />
-              <h3 className="text-lg font-semibold">When's Your Birthday?</h3>
+              <h3 className="text-lg font-semibold">When&apos;s Your Birthday?</h3>
             </div>
             <input
               type="date"

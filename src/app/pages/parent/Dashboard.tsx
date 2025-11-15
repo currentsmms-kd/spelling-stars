@@ -230,7 +230,7 @@ function QuickActionsGrid({
           icon={<Users className="text-secondary" size={20} />}
           iconBgClass="bg-secondary/20"
           title="Child Accounts"
-          description="Manage your children's accounts"
+          description="Manage your children&apos;s accounts"
           buttonLabel="Manage Children"
           linkTo="/parent/children"
         />

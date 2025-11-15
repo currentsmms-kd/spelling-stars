@@ -682,7 +682,7 @@ export function ChildManagement() {
                 <ul className="list-disc list-inside space-y-1 text-xs">
                   <li>All emails for child accounts go to YOUR email inbox</li>
                   <li>Your child uses this full email to log in</li>
-                  <li>The "+username" part makes each child's login unique</li>
+                  <li>The &quot;+username&quot; part makes each child&apos;s login unique</li>
                   <li>You control everything through your parent account</li>
                 </ul>
               </div>
@@ -710,7 +710,7 @@ export function ChildManagement() {
                   type="text"
                   value={childName}
                   onChange={handleChildNameInputChange}
-                  placeholder="Enter child's name"
+                  placeholder="Enter child&apos;s name"
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-input"
                   required
                 />

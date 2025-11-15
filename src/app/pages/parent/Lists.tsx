@@ -325,7 +325,7 @@ function ListsContent({
                   Get Started with Spelling Lists
                 </h3>
                 <p className="text-muted-foreground max-w-md mx-auto">
-                  Create your first spelling list to start tracking your child's
+                  Create your first spelling list to start tracking your child&apos;s
                   progress. You can add words manually or record audio
                   pronunciations.
                 </p>

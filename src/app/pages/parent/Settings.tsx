@@ -233,7 +233,7 @@ function GameSettings({
         <CheckboxSetting
           id="ignore-punctuation"
           label="Ignore all punctuation in spelling checks"
-          description="Remove hyphens, apostrophes, and all punctuation when comparing answers (e.g., 'dont' matches 'don't', 'ice cream' matches 'ice-cream'). Best for younger learners focusing on letter sequences."
+          description="Remove hyphens, apostrophes, and all punctuation when comparing answers (e.g., &apos;dont&apos; matches &apos;don&apos;t&apos;, &apos;ice cream&apos; matches &apos;ice-cream&apos;). Best for younger learners focusing on letter sequences."
           checked={settings.ignorePunctuation}
           onChange={handlePunctuationChange}
         />
@@ -594,7 +594,7 @@ function CacheManagement() {
 
   return (
     <Card>
-      <h2 className="text-xl font-bold mb-4">Cache & Data Management</h2>
+      <h2 className="text-xl font-bold mb-4">Cache &amp; Data Management</h2>
       <p className="text-muted-foreground mb-4">
         Refresh data to get the latest content, or clear caches to free up space
         and fix issues.
