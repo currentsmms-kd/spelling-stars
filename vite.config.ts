@@ -18,7 +18,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "apple-touch-icon.png", "mask-icon.svg"],
+      includeAssets: ["vite.svg"],
       manifest: {
         name: "SpellStars",
         short_name: "SpellStars",
@@ -26,20 +26,9 @@ export default defineConfig({
         theme_color: "#ffffff",
         icons: [
           {
-            src: "pwa-192x192.png",
-            sizes: "192x192",
-            type: "image/png",
-          },
-          {
-            src: "pwa-512x512.png",
-            sizes: "512x512",
-            type: "image/png",
-          },
-          {
-            src: "pwa-512x512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "any maskable",
+            src: "/vite.svg",
+            sizes: "any",
+            type: "image/svg+xml",
           },
         ],
       },
@@ -54,6 +43,20 @@ export default defineConfig({
             handler: "NetworkOnly",
             options: {
               cacheName: `supabase-auth-${CACHE_VERSION}`,
+            },
+          },
+          {
+            // RPC function calls - never cache, always network-only
+            urlPattern: ({ url }: { url: URL }) => {
+              return (
+                url.hostname.includes(".supabase.co") &&
+                url.pathname.includes("/rest/") &&
+                url.pathname.includes("/rpc/")
+              );
+            },
+            handler: "NetworkOnly",
+            options: {
+              cacheName: `supabase-rpc-${CACHE_VERSION}`,
             },
           },
           {
