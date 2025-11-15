@@ -243,7 +243,7 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
       logger.error("PIN is corrupted or invalid format", { pinCode });
       setIsPinCorrupted(true);
       setError(
-        "PIN configuration error detected. Please reset your PIN to continue."
+        "PIN configuration error detected. Please reset your PIN to continue.",
       );
     }
   }, [pinCode, onUnlock]);
@@ -291,7 +291,7 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
         const remaining = getLockoutTimeRemaining();
         setLockoutSecondsRemaining(remaining);
         setError(
-          `Too many failed attempts. Please wait ${remaining} second${remaining !== 1 ? "s" : ""}.`
+          `Too many failed attempts. Please wait ${remaining} second${remaining !== 1 ? "s" : ""}.`,
         );
         setPin("");
         return;
@@ -313,7 +313,7 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
           logger.error("PIN format invalid during verification");
           setIsPinCorrupted(true);
           setError(
-            "PIN configuration error detected. Please reset your PIN to continue."
+            "PIN configuration error detected. Please reset your PIN to continue.",
           );
           setPin("");
           return;
@@ -330,7 +330,7 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
           // Show progressively stronger warnings
           if (attempts >= 6) {
             setError(
-              "Multiple failed attempts detected. You will be locked out for 5 minutes after the next failure."
+              "Multiple failed attempts detected. You will be locked out for 5 minutes after the next failure.",
             );
           } else if (attempts >= 3) {
             const nextLockout =
@@ -340,11 +340,11 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
                   ? "1 minute"
                   : "2 minutes";
             setError(
-              `Incorrect PIN. ${attempts} failed attempts. Next failure will lock you out for ${nextLockout}.`
+              `Incorrect PIN. ${attempts} failed attempts. Next failure will lock you out for ${nextLockout}.`,
             );
           } else {
             setError(
-              `Incorrect PIN. ${attempts} failed attempt${attempts !== 1 ? "s" : ""}.`
+              `Incorrect PIN. ${attempts} failed attempt${attempts !== 1 ? "s" : ""}.`,
             );
           }
           setPin("");
@@ -364,7 +364,7 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
       pinCode,
       onUnlock,
       recordFailedAttempt,
-    ]
+    ],
   );
 
   const handleNumberClick = useCallback(
@@ -382,7 +382,7 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
         }
       }
     },
-    [pin, isVerifying, isLockedOut, validatePin]
+    [pin, isVerifying, isLockedOut, validatePin],
   );
 
   const handleBackspace = useCallback(() => {
