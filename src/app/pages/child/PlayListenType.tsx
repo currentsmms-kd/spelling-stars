@@ -790,9 +790,9 @@ export function PlayListenType() {
           );
         }
 
-        // CRITICAL: Use session.user.id (not profile.id) to match auth.uid() in RLS policy
+        // FIXED: Use profile.id (guaranteed to equal auth.uid() from handle_new_user trigger)
         const attemptData = {
-          child_id: session.user.id, // Must match auth.uid() in RLS policy
+          child_id: profile.id, // Must match auth.uid() in RLS policy
           word_id: wordId,
           list_id: listId,
           mode: "listen-type" as const,
@@ -805,9 +805,7 @@ export function PlayListenType() {
         // Debug: Log attempt data and auth state
         logger.debug("Attempting to save (online):", {
           attemptData,
-          authUser: session.user.id,
           profileId: profile.id,
-          match: session.user.id === profile.id,
           hasSession: Boolean(session),
         });
 
@@ -822,7 +820,6 @@ export function PlayListenType() {
             errorMessage: error.message,
             errorDetails: error.details,
             attemptData,
-            authUserId: session.user.id,
             profileId: profile.id,
           });
           throw error;
@@ -836,7 +833,7 @@ export function PlayListenType() {
         if (correct && isFirstAttempt) {
           try {
             await awardStars.mutateAsync({
-              userId: session.user.id, // CRITICAL: Use session.user.id to match attempt child_id
+              userId: profile.id, // FIXED: Use profile.id to match attempt child_id and offline mode
               amount: 1,
               reason: "correct_word",
             });

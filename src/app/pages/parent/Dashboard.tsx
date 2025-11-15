@@ -52,18 +52,25 @@ function MistakePatternRow({ pattern }: { pattern: NgramErrorPattern }) {
   );
 }
 
-// Component for N-gram Error Patterns Table
-function CommonMistakesTable({ patterns }: { patterns: NgramErrorPattern[] }) {
+// Table header component
+function MistakePatternTableHeader() {
   return (
-    <Card>
-      <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-        <AlertTriangle className="text-destructive" size={20} />
-        <h3 className="text-base sm:text-lg md:text-xl font-bold">
-          Common Spelling Mistakes
-        </h3>
-      </div>
-      <MistakePatternTable patterns={patterns} />
-    </Card>
+    <thead>
+      <tr className="border-b-2 border-border">
+        <th className="text-left py-2 px-2 sm:px-3 text-xs sm:text-sm font-semibold">
+          Pattern
+        </th>
+        <th className="text-left py-2 px-2 sm:px-3 text-xs sm:text-sm font-semibold">
+          Error
+        </th>
+        <th className="text-center py-2 px-2 sm:px-3 text-xs sm:text-sm font-semibold">
+          #
+        </th>
+        <th className="text-left py-2 px-2 sm:px-3 text-xs sm:text-sm font-semibold hidden sm:table-cell">
+          Last Seen
+        </th>
+      </tr>
+    </thead>
   );
 }
 
@@ -86,25 +93,18 @@ function MistakePatternTable({ patterns }: { patterns: NgramErrorPattern[] }) {
   );
 }
 
-// Table header component
-function MistakePatternTableHeader() {
+// Component for N-gram Error Patterns Table
+function CommonMistakesTable({ patterns }: { patterns: NgramErrorPattern[] }) {
   return (
-    <thead>
-      <tr className="border-b-2 border-border">
-        <th className="text-left py-2 px-2 sm:px-3 text-xs sm:text-sm font-semibold">
-          Pattern
-        </th>
-        <th className="text-left py-2 px-2 sm:px-3 text-xs sm:text-sm font-semibold">
-          Error
-        </th>
-        <th className="text-center py-2 px-2 sm:px-3 text-xs sm:text-sm font-semibold">
-          #
-        </th>
-        <th className="text-left py-2 px-2 sm:px-3 text-xs sm:text-sm font-semibold hidden sm:table-cell">
-          Last Seen
-        </th>
-      </tr>
-    </thead>
+    <Card>
+      <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+        <AlertTriangle className="text-destructive" size={20} />
+        <h3 className="text-base sm:text-lg md:text-xl font-bold">
+          Common Spelling Mistakes
+        </h3>
+      </div>
+      <MistakePatternTable patterns={patterns} />
+    </Card>
   );
 }
 
@@ -254,34 +254,6 @@ function QuickActionsGrid({
   );
 }
 
-// Component for Analytics Filters
-function AnalyticsFilters({
-  timeRange,
-  onTimeRangeChange,
-  selectedChildId,
-  dateFrom,
-  dateTo,
-}: {
-  timeRange: "7d" | "30d" | "90d" | "all";
-  onTimeRangeChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
-  selectedChildId: string;
-  dateFrom: Date;
-  dateTo: Date;
-}) {
-  return (
-    <Card>
-      <h3 className="text-xl font-bold mb-4">Analytics Filters</h3>
-      <FiltersContent
-        timeRange={timeRange}
-        onTimeRangeChange={onTimeRangeChange}
-        selectedChildId={selectedChildId}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-      />
-    </Card>
-  );
-}
-
 // Content for filters
 function FiltersContent({
   timeRange,
@@ -333,6 +305,34 @@ function FiltersContent({
   );
 }
 
+// Component for Analytics Filters
+function AnalyticsFilters({
+  timeRange,
+  onTimeRangeChange,
+  selectedChildId,
+  dateFrom,
+  dateTo,
+}: {
+  timeRange: "7d" | "30d" | "90d" | "all";
+  onTimeRangeChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  selectedChildId: string;
+  dateFrom: Date;
+  dateTo: Date;
+}) {
+  return (
+    <Card>
+      <h3 className="text-xl font-bold mb-4">Analytics Filters</h3>
+      <FiltersContent
+        timeRange={timeRange}
+        onTimeRangeChange={onTimeRangeChange}
+        selectedChildId={selectedChildId}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+      />
+    </Card>
+  );
+}
+
 export function Dashboard() {
   const { profile } = useAuth();
   const navigate = useNavigate();
@@ -340,7 +340,7 @@ export function Dashboard() {
   // State for filters - use parent ID as default (testing without child relationship)
   const [selectedChildId, setSelectedChildId] = useState<string>("");
   const [timeRange, setTimeRange] = useState<"7d" | "30d" | "90d" | "all">(
-    "30d",
+    "30d"
   );
   const [dateFrom, setDateFrom] = useState<Date>(() => {
     const date = new Date();
@@ -359,7 +359,7 @@ export function Dashboard() {
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       setTimeRange(e.target.value as typeof timeRange);
     },
-    [],
+    []
   );
 
   // Auto-select parent ID for testing (in production would use actual child selector)
@@ -401,7 +401,7 @@ export function Dashboard() {
   const { data: overview, isLoading: isLoadingOverview } = useParentOverview(
     profile?.id,
     dateFrom,
-    dateTo,
+    dateTo
   );
 
   // Type assertion for overview (RPC returns Json type)
@@ -434,16 +434,18 @@ export function Dashboard() {
         />
 
         {/* N-gram Error Patterns */}
-        {typedOverview?.common_mistake_patterns?.length > 0 && (
-          <CommonMistakesTable
-            patterns={typedOverview.common_mistake_patterns}
-          />
-        )}
+        {typedOverview?.common_mistake_patterns &&
+          typedOverview.common_mistake_patterns.length > 0 && (
+            <CommonMistakesTable
+              patterns={typedOverview.common_mistake_patterns}
+            />
+          )}
 
         {/* Hardest Words Section */}
-        {typedOverview?.hardest_words?.length > 0 && (
-          <HardestWordsSection hardestWords={typedOverview.hardest_words} />
-        )}
+        {typedOverview?.hardest_words &&
+          typedOverview.hardest_words.length > 0 && (
+            <HardestWordsSection hardestWords={typedOverview.hardest_words} />
+          )}
 
         {/* Analytics Dashboard with Charts */}
         {isLoadingOverview ? (
@@ -455,7 +457,11 @@ export function Dashboard() {
         ) : (
           <AnalyticsDashboard
             childId={selectedChildId}
-            overview={typedOverview}
+            overview={
+              typedOverview as unknown as Parameters<
+                typeof AnalyticsDashboard
+              >[0]["overview"]
+            }
           />
         )}
       </div>
