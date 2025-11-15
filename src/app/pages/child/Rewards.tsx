@@ -129,13 +129,13 @@ function ShopTab({ userId }: { userId: string }) {
   const { profile } = useAuth();
 
   const { data: catalog = [] } = useRewardsCatalog(
-    selectedType === "all" ? undefined : selectedType
+    selectedType === "all" ? undefined : selectedType,
   );
   const { data: userRewards = [] } = useUserRewards(userId);
   const purchaseReward = usePurchaseReward();
 
   const ownedRewardIds = new Set(
-    userRewards.map((r: { reward_id: string }) => r.reward_id)
+    userRewards.map((r: { reward_id: string }) => r.reward_id),
   );
   const userStars = profile?.stars || 0;
 
@@ -217,7 +217,7 @@ function ShopTab({ userId }: { userId: string }) {
               isPurchasing={purchaseReward.isPending}
               isOnline={isOnline}
             />
-          )
+          ),
         )}
       </div>
 
@@ -353,7 +353,7 @@ function MyStuffTab({ userId }: { userId: string }) {
               equipReward={equipReward}
               onEquip={handleEquip}
             />
-          )
+          ),
         )}
       </div>
     </div>
@@ -373,7 +373,7 @@ function StreakMilestoneItem({
     <div
       className={cn(
         "p-6 rounded-xl border-2 flex items-center justify-between",
-        achieved ? "bg-primary/10 border-primary" : "bg-muted/50 border-border"
+        achieved ? "bg-primary/10 border-primary" : "bg-muted/50 border-border",
       )}
     >
       <div className="flex items-center gap-4">

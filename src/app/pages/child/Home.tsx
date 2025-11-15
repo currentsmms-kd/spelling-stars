@@ -72,7 +72,7 @@ function GameCard({
         <div
           className={cn(
             "w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center mx-auto",
-            colorClasses.background
+            colorClasses.background,
           )}
         >
           <Icon className={cn(colorClasses.icon)} size={36} />
@@ -266,7 +266,7 @@ function NextUpCounter({ childId }: { childId: string }) {
       acc[word.batch_type] = (acc[word.batch_type] || 0) + 1;
       return acc;
     },
-    {} as Record<string, number>
+    {} as Record<string, number>,
   );
 
   const totalDue = nextBatch.length;
@@ -405,7 +405,7 @@ export function ChildHome() {
           const correctWords = new Set(
             (attempts || [])
               .filter((a: { correct: boolean }) => a.correct)
-              .map((a: { word_id: string }) => a.word_id)
+              .map((a: { word_id: string }) => a.word_id),
           );
 
           const progress = (correctWords.size / wordCount) * 100;
@@ -422,7 +422,7 @@ export function ChildHome() {
             progress_percentage: Math.round(progress),
             last_mode: lastMode,
           };
-        })
+        }),
       );
 
       return listsWithProgress;
@@ -434,7 +434,7 @@ export function ChildHome() {
     (listId: string, mode: string) => {
       navigate(`/child/play/${mode}?listId=${listId}`);
     },
-    [navigate]
+    [navigate],
   );
 
   const handleBackToParent = useCallback(() => {

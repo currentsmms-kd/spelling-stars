@@ -54,13 +54,13 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
       onClick,
       ...props
     },
-    ref
+    ref,
   ) => {
     // Development warning: if onClick is provided without role/tabIndex, warn developer
     if (process.env.NODE_ENV === "development" && onClick) {
       if (!role || tabIndex === undefined) {
         console.warn(
-          "Card: onClick provided without explicit role/tabIndex; using defaults (role='button', tabIndex=0) for accessibility."
+          "Card: onClick provided without explicit role/tabIndex; using defaults (role='button', tabIndex=0) for accessibility.",
         );
       }
     }
@@ -87,14 +87,14 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
           "bg-card text-card-foreground border border-border",
           variant === "child" ? "child-card" : "parent-card",
           onClick && "cursor-pointer",
-          className
+          className,
         )}
         {...props}
       >
         {children}
       </div>
     );
-  }
+  },
 );
 
 Card.displayName = "Card";
