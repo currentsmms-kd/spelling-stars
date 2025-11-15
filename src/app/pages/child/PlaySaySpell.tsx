@@ -297,7 +297,7 @@ function TypeStep({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setAnswer(e.target.value);
     },
-    [setAnswer]
+    [setAnswer],
   );
 
   const handleKeyDown = useCallback(
@@ -312,7 +312,7 @@ function TypeStep({
         checkAnswer();
       }
     },
-    [answer, feedback, checkAnswer, isSaving, isProcessingAudio]
+    [answer, feedback, checkAnswer, isSaving, isProcessingAudio],
   );
 
   // Auto-focus input when step changes to 'type'
@@ -633,7 +633,7 @@ function NoListSelected() {
     (listId: string) => {
       navigate(`?listId=${listId}`);
     },
-    [navigate]
+    [navigate],
   );
 
   // Fetch all word lists - children have read access via RLS
@@ -1071,7 +1071,7 @@ export function PlaySaySpell() {
         if (sessionError || !session) {
           logger.error("No active session for insert:", { sessionError });
           throw new Error(
-            "Authentication session expired. Please sign in again."
+            "Authentication session expired. Please sign in again.",
           );
         }
 
@@ -1088,7 +1088,7 @@ export function PlaySaySpell() {
             .upload(fileName, audioBlob, {
               contentType: mimeType || "audio/webm", // Use detected MIME type
               cacheControl: String(
-                CACHE_CONSTANTS.SIGNED_URL_CACHE_CONTROL_SECONDS
+                CACHE_CONSTANTS.SIGNED_URL_CACHE_CONTROL_SECONDS,
               ),
             });
 
@@ -1196,7 +1196,7 @@ export function PlaySaySpell() {
           "say-spell",
           correct,
           typedAnswer,
-          audioBlobId
+          audioBlobId,
         );
 
         // Queue star transaction
@@ -1221,10 +1221,10 @@ export function PlaySaySpell() {
 
       // Show user-facing error
       toast.error(
-        `Failed to save your answer. Don't worry, you can continue playing!`,
+        "Failed to save your answer. Don't worry, you can continue playing!",
         {
           duration: 6000,
-        }
+        },
       );
     },
     onSettled: () => {
@@ -1247,7 +1247,7 @@ export function PlaySaySpell() {
       // Cap retries at TTS_CONSTANTS.MAX_RETRY_COUNT attempts
       if (ttsRetryCountRef.current >= TTS_CONSTANTS.MAX_RETRY_COUNT) {
         logger.warn(
-          "TTS voices failed to load after 50 retries, proceeding with default voice"
+          "TTS voices failed to load after 50 retries, proceeding with default voice",
         );
         // Proceed with default speechSynthesis without explicit voice
         const utterance = new SpeechSynthesisUtterance(currentWord.text);
@@ -1258,7 +1258,7 @@ export function PlaySaySpell() {
       }
 
       logger.warn(
-        `TTS voices still loading, retry ${ttsRetryCountRef.current + 1}/${TTS_CONSTANTS.MAX_RETRY_COUNT}`
+        `TTS voices still loading, retry ${ttsRetryCountRef.current + 1}/${TTS_CONSTANTS.MAX_RETRY_COUNT}`,
       );
       ttsRetryCountRef.current += 1;
 
@@ -1268,7 +1268,7 @@ export function PlaySaySpell() {
       }
       ttsRetryTimeoutRef.current = setTimeout(
         () => playWord(),
-        TTS_CONSTANTS.RETRY_INTERVAL_MS
+        TTS_CONSTANTS.RETRY_INTERVAL_MS,
       );
       return;
     }
@@ -1369,11 +1369,11 @@ export function PlaySaySpell() {
           // Show error toast and stay on record step
           toast.error(
             "Failed to save your recording. Please try recording again.",
-            { duration: 5000 }
+            { duration: 5000 },
           );
           // Do NOT transition to type step - user must retry recording
           logger.debug(
-            "[PlaySaySpell] Staying on record step due to queue error"
+            "[PlaySaySpell] Staying on record step due to queue error",
           );
         });
     }
@@ -1400,14 +1400,14 @@ export function PlaySaySpell() {
     }
 
     logger.debug(
-      `[PlaySaySpell] Starting recording, will auto-stop in ${RECORDING_CONSTANTS.AUTO_STOP_DURATION_MS / 1000} seconds`
+      `[PlaySaySpell] Starting recording, will auto-stop in ${RECORDING_CONSTANTS.AUTO_STOP_DURATION_MS / 1000} seconds`,
     );
     await startRecording();
 
     // Store timeout ID for cleanup
     recordingTimeoutRef.current = setTimeout(() => {
       logger.debug(
-        `[PlaySaySpell] Auto-stopping recording after ${RECORDING_CONSTANTS.AUTO_STOP_DURATION_MS / 1000} seconds`
+        `[PlaySaySpell] Auto-stopping recording after ${RECORDING_CONSTANTS.AUTO_STOP_DURATION_MS / 1000} seconds`,
       );
       stopRecording();
     }, RECORDING_CONSTANTS.AUTO_STOP_DURATION_MS);
@@ -1427,7 +1427,7 @@ export function PlaySaySpell() {
         ignorePunctuation,
       });
     },
-    [enforceCaseSensitivity, ignorePunctuation]
+    [enforceCaseSensitivity, ignorePunctuation],
   );
 
   /**
@@ -1474,7 +1474,7 @@ export function PlaySaySpell() {
     // Compute next index
     const nextIndex = currentWordIndex + 1;
     logger.debug(
-      `[PlaySaySpell] Advancing from word ${currentWordIndex} to ${nextIndex} of ${listData.words.length}`
+      `[PlaySaySpell] Advancing from word ${currentWordIndex} to ${nextIndex} of ${listData.words.length}`,
     );
 
     if (nextIndex >= listData.words.length) {
@@ -1555,7 +1555,7 @@ export function PlaySaySpell() {
       }
       confettiTimeoutRef.current = setTimeout(
         () => setShowConfetti(false),
-        UI_CONSTANTS.CONFETTI_DURATION_MS
+        UI_CONSTANTS.CONFETTI_DURATION_MS,
       );
 
       if (isFirstAttempt) {
@@ -1586,7 +1586,7 @@ export function PlaySaySpell() {
 
       // Move to next word after configured delay (default 3 seconds, configurable in parental settings)
       logger.debug(
-        `[PlaySaySpell] Answer correct, scheduling nextWord in ${autoAdvanceDelaySeconds}s`
+        `[PlaySaySpell] Answer correct, scheduling nextWord in ${autoAdvanceDelaySeconds}s`,
       );
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);

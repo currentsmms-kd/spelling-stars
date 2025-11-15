@@ -38,7 +38,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
   logger.error(
     "Missing Supabase environment variables. App will not function without proper configuration.",
-    { missingVars, isDev }
+    { missingVars, isDev },
   );
 
   // In development, throw immediately to catch issues early
@@ -46,11 +46,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
   if (isDev) {
     throw new Error(
       `Missing required Supabase environment variables:\n${missingVars.join("\n")}\n\n` +
-        `Please create a .env file with:\n` +
-        `VITE_SUPABASE_URL=your_supabase_url\n` +
-        `VITE_SUPABASE_ANON_KEY=your_supabase_anon_key\n\n` +
-        `Or use Doppler: doppler run -- pnpm run dev\n` +
-        `See docs/DEPLOYMENT.md for setup instructions.`
+        "Please create a .env file with:\n" +
+        "VITE_SUPABASE_URL=your_supabase_url\n" +
+        "VITE_SUPABASE_ANON_KEY=your_supabase_anon_key\n\n" +
+        "Or use Doppler: doppler run -- pnpm run dev\n" +
+        "See docs/DEPLOYMENT.md for setup instructions.",
     );
   }
 } else {
