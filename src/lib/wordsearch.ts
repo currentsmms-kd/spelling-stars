@@ -33,7 +33,7 @@ export function normalizeWord(word: string): string {
   if (!word) return "";
   return word
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\u0300-\u036f]/gu, "")
     .replace(/[^A-Za-z]/g, "")
     .toUpperCase();
 }
