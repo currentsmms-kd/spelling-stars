@@ -15,17 +15,17 @@ interface PinLockProps {
 function PinDisplay({ pin }: { pin: string }) {
   return (
     <div className="flex justify-center gap-3 mb-8">
-      {[0, 1, 2, 3].map((i) => (
+      {[0, 1, 2, 3].map((digitPosition) => (
         <div
-          key={i}
+          key={digitPosition}
           className={`w-16 h-16 rounded-lg border-2 flex items-center justify-center text-2xl font-bold transition-colors ${
-            pin.length > i
+            pin.length > digitPosition
               ? "bg-primary border-primary text-primary-foreground"
               : "bg-muted border-border"
           }`}
-          aria-label={`PIN digit ${i + 1}${pin.length > i ? " entered" : " empty"}`}
+          aria-label={`PIN digit ${digitPosition + 1}${pin.length > digitPosition ? " entered" : " empty"}`}
         >
-          {pin.length > i ? "●" : ""}
+          {pin.length > digitPosition ? "●" : ""}
         </div>
       ))}
     </div>
