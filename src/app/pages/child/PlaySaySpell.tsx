@@ -1164,7 +1164,7 @@ export function PlaySaySpell() {
         if (correct && isFirstAttempt) {
           try {
             await awardStars.mutateAsync({
-              userId: profile.id,
+              userId: session.user.id, // CRITICAL: Use session.user.id to match attempt child_id
               amount: 1,
               reason: "correct_word",
             });
@@ -1183,14 +1183,16 @@ export function PlaySaySpell() {
           audioBlobId,
         });
 
-        // CRITICAL FIX: Always use profile.id for consistency
-        // During offline mode, we must use the profile ID that was loaded during authentication
-        // This ensures the queued attempt uses the same ID that will match auth.uid() when synced
-        // The profile.id is set from auth.uid() during initial authentication (see useAuth.ts)
-        const userId = profile.id;
+        // CRITICAL FIX: Get session to use session.user.id for consistency
+        // When synced, auth.uid() will be session.user.id, not profile.id
+        // This ensures queued attempts will pass RLS policies that check auth.uid()
+        const {
+          data: { session: offlineSession },
+        } = await supabase.auth.getSession();
+        const userId = offlineSession?.user?.id || profile.id; // Fallback to profile.id if session unavailable
 
         await queueAttempt(
-          userId, // Use profile.id which matches auth.uid() from initial auth
+          userId, // Use session.user.id which will match auth.uid() during sync
           wordId,
           listId,
           "say-spell",
@@ -1199,7 +1201,7 @@ export function PlaySaySpell() {
           audioBlobId
         );
 
-        // Queue star transaction
+        // Queue star transaction with same ID
         if (correct && isFirstAttempt) {
           await queueStarTransaction(userId, 1, "correct_word");
         }
