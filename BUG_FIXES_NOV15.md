@@ -119,7 +119,7 @@ const { getSignedPromptAudioUrls } = await import("@/app/api/supa");
 
 const pathsToSign = words
   .filter((w): w is typeof w & { prompt_audio_path: string } =>
-    Boolean(w.prompt_audio_path)
+    Boolean(w.prompt_audio_path),
   )
   .map((w) => w.prompt_audio_path);
 

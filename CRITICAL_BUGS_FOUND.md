@@ -120,7 +120,7 @@ const { data, error } = await supabase
     `
     *,
     list_words (count)
-  `
+  `,
   )
   .eq("created_by", userId)
   .order("created_at", { ascending: false });
