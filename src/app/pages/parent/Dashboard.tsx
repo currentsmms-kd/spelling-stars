@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   Play,
   Calendar,
+  Users,
 } from "lucide-react";
 import { useParentOverview } from "@/app/api/supa";
 
@@ -226,12 +227,12 @@ function QuickActionsGrid({
           linkTo="/parent/lists"
         />
         <QuickActionCard
-          icon={<TrendingUp className="text-secondary" size={20} />}
+          icon={<Users className="text-secondary" size={20} />}
           iconBgClass="bg-secondary/20"
-          title="Progress"
-          description="View your child's spelling progress"
-          buttonLabel="Coming Soon"
-          buttonProps={{ disabled: true }}
+          title="Child Accounts"
+          description="Manage your children's accounts"
+          buttonLabel="Manage Children"
+          linkTo="/parent/children"
         />
         <QuickActionCard
           icon={<Plus className="text-accent-foreground" size={20} />}

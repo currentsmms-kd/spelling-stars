@@ -167,11 +167,11 @@ spelling-stars/
 
 ## Getting Started
 
-1. **Install dependencies**: `npm install`
+1. **Install dependencies**: `pnpm install`
 2. **Set up Supabase**: Create project, run SQL schema
 3. **Configure environment**: Copy `.env.example` to `.env`
-4. **Run dev server**: `npm run dev`
-5. **Build for production**: `npm run build`
+4. **Run dev server**: `pnpm run dev`
+5. **Build for production**: `pnpm run build`
 
 See [QUICKSTART.md](./docs/QUICKSTART.md) for detailed instructions.
 

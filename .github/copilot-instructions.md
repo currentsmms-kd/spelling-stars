@@ -183,18 +183,18 @@ due_date = today + interval days
 ### Running the App
 
 ```powershell
-npm run dev         # With Doppler (RECOMMENDED): doppler run -- vite
-npm run dev:local   # Without Doppler (requires .env file)
-npm run build       # Production: doppler run -- tsc && vite build
-npm run preview     # Preview: doppler run -- vite preview
+pnpm run dev         # With Doppler (RECOMMENDED): doppler run -- vite
+pnpm run dev:local   # Without Doppler (requires .env file)
+pnpm run build       # Production: doppler run -- tsc && vite build
+pnpm run preview     # Preview: doppler run -- vite preview
 ```
 
 **Critical Note on Package Management:**
 
-- **package.json specifies npm** in scripts (`npm run dev`)
-- **pnpm-lock.yaml exists** but project uses npm for all operations
-- If you see `pnpm-lock.yaml`, ignore it - this is for historical reasons
-- **ALWAYS use npm**, NOT pnpm or yarn, for consistency
+- **This project uses pnpm** for package management
+- **pnpm-lock.yaml** is the source of truth for dependencies
+- **ALWAYS use pnpm**, NOT npm or yarn, for consistency
+- If you see `package-lock.json`, it should be deleted
 
 **Required env vars:** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_ACCESS_TOKEN` (migrations only)
 

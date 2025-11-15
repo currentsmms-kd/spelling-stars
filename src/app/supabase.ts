@@ -49,7 +49,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
         `Please create a .env file with:\n` +
         `VITE_SUPABASE_URL=your_supabase_url\n` +
         `VITE_SUPABASE_ANON_KEY=your_supabase_anon_key\n\n` +
-        `Or use Doppler: doppler run -- npm run dev\n` +
+        `Or use Doppler: doppler run -- pnpm run dev\n` +
         `See docs/DEPLOYMENT.md for setup instructions.`
     );
   }

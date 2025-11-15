@@ -60,7 +60,7 @@ doppler login
 doppler setup
 
 # 3. Run with Doppler
-doppler run -- npm run dev
+doppler run -- pnpm run dev
 ```
 
 #### Error Handling

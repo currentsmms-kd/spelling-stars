@@ -283,7 +283,7 @@ Verify: All interactive elements reachable, focus visible, logical tab order
 ### 1. Install Dependencies
 
 ```bash
-npm install
+pnpm install
 ```
 
 ### 2. Set Up Environment Variables
@@ -433,7 +433,7 @@ create trigger on_auth_user_created
 ### 4. Run Development Server
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 The app will be available at `http://localhost:5173`
@@ -441,7 +441,7 @@ The app will be available at `http://localhost:5173`
 ### 5. Build for Production
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 The build output will be in the `dist/` directory.
@@ -449,7 +449,7 @@ The build output will be in the `dist/` directory.
 ### 6. Preview Production Build
 
 ```bash
-npm run preview
+pnpm run preview
 ```
 
 ## Project Structure

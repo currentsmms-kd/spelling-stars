@@ -194,7 +194,7 @@ export function SetupError({
                     </code>{" "}
                     and{" "}
                     <code className="bg-muted px-1 py-0.5 rounded">
-                      doppler run -- npm run dev
+                      doppler run -- pnpm run dev
                     </code>
                   </li>
                   <li>Restart the development server</li>
