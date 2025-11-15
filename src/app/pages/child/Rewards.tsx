@@ -232,66 +232,6 @@ function ShopTab({ userId }: { userId: string }) {
   );
 }
 
-// My Stuff Tab Component
-function MyStuffTab({ userId }: { userId: string }) {
-  const { profile } = useAuth();
-  const { data: userRewards = [] } = useUserRewards(userId);
-  const equipReward = useEquipReward();
-
-  const handleEquip = async (rewardId: string) => {
-    try {
-      await equipReward.mutateAsync({
-        userId,
-        rewardId,
-      });
-    } catch (error) {
-      logger.error("Failed to equip item. Please try again.", error);
-    }
-  };
-
-  if (userRewards.length === 0) {
-    return (
-      <Card variant="child">
-        <div className="text-center py-12 space-y-4">
-          <div className="text-6xl">🎁</div>
-          <h3 className="text-3xl font-bold">No Rewards Yet</h3>
-          <p className="text-xl text-muted-foreground">
-            Visit the Shop to get your first reward!
-          </p>
-        </div>
-      </Card>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {userRewards.map(
-          (userReward: {
-            id: string;
-            reward_id: string;
-            reward?: {
-              id: string;
-              name: string;
-              description: string | null;
-              icon: string | null;
-              type: string;
-            };
-          }) => (
-            <OwnedRewardCard
-              key={userReward.id}
-              userReward={userReward}
-              profile={profile}
-              equipReward={equipReward}
-              onEquip={handleEquip}
-            />
-          )
-        )}
-      </div>
-    </div>
-  );
-}
-
 // Owned Reward Card Component
 function OwnedRewardCard({
   userReward,
@@ -357,6 +297,66 @@ function OwnedRewardCard({
         )}
       </div>
     </Card>
+  );
+}
+
+// My Stuff Tab Component
+function MyStuffTab({ userId }: { userId: string }) {
+  const { profile } = useAuth();
+  const { data: userRewards = [] } = useUserRewards(userId);
+  const equipReward = useEquipReward();
+
+  const handleEquip = async (rewardId: string) => {
+    try {
+      await equipReward.mutateAsync({
+        userId,
+        rewardId,
+      });
+    } catch (error) {
+      logger.error("Failed to equip item. Please try again.", error);
+    }
+  };
+
+  if (userRewards.length === 0) {
+    return (
+      <Card variant="child">
+        <div className="text-center py-12 space-y-4">
+          <div className="text-6xl">🎁</div>
+          <h3 className="text-3xl font-bold">No Rewards Yet</h3>
+          <p className="text-xl text-muted-foreground">
+            Visit the Shop to get your first reward!
+          </p>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {userRewards.map(
+          (userReward: {
+            id: string;
+            reward_id: string;
+            reward?: {
+              id: string;
+              name: string;
+              description: string | null;
+              icon: string | null;
+              type: string;
+            };
+          }) => (
+            <OwnedRewardCard
+              key={userReward.id}
+              userReward={userReward}
+              profile={profile}
+              equipReward={equipReward}
+              onEquip={handleEquip}
+            />
+          )
+        )}
+      </div>
+    </div>
   );
 }
 

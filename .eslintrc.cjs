@@ -17,6 +17,18 @@ module.exports = {
     "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
     // Disable no-undef for TypeScript files - TypeScript handles this better
     "no-undef": "off",
+    // Enforce declaration before use to prevent temporal dead zone errors and improve readability
+    "@typescript-eslint/no-use-before-define": [
+      "error",
+      {
+        functions: true,
+        classes: true,
+        variables: true,
+        enums: true,
+        typedefs: true,
+        ignoreTypeReferences: true,
+      },
+    ],
   },
   overrides: [
     {

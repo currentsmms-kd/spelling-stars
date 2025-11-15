@@ -108,6 +108,28 @@ function ProgressBar({ percentage }: { percentage: number }) {
   );
 }
 
+function ListProgressInfo({ list }: { list: ListProgress }) {
+  return (
+    <div className="flex-1 min-w-0">
+      <p className="text-base sm:text-lg md:text-xl font-semibold truncate">
+        {list.title}
+      </p>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-2 text-muted-foreground">
+        <span className="text-sm sm:text-base md:text-lg">
+          {list.word_count} {list.word_count === 1 ? "word" : "words"}
+        </span>
+        <div className="flex items-center gap-2">
+          <TrendingUp size={16} />
+          <span className="text-sm sm:text-base md:text-lg font-medium">
+            {list.progress_percentage}% complete
+          </span>
+        </div>
+      </div>
+      <ProgressBar percentage={list.progress_percentage} />
+    </div>
+  );
+}
+
 function ListProgressCard({
   list,
   onContinue,
@@ -132,28 +154,6 @@ function ListProgressCard({
           Continue
         </Button>
       )}
-    </div>
-  );
-}
-
-function ListProgressInfo({ list }: { list: ListProgress }) {
-  return (
-    <div className="flex-1 min-w-0">
-      <p className="text-base sm:text-lg md:text-xl font-semibold truncate">
-        {list.title}
-      </p>
-      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-2 text-muted-foreground">
-        <span className="text-sm sm:text-base md:text-lg">
-          {list.word_count} {list.word_count === 1 ? "word" : "words"}
-        </span>
-        <div className="flex items-center gap-2">
-          <TrendingUp size={16} />
-          <span className="text-sm sm:text-base md:text-lg font-medium">
-            {list.progress_percentage}% complete
-          </span>
-        </div>
-      </div>
-      <ProgressBar percentage={list.progress_percentage} />
     </div>
   );
 }
