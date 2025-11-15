@@ -851,16 +851,12 @@ export function PlayListenType() {
         // Offline: queue in IndexedDB for background sync when connection restored
         logger.debug("Queueing attempt offline:", { wordId, listId });
 
-        // CRITICAL FIX: Get session to use session.user.id for consistency
-        // When synced, auth.uid() will be session.user.id, not profile.id
-        // This ensures queued attempts will pass RLS policies that check auth.uid()
-        const {
-          data: { session: offlineSession },
-        } = await supabase.auth.getSession();
-        const userId = offlineSession?.user?.id || profile.id; // Fallback to profile.id if session unavailable
+        // FIXED: Use profile.id directly (guaranteed to equal auth.uid() from handle_new_user trigger)
+        // No need for session lookup since profile.id is already set to session.user.id during auth
+        const userId = profile.id;
 
         await queueAttempt(
-          userId, // Use session.user.id which will match auth.uid() during sync
+          userId, // profile.id matches auth.uid() for RLS policy validation
           wordId,
           listId,
           "listen-type",
