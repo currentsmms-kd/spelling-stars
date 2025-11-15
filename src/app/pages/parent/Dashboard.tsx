@@ -340,7 +340,7 @@ export function Dashboard() {
   // State for filters - use parent ID as default (testing without child relationship)
   const [selectedChildId, setSelectedChildId] = useState<string>("");
   const [timeRange, setTimeRange] = useState<"7d" | "30d" | "90d" | "all">(
-    "30d"
+    "30d",
   );
   const [dateFrom, setDateFrom] = useState<Date>(() => {
     const date = new Date();
@@ -359,7 +359,7 @@ export function Dashboard() {
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       setTimeRange(e.target.value as typeof timeRange);
     },
-    []
+    [],
   );
 
   // Auto-select parent ID for testing (in production would use actual child selector)
@@ -401,7 +401,7 @@ export function Dashboard() {
   const { data: overview, isLoading: isLoadingOverview } = useParentOverview(
     profile?.id,
     dateFrom,
-    dateTo
+    dateTo,
   );
 
   // Type assertion for overview (RPC returns Json type)
