@@ -1055,8 +1055,8 @@ export function PlaySaySpell() {
     }) => {
       if (!profile?.id || !listId) {
         logger.warn("Cannot save attempt: missing profile or listId", {
-          hasProfile: !!profile?.id,
-          hasListId: !!listId,
+          hasProfile: Boolean(profile?.id),
+          hasListId: Boolean(listId),
         });
         return;
       }
@@ -1123,8 +1123,8 @@ export function PlaySaySpell() {
           match: session.user.id === profile.id,
           wordId,
           listId,
-          hasSession: !!session,
-          hasAudioPath: !!audioPath,
+          hasSession: Boolean(session),
+          hasAudioPath: Boolean(audioPath),
         });
 
         const { data, error } = await supabase
@@ -1338,9 +1338,9 @@ export function PlaySaySpell() {
       // Comment 3: Guard against undefined IDs when queueing audio offline
       if (!profile?.id || !listId || !currentWord?.id) {
         logger.error("Cannot queue audio: missing required IDs", {
-          hasProfileId: !!profile?.id,
-          hasListId: !!listId,
-          hasWordId: !!currentWord?.id,
+          hasProfileId: Boolean(profile?.id),
+          hasListId: Boolean(listId),
+          hasWordId: Boolean(currentWord?.id),
         });
         setIsProcessingAudio(false);
         return;

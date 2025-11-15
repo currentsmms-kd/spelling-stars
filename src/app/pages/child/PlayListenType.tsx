@@ -730,8 +730,8 @@ export function PlayListenType() {
     }) => {
       if (!profile?.id || !listId) {
         logger.warn("Cannot save attempt: missing profile or listId", {
-          hasProfile: !!profile?.id,
-          hasListId: !!listId,
+          hasProfile: Boolean(profile?.id),
+          hasListId: Boolean(listId),
         });
         return;
       }
@@ -781,7 +781,7 @@ export function PlayListenType() {
           authUser: session.user.id,
           profileId: profile.id,
           match: session.user.id === profile.id,
-          hasSession: !!session,
+          hasSession: Boolean(session),
         });
 
         const { data, error } = await supabase
