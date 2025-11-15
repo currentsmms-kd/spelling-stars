@@ -1,50 +1,24 @@
 # SpellStars - AI Coding Guidelines
 
-## Project Architecture
+## Project Overview
 
-**SpellStars** is a PWA for kids' spelling practice with **parent** (content management) and **child** (gameplay) interfaces. Built offline-first with WCAG 2.1 AA accessibility.
+**SpellStars** is an offline-first PWA for kids' spelling practice with dual interfaces: **parent** (content management) and **child** (gameplay). Built for WCAG 2.1 AA accessibility.
 
 **Stack:** React 18 + TypeScript (strict) | Vite | React Query | Zustand | Supabase | Dexie (IndexedDB) | Tailwind + CVA
+**Package Manager:** `pnpm` ONLY (never npm/yarn) - `pnpm-lock.yaml` is the source of truth
 
-**Package Manager:** `pnpm` ONLY (never npm/yarn) - `pnpm-lock.yaml` is source of truth
+## Critical Architectural Decisions
 
-**Critical Patterns:**
+### 1. Data Layer: Single Source of Truth
 
-- ALL data in `src/app/api/supa.ts` (2046 lines) - React Query hooks, never raw fetch
-- CVA for ALL components - see `src/app/components/Button.tsx` for pattern
-- Audio URLs stored as PATHS, not URLs - generate signed URLs on-demand via `getSignedAudioUrl()`
-- Offline queue: `src/lib/sync.ts` handles IndexedDB → Supabase sync with exponential backoff
+**ALL** data operations go through `src/app/api/supa.ts` (2046 lines):
 
-## Two-Tier Security (Parent vs Child Routes)
+- React Query hooks for ALL queries/mutations - never use raw `fetch()`
+- Optimistic updates pattern for mutations (see example below)
+- Query keys: `['word-lists', userId]` | `['word-list', listId]` | `['due-words', childId]`
 
-**Parent routes** (`/parent/*`): Double protection with auth + PIN
-
-```tsx
-<ProtectedRoute requiredRole="parent">
-  <PinProtectedRoute>
-    <Dashboard />
-  </PinProtectedRoute>
-</ProtectedRoute>
-```
-
-- PINs: PBKDF2-HMAC-SHA256 (100k iterations) via `src/lib/crypto.ts`
-- Format: `"salt:hash"` (both base64)
-- `isPinLocked` resets to `true` on app restart (NOT persisted for security)
-- Parents can access child routes (see `ProtectedRoute.tsx` line 28)
-
-**Child routes** (`/child/*`): Auth only, cached offline via `NetworkFirst` in `vite.config.ts`
-
-## State Management: Three-Tool Pattern
-
-**1. Zustand** (client state):
-
-- `useAuthStore`: Set by `useAuth()` hook ONLY - never directly
-- `useParentalSettingsStore`: Persists to localStorage as `'parental-settings'` (lock state NOT persisted)
-
-**2. React Query** (server state in `supa.ts`):
-
-```tsx
-// ALL mutations use optimistic updates
+```typescript
+// Mutation pattern with optimistic updates
 onMutate: async (vars) => {
   await queryClient.cancelQueries(['word-list', vars.listId]);
   const previous = queryClient.getQueryData(['word-list', vars.listId]);
@@ -56,21 +30,68 @@ onError: (err, vars, context) => {
 },
 ```
 
-Query keys: `['word-lists', userId]` | `['word-list', listId]` | `['due-words', childId]`
+### 2. Audio Storage: Path-Based with Signed URLs
 
-**3. Dexie** (offline queue):
+Audio URLs stored as **storage paths** (not full URLs) in database:
 
-```tsx
-// Queue when offline
-if (!isOnline) {
-  await db.queuedAttempts.add({ child_id, word_id, synced: false, ... });
-}
-// Auto-sync on reconnect (useOnline hook triggers syncQueuedData)
+- Child recordings: `{child_id}/{list_id}/{word_id}_{timestamp}.webm`
+- Prompt audio: `lists/{listId}/words/{wordId}.webm`
+- Generate signed URLs **on-demand** via `getSignedAudioUrl()` from `supa.ts`
+- **NEVER cache signed URLs** - 1-hour TTL requires regeneration
+
+```typescript
+// Service worker MUST exclude signed URLs (vite.config.ts):
+urlPattern: ({ url }) => {
+  const hasSignedToken = url.searchParams.has('token');
+  return url.hostname.includes('.supabase.co') && hasSignedToken;
+},
+handler: 'NetworkOnly', // Always fetch fresh signed URL
 ```
 
-## Critical Workflows
+### 3. Offline Queue: Exponential Backoff Sync
 
-### Running Commands
+`src/lib/sync.ts` (1079 lines) handles IndexedDB → Supabase sync:
+
+- Queue operations when offline: `await db.queuedAttempts.add({ child_id, word_id, synced: false, ... })`
+- Auto-sync on reconnect via `useOnline` hook
+- Exponential backoff (max 5 retries) with `retry_count` and `last_error` tracking
+- Permanently mark as `failed` after max retries
+
+### 4. Security: Two-Tier Route Protection
+
+**Parent routes** (`/parent/*`): Auth + PIN lock (double protection)
+
+```tsx
+<ProtectedRoute requiredRole="parent">
+  <PinProtectedRoute>
+    <Dashboard />
+  </PinProtectedRoute>
+</ProtectedRoute>
+```
+
+- PINs: PBKDF2-HMAC-SHA256 (100k iterations) via `src/lib/crypto.ts`
+- Storage format: `"salt:hash"` (both base64-encoded)
+- `isPinLocked` resets to `true` on app restart (**NOT** persisted for security)
+- Dev mode: Parents can access child routes for testing (see `ProtectedRoute.tsx` line 28)
+
+**Child routes** (`/child/*`): Auth only, cached offline via `NetworkFirst`
+
+### 5. State Management: Three-Layer Architecture
+
+**Client state (Zustand):**
+
+- `useAuthStore`: Set ONLY by `useAuth()` hook - never directly
+- `useParentalSettingsStore`: Persists to localStorage as `'parental-settings'` (lock state excluded)
+
+**Server state (React Query):**
+All queries/mutations in `supa.ts` with cache invalidation on mutations
+
+**Offline queue (Dexie):**
+IndexedDB tables: `queuedAttempts`, `queuedAudio`, `queuedSrsUpdates`, `queuedStarTransactions`
+
+## Essential Developer Workflows
+
+### Running Commands (Doppler for Secrets Management)
 
 ```powershell
 pnpm run dev          # doppler run -- vite (RECOMMENDED)
@@ -81,34 +102,35 @@ pnpm run build        # doppler run -- tsc && vite build
 ### Database Migrations
 
 ```powershell
-.\push-migration.ps1        # Apply ALL .sql files (alphabetical)
+.\push-migration.ps1        # Apply ALL .sql files (alphabetical order)
 .\check-migrations.ps1      # List applied migrations
 .\check-tables.ps1          # Quick table list
 ```
 
 **Migration naming:** `YYYYMMDDHHMMSS_description.sql`
-**Critical:** Use `IF NOT EXISTS` for idempotency. Include RLS policies for new tables.
+**Critical rules:**
 
-### Signed URL Security (NEVER cache!)
+- Use `IF NOT EXISTS` for idempotency (migrations can be re-run)
+- Include RLS policies for new tables
+- UNIQUE constraints auto-create indexes (don't duplicate)
+- Run `.\check-db-health.ps1` after schema changes
 
-```typescript
-// Service worker excludes signed URLs (vite.config.ts):
-urlPattern: ({ url }) => {
-  const isStorage = url.hostname.includes('.supabase.co') &&
-                    url.pathname.includes('/storage/');
-  const hasSignedToken = url.searchParams.has('token');
-  return isStorage && hasSignedToken;
-},
-handler: 'NetworkOnly', // 1-hour TTL, must regenerate
-```
+### Debugging Offline Sync
 
-## Component & Styling Standards
+1. DevTools > Network > "Offline"
+2. Play game, verify IndexedDB has `queuedAttempts` with `synced: false`
+3. Re-enable network, check console for sync logs
+4. Verify Supabase has synced records
 
-### CVA Pattern (ALL components)
+## Component & Styling Conventions
+
+### CVA Pattern (Required for ALL Components)
+
+See `src/app/components/Button.tsx` for reference:
 
 ```tsx
 const buttonVariants = cva(
-  "inline-flex items-center justify-center rounded-md...", // Base
+  "inline-flex items-center rounded-md...", // Base classes
   {
     variants: {
       variant: { default: "bg-primary...", outline: "border-2..." },
@@ -122,15 +144,15 @@ const buttonVariants = cva(
 );
 ```
 
-### Accessibility Requirements
+### Accessibility Standards (WCAG 2.1 AA)
 
-- Child buttons: 88px min-height
-- Parent buttons: 44px min-height
-- 4px focus rings via `--ring` CSS variable
-- ARIA labels on ALL interactive elements
-- `VisuallyHidden` component for screen reader text
+- **Touch targets:** Child buttons 88px, parent buttons 44px
+- **Focus indicators:** 4px rings via `--ring` CSS variable
+- **ARIA labels:** Required on ALL interactive elements
+- **Screen reader text:** Use `<VisuallyHidden>` component
+- **Keyboard navigation:** Full tab order, Enter/Space activation
 
-### CSS Variables (runtime theme switching)
+### Theme System (Runtime CSS Variables)
 
 30+ themes in `src/app/lib/themes.ts`:
 
@@ -142,66 +164,66 @@ export function applyTheme(themeId: string) {
 }
 ```
 
-## Database Schema Essentials
+## Database Schema (Key Patterns)
 
-**Core tables with RLS:**
+**Junction table pattern:** `list_words` enables same word in multiple lists
 
-- `profiles` - User accounts (`id`, `email`, `role: 'parent'|'child'`)
-- `word_lists` - Spelling lists (`title`, `week_start_date`, `created_by`)
-- `words` - Vocabulary (`text`, `phonetic`, `prompt_audio_url`, `tts_voice`)
-- `list_words` - Junction table (`list_id`, `word_id`, `sort_index`) - same word in multiple lists
-- `attempts` - Practice history (`child_id`, `word_id`, `mode`, `correct`, `typed_answer`, `audio_url`)
-- `srs` - Spaced repetition (`ease`, `interval_days`, `due_date`, `reps`, `lapses`)
+- `words` table: Vocabulary items (`text`, `phonetic`, `tts_voice`)
+- `list_words` table: Many-to-many (`list_id`, `word_id`, `sort_index`)
+- Query: Join through junction table for list-specific word order
 
-**Storage buckets (PRIVATE with signed URLs):**
+**Spaced repetition:** `srs` table implements SM-2-lite algorithm
 
-- `audio-recordings` - Child recordings: `{child_id}/{list_id}/{word_id}_{timestamp}.webm`
-- `word-audio` - Prompt audio: `lists/{listId}/words/{wordId}.webm`
+- See `src/lib/srs.ts` for pure functions: `calculateSrsOnSuccess()`, `calculateSrsOnMiss()`
+- Success: `ease += 0.1`, `interval = round(interval * ease)`, `due_date = today + interval`
+- Failure: `ease -= 0.2`, `interval = 0`, `due_date = today`, `lapses += 1`
 
-**RLS Pattern:** Parents CRUD own content; children read-only + insert own attempts
+**Attempts tracking:** `list_id` field required for list-scoped analytics
 
-## Common Pitfalls
+- `audio_url` stores **path** not full URL (generate signed URL on-demand)
+- `quality` score (0-5): Based on correctness, first-try, hints used
+
+**RLS pattern:** Parents CRUD own content; children read-only + insert own attempts
+
+## Common Pitfalls & Solutions
 
 ❌ **DON'T:**
 
-- Use `console.log` (use `logger.debug/info/warn/error` from `@/lib/logger`)
-- Cache signed URLs (1-hour TTL, regenerate on access)
-- Mutate React Query cache without `invalidateQueries`
-- Create `package-lock.json` (use `pnpm-lock.yaml`)
-- Set `useAuthStore` directly (use `useAuth()` hook)
+- Use `console.log` → Use `logger.debug/info/warn/error` from `@/lib/logger`
+- Cache signed URLs → Always regenerate on-demand (1-hour TTL)
+- Mutate React Query cache without `invalidateQueries()` → Stale data
+- Create `package-lock.json` → Only `pnpm-lock.yaml` exists
+- Set `useAuthStore` directly → Use `useAuth()` hook
+- Read entire files for code exploration → Use symbol tools first (Serena/MCP)
 
 ✅ **DO:**
 
-- Add JSDoc to complex functions (see `PlayListenType.tsx` for examples)
+- Add JSDoc to complex functions (see `src/app/pages/child/PlayListenType.tsx` for examples)
 - Use `cn()` utility for className merging (`@/lib/utils`)
-- Queue operations when offline via `queueAttempt()` from `@/lib/sync`
-- Generate signed URLs on-demand via `getSignedAudioUrl()`
-- Track errors with `logger.metrics.errorCaptured()`
+- Queue operations when offline: `await db.queuedAttempts.add(...)`
+- Normalize spelling answers: `normalizeSpellingAnswer()` from `@/lib/utils`
+- Track errors: `logger.metrics.errorCaptured()` for telemetry
 
-## Key Files
+## Key Files Reference
 
-| File                                     | Purpose                                                     |
-| ---------------------------------------- | ----------------------------------------------------------- |
-| `src/app/api/supa.ts`                    | ALL data ops (2046 lines) - React Query hooks               |
-| `src/lib/sync.ts`                        | Offline queue sync (1079 lines) - exponential backoff       |
-| `vite.config.ts`                         | PWA config - cache strategies (NetworkOnly for signed URLs) |
-| `src/app/store/parentalSettings.ts`      | Settings + PIN hashing (PBKDF2)                             |
-| `src/lib/srs.ts`                         | SM-2-lite spaced repetition (pure functions)                |
-| `src/lib/logger.ts`                      | Centralized logging + telemetry                             |
-| `src/app/pages/child/PlayListenType.tsx` | Game implementation example (1391 lines)                    |
+| File                                | Purpose                                                           | Lines |
+| ----------------------------------- | ----------------------------------------------------------------- | ----- |
+| `src/app/api/supa.ts`               | ALL data operations (React Query hooks)                           | 2046  |
+| `src/lib/sync.ts`                   | Offline queue sync (exponential backoff)                          | 1079  |
+| `src/lib/utils.ts`                  | Spelling normalization (`normalizeSpellingAnswer`, `getHintText`) | -     |
+| `src/lib/crypto.ts`                 | PIN hashing (PBKDF2-HMAC-SHA256)                                  | -     |
+| `src/lib/srs.ts`                    | SM-2-lite spaced repetition (pure functions)                      | 179   |
+| `src/lib/logger.ts`                 | Centralized logging + error telemetry                             | 417   |
+| `vite.config.ts`                    | PWA cache strategies (NetworkOnly for signed URLs)                | -     |
+| `src/app/store/parentalSettings.ts` | Zustand store (persists to localStorage)                          | -     |
+| `src/app/router.tsx`                | Route protection (`ProtectedRoute`, `PinProtectedRoute`)          | 179   |
+| `push-migration.ps1`                | Apply SQL migrations via Supabase Management API                  | -     |
 
-## Debugging
+## Quick Troubleshooting
 
-**Offline testing:**
-
-1. DevTools > Network > "Offline"
-2. Play game, check IndexedDB for `queuedAttempts` (synced: false)
-3. Re-enable network, verify sync
-
-**Common issues:**
-
-- "React Query not refetching": Check query keys match in `invalidateQueries()`
-- "Audio not playing": Verify signed URL regenerated (not cached)
-- "Migration failed": Check idempotency (`IF NOT EXISTS`) + RLS policies
-- "PIN not working": Check `isPinLocked` resets on restart (security feature)
-- "Sync stuck": Check `src/lib/sync.ts` for exponential backoff logic (max 5 retries)
+**"React Query not refetching"** → Check query keys match in `invalidateQueries(['word-list', listId])`
+**"Audio not playing"** → Verify signed URL regenerated (not cached)
+**"Migration failed"** → Check idempotency (`IF NOT EXISTS`) + RLS policies
+**"PIN not working after restart"** → Expected behavior (`isPinLocked` resets to `true`)
+**"Sync stuck"** → Check `src/lib/sync.ts` for `retry_count` (max 5 retries, then `failed: true`)
+**"Game won't advance"** → Fixed in Nov 2025 update (clear cache if still occurs)
