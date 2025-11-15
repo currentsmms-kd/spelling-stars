@@ -33,7 +33,7 @@ export function normalizeWord(word: string): string {
   if (!word) return "";
   return word
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\u0300-\u036f]/gu, "")
     .replace(/[^A-Za-z]/g, "")
     .toUpperCase();
 }
@@ -77,7 +77,7 @@ const ALL_DIRECTIONS: Direction[] = [
  */
 export function buildDirections(
   allowDiagonals: boolean,
-  allowBackwards: boolean
+  allowBackwards: boolean,
 ): Direction[] {
   return ALL_DIRECTIONS.filter((direction) => {
     if (!allowDiagonals && direction.diagonal) {
@@ -100,7 +100,7 @@ export function getLineCells(
   startRow: number,
   startCol: number,
   length: number,
-  direction: Direction
+  direction: Direction,
 ): CellCoord[] {
   const cells: CellCoord[] = [];
   for (let i = 0; i < length; i += 1) {
@@ -120,7 +120,7 @@ export function fits(
   startRow: number,
   startCol: number,
   direction: Direction,
-  size: number
+  size: number,
 ): boolean {
   const endRow = startRow + direction.dy * (word.length - 1);
   const endCol = startCol + direction.dx * (word.length - 1);
@@ -147,12 +147,12 @@ export function generateGrid(
   size: number,
   allowDiagonals: boolean,
   allowBackwards: boolean,
-  seed: number
+  seed: number,
 ): GeneratedPuzzle {
   const clampedSize = Math.max(4, Math.min(26, size));
   const rng = mulberry32(seed);
   const board: string[][] = Array.from({ length: clampedSize }, () =>
-    Array.from({ length: clampedSize }, () => "")
+    Array.from({ length: clampedSize }, () => ""),
   );
   const placements: WordPlacement[] = [];
   const unplaced: string[] = [];
