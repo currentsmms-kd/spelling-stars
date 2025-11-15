@@ -65,7 +65,7 @@ interface WordRowProps {
   onUpdateWord: (
     wordId: string,
     field: "text" | "phonetic" | "tts_voice",
-    value: string,
+    value: string
   ) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onPlayAudio: (url: string) => void;
@@ -449,6 +449,9 @@ function WordsListSection({
   onToggleSelectionMode,
   bulkSelection,
   onBulkDelete,
+  showBulkDeleteConfirm,
+  onBulkDeleteConfirm,
+  onBulkDeleteCancel,
   isBulkDeleting,
   wordInputRefs,
   wordRowRefs,
@@ -467,7 +470,7 @@ function WordsListSection({
   handleUpdateWord: (
     wordId: string,
     field: "text" | "phonetic" | "tts_voice",
-    value: string,
+    value: string
   ) => void;
   handleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   handlePlayAudio: (url: string) => void;
@@ -480,6 +483,9 @@ function WordsListSection({
   onToggleSelectionMode: () => void;
   bulkSelection: ReturnType<typeof useBulkSelection>;
   onBulkDelete: () => void;
+  showBulkDeleteConfirm: boolean;
+  onBulkDeleteConfirm: () => void;
+  onBulkDeleteCancel: () => void;
   isBulkDeleting: boolean;
   wordInputRefs: React.MutableRefObject<Map<string, HTMLInputElement>>;
   wordRowRefs: React.MutableRefObject<Map<string, HTMLDivElement>>;
@@ -538,7 +544,7 @@ function WordsListSection({
           </div>
         </div>
 
-        {bulkSelection.selectedCount > 0 && (
+        {bulkSelection.selectedCount > 0 && !showBulkDeleteConfirm && (
           <BulkActionToolbar
             selectedCount={bulkSelection.selectedCount}
             totalCount={words.length}
@@ -546,6 +552,51 @@ function WordsListSection({
             onClear={() => bulkSelection.clearSelection()}
             isDeleting={isBulkDeleting}
           />
+        )}
+
+        {showBulkDeleteConfirm && (
+          <Card
+            role="alertdialog"
+            aria-labelledby="delete-confirm-title"
+            aria-describedby="delete-confirm-desc"
+            className="sticky top-0 z-10 mb-4 border-destructive bg-destructive/10 p-4 shadow-md"
+          >
+            <div className="space-y-3">
+              <div>
+                <h3
+                  id="delete-confirm-title"
+                  className="font-semibold text-destructive"
+                >
+                  Confirm Deletion
+                </h3>
+                <p id="delete-confirm-desc" className="text-sm mt-1">
+                  Delete {bulkSelection.selectedCount} word
+                  {bulkSelection.selectedCount !== 1 ? "s" : ""}? This action
+                  cannot be undone.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="danger"
+                  size="default"
+                  onClick={onBulkDeleteConfirm}
+                  disabled={isBulkDeleting}
+                  className="flex items-center gap-2"
+                >
+                  <Trash2 size={16} aria-hidden="true" />
+                  {isBulkDeleting ? "Deleting..." : "Confirm Delete"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="default"
+                  onClick={onBulkDeleteCancel}
+                  disabled={isBulkDeleting}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </Card>
         )}
 
         {isNewList ? (
@@ -732,6 +783,7 @@ export function ListEditor() {
   // Selection mode state
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   // Audio preview state
   const [playingAudioUrl, setPlayingAudioUrl] = useState<string | null>(null);
@@ -943,11 +995,11 @@ export function ListEditor() {
   const handleUpdateWord = (
     wordId: string,
     field: "text" | "phonetic" | "tts_voice",
-    value: string,
+    value: string
   ) => {
     // Optimistically update local state
     setWords((prev) =>
-      prev.map((w) => (w.id === wordId ? { ...w, [field]: value } : w)),
+      prev.map((w) => (w.id === wordId ? { ...w, [field]: value } : w))
     );
 
     // Add to pending changes for auto-save
@@ -978,7 +1030,7 @@ export function ListEditor() {
               id: wordId,
               updates: changes,
             });
-          },
+          }
         );
 
         await Promise.all(promises);
@@ -988,7 +1040,7 @@ export function ListEditor() {
         // Only clear the keys that were successfully saved
         setPendingChanges((prev) => {
           const filtered = new Map(
-            [...prev].filter(([id]) => !savedIds.has(id)),
+            [...prev].filter(([id]) => !savedIds.has(id))
           );
           return filtered;
         });
@@ -1014,7 +1066,7 @@ export function ListEditor() {
             id: wordId,
             updates: changes,
           });
-        },
+        }
       );
 
       await Promise.all(promises);
@@ -1027,14 +1079,15 @@ export function ListEditor() {
     }
   };
 
-  // Bulk delete handler
-  const handleBulkDelete = async () => {
+  // Bulk delete handler - Request confirmation
+  const handleBulkDeleteRequest = () => {
     if (!id || bulkSelection.selectedCount === 0) return;
+    setShowBulkDeleteConfirm(true);
+  };
 
-    const confirmDelete = confirm(
-      `Delete ${bulkSelection.selectedCount} word${bulkSelection.selectedCount !== 1 ? "s" : ""}?`,
-    );
-    if (!confirmDelete) return;
+  // Bulk delete handler - Confirm and execute
+  const handleBulkDeleteConfirm = async () => {
+    if (!id || bulkSelection.selectedCount === 0) return;
 
     try {
       await bulkDeleteWords.mutateAsync({
@@ -1051,6 +1104,7 @@ export function ListEditor() {
       ));
       bulkSelection.clearSelection();
       setIsSelectionMode(false);
+      setShowBulkDeleteConfirm(false);
     } catch (error) {
       logger.error("Bulk delete failed", {
         context: "ListEditor.bulkDelete",
@@ -1063,7 +1117,13 @@ export function ListEditor() {
           onClose={() => toast.dismiss(t.id)}
         />
       ));
+      setShowBulkDeleteConfirm(false);
     }
+  };
+
+  // Bulk delete handler - Cancel confirmation
+  const handleBulkDeleteCancel = () => {
+    setShowBulkDeleteConfirm(false);
   };
 
   // CSV file selection handler
@@ -1086,11 +1146,11 @@ export function ListEditor() {
 
       // Additional deduplication against existing words
       const existingTexts = new Set(
-        words.map((w) => normalizeForDedupe(w.text)),
+        words.map((w) => normalizeForDedupe(w.text))
       );
 
       const uniqueWords = parsed.filter(
-        (word) => !existingTexts.has(normalizeForDedupe(word.text)),
+        (word) => !existingTexts.has(normalizeForDedupe(word.text))
       );
 
       setCsvData(uniqueWords);
@@ -1107,7 +1167,7 @@ export function ListEditor() {
       // Deduplicate against existing words
       const existingTexts = new Set(words.map((w) => w.text.toLowerCase()));
       const uniqueWords = csvData.filter(
-        (word) => !existingTexts.has(word.text.toLowerCase()),
+        (word) => !existingTexts.has(word.text.toLowerCase())
       );
 
       if (uniqueWords.length === 0) {
@@ -1150,7 +1210,7 @@ export function ListEditor() {
 
       // Reset file input
       const fileInput = document.getElementById(
-        "csv-file-input",
+        "csv-file-input"
       ) as HTMLInputElement;
       if (fileInput) fileInput.value = "";
     } catch (error) {
@@ -1208,7 +1268,7 @@ export function ListEditor() {
         key: "Delete",
         callback: () => {
           if (isSelectionMode && bulkSelection.selectedCount > 0) {
-            handleBulkDelete();
+            handleBulkDeleteRequest();
           }
         },
         description: "Delete selected words",
@@ -1290,7 +1350,7 @@ export function ListEditor() {
     // Deduplicate
     const existingWords = new Set(words.map((w) => w.text.toLowerCase()));
     const newWords = lines.filter(
-      (line) => !existingWords.has(line.toLowerCase()),
+      (line) => !existingWords.has(line.toLowerCase())
     );
 
     if (newWords.length === 0) {
@@ -1469,7 +1529,10 @@ export function ListEditor() {
             isSelectionMode={isSelectionMode}
             onToggleSelectionMode={() => setIsSelectionMode(!isSelectionMode)}
             bulkSelection={bulkSelection}
-            onBulkDelete={handleBulkDelete}
+            onBulkDelete={handleBulkDeleteRequest}
+            showBulkDeleteConfirm={showBulkDeleteConfirm}
+            onBulkDeleteConfirm={handleBulkDeleteConfirm}
+            onBulkDeleteCancel={handleBulkDeleteCancel}
             isBulkDeleting={bulkDeleteWords.isPending}
             wordInputRefs={wordInputRefs}
             wordRowRefs={wordRowRefs}
