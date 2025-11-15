@@ -182,7 +182,7 @@ function WordRow({
               !word.text ? "ring-2 ring-primary/50" : ""
             }`}
             onClick={(e) => e.stopPropagation()}
-            autoFocus={!word.text && index === 0}
+            
           />
 
           {/* Audio actions - SECONDARY */}
