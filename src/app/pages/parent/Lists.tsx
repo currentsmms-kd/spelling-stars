@@ -139,7 +139,7 @@ function ListCard({
                 to={`/parent/lists/${list.id}`}
                 className={cn(
                   buttonVariants({ variant: "outline", size: "sm" }),
-                  "flex items-center gap-2"
+                  "flex items-center gap-2",
                 )}
                 aria-label={`Edit ${list.title} list`}
               >
@@ -188,7 +188,7 @@ function ListsHeader() {
         to="/parent/lists/new"
         className={cn(
           buttonVariants({ size: "default" }),
-          "flex items-center gap-2"
+          "flex items-center gap-2",
         )}
         aria-label="Create a new spelling word list"
       >
@@ -218,14 +218,14 @@ function ListsContent({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setSearchTerm(e.target.value);
     },
-    [setSearchTerm]
+    [setSearchTerm],
   );
 
   const handleSortChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       setSortOption(e.target.value);
     },
-    [setSortOption]
+    [setSortOption],
   );
 
   return (
@@ -325,15 +325,15 @@ function ListsContent({
                   Get Started with Spelling Lists
                 </h3>
                 <p className="text-muted-foreground max-w-md mx-auto">
-                  Create your first spelling list to start tracking your child's
-                  progress. You can add words manually or record audio
-                  pronunciations.
+                  Create your first spelling list to start tracking your
+                  child&apos;s progress. You can add words manually or record
+                  audio pronunciations.
                 </p>
                 <Link
                   to="/parent/lists/new"
                   className={cn(
                     buttonVariants({ size: "default" }),
-                    "flex items-center gap-2 mx-auto"
+                    "flex items-center gap-2 mx-auto",
                   )}
                   aria-label="Create your first spelling word list"
                 >
@@ -371,7 +371,7 @@ export function Lists() {
   const filteredLists = useMemo(() => {
     return lists
       ?.filter((list) =>
-        list.title.toLowerCase().includes(searchTerm.toLowerCase())
+        list.title.toLowerCase().includes(searchTerm.toLowerCase()),
       )
       .sort((a, b) => {
         let aVal: string | number = "";

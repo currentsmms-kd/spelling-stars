@@ -32,7 +32,7 @@ export function ChildProfileEditor({
   const [age, setAge] = useState(currentAge?.toString() || "");
   const [birthday, setBirthday] = useState(currentBirthday || "");
   const [favoriteColor, setFavoriteColor] = useState(
-    currentFavoriteColor || ""
+    currentFavoriteColor || "",
   );
 
   const updateProfile = useUpdateChildProfile();
@@ -142,7 +142,9 @@ export function ChildProfileEditor({
           <div className="space-y-3 mb-6">
             <div className="flex items-center gap-2">
               <Calendar className="text-primary" size={20} />
-              <h3 className="text-lg font-semibold">When's Your Birthday?</h3>
+              <h3 className="text-lg font-semibold">
+                When&apos;s Your Birthday?
+              </h3>
             </div>
             <input
               type="date"
@@ -170,7 +172,7 @@ export function ChildProfileEditor({
                     "w-16 h-16 rounded-xl border-4 transition-all hover:scale-110 hover:shadow-lg flex items-center justify-center",
                     favoriteColor === color.id
                       ? "border-foreground shadow-lg scale-105"
-                      : "border-border"
+                      : "border-border",
                   )}
                   style={{
                     background:

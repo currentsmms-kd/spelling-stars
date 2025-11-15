@@ -72,7 +72,7 @@ export function SetupError({
               🔒 Browser Permission Issues:
             </h3>
             <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
-              <li>Click the lock icon 🔒 in your browser's address bar</li>
+              <li>Click the lock icon 🔒 in your browser&apos;s address bar</li>
               <li>Allow microphone access for recording features</li>
               <li>Enable storage and cookies for offline functionality</li>
               <li>Clear browser cache and try again</li>

@@ -53,14 +53,14 @@ function PinSettings({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setLocalPin(e.target.value.replace(/\D/g, ""));
     },
-    [setLocalPin]
+    [setLocalPin],
   );
 
   const handleConfirmChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setConfirmPin(e.target.value.replace(/\D/g, ""));
     },
-    [setConfirmPin]
+    [setConfirmPin],
   );
 
   return (
@@ -133,7 +133,7 @@ function CheckboxSetting({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       onChange(e.target.checked);
     },
-    [onChange]
+    [onChange],
   );
 
   return (
@@ -174,42 +174,42 @@ function GameSettings({
       strictSpacedMode: boolean;
       dailySessionLimitMinutes: number;
       defaultTtsVoice: string;
-    }>
+    }>,
   ) => void;
 }) {
   const handleHintsChange = useCallback(
     (checked: boolean) => {
       onSettingsChange({ showHintsOnFirstMiss: checked });
     },
-    [onSettingsChange]
+    [onSettingsChange],
   );
 
   const handleCaseSensitivityChange = useCallback(
     (checked: boolean) => {
       onSettingsChange({ enforceCaseSensitivity: checked });
     },
-    [onSettingsChange]
+    [onSettingsChange],
   );
 
   const handlePunctuationChange = useCallback(
     (checked: boolean) => {
       onSettingsChange({ ignorePunctuation: checked });
     },
-    [onSettingsChange]
+    [onSettingsChange],
   );
 
   const handleReadbackChange = useCallback(
     (checked: boolean) => {
       onSettingsChange({ autoReadbackSpelling: checked });
     },
-    [onSettingsChange]
+    [onSettingsChange],
   );
 
   const handleStrictModeChange = useCallback(
     (checked: boolean) => {
       onSettingsChange({ strictSpacedMode: checked });
     },
-    [onSettingsChange]
+    [onSettingsChange],
   );
 
   return (
@@ -268,7 +268,7 @@ function SessionLimits({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       onLimitChange(parseInt(e.target.value) || 20);
     },
-    [onLimitChange]
+    [onLimitChange],
   );
 
   return (
@@ -314,11 +314,11 @@ function AutoAdvanceSettings({
       // Clamp value between min and max
       const clampedValue = Math.max(
         UI_CONSTANTS.MIN_AUTO_ADVANCE_DELAY_SECONDS,
-        Math.min(UI_CONSTANTS.MAX_AUTO_ADVANCE_DELAY_SECONDS, value)
+        Math.min(UI_CONSTANTS.MAX_AUTO_ADVANCE_DELAY_SECONDS, value),
       );
       onDelayChange(clampedValue);
     },
-    [onDelayChange]
+    [onDelayChange],
   );
 
   return (
@@ -363,7 +363,7 @@ function TtsSettings({
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       onVoiceChange(e.target.value);
     },
-    [onVoiceChange]
+    [onVoiceChange],
   );
 
   return (
@@ -399,7 +399,7 @@ function TtsSettings({
 function CacheInfoDisplay({ cacheInfo }: { cacheInfo: Map<string, number> }) {
   const totalCachedItems = Array.from(cacheInfo.values()).reduce(
     (sum, count) => sum + count,
-    0
+    0,
   );
 
   return (
@@ -594,7 +594,7 @@ function CacheManagement() {
 
   return (
     <Card>
-      <h2 className="text-xl font-bold mb-4">Cache & Data Management</h2>
+      <h2 className="text-xl font-bold mb-4">Cache &amp; Data Management</h2>
       <p className="text-muted-foreground mb-4">
         Refresh data to get the latest content, or clear caches to free up space
         and fix issues.
@@ -666,16 +666,16 @@ function FailedSyncManagement() {
 
       // Filter out items older than 30 days
       const oldAttempts = items.failedAttempts.filter(
-        (a) => new Date(a.startedAt) < thirtyDaysAgo
+        (a) => new Date(a.startedAt) < thirtyDaysAgo,
       );
       const oldAudio = items.failedAudio.filter(
-        (a) => new Date(a.createdAt) < thirtyDaysAgo
+        (a) => new Date(a.createdAt) < thirtyDaysAgo,
       );
 
       // If we found old items, clean them up
       if (oldAttempts.length > 0 || oldAudio.length > 0) {
         logger.log(
-          `Auto-cleaning ${oldAttempts.length} old failed attempts and ${oldAudio.length} old failed audio (>30 days)`
+          `Auto-cleaning ${oldAttempts.length} old failed attempts and ${oldAudio.length} old failed audio (>30 days)`,
         );
         // Clear all failed items (including old ones)
         // Then the filtered result will naturally exclude them
@@ -684,10 +684,10 @@ function FailedSyncManagement() {
       // Set filtered items (exclude old ones from display)
       setFailedItems({
         failedAttempts: items.failedAttempts.filter(
-          (a) => new Date(a.startedAt) >= thirtyDaysAgo
+          (a) => new Date(a.startedAt) >= thirtyDaysAgo,
         ),
         failedAudio: items.failedAudio.filter(
-          (a) => new Date(a.createdAt) >= thirtyDaysAgo
+          (a) => new Date(a.createdAt) >= thirtyDaysAgo,
         ),
       });
     } catch (error) {
@@ -710,7 +710,7 @@ function FailedSyncManagement() {
       const totalCleared =
         failedItems.failedAttempts.length + failedItems.failedAudio.length;
       setMessage(
-        `Cleared ${totalCleared} failed item${totalCleared !== 1 ? "s" : ""} successfully`
+        `Cleared ${totalCleared} failed item${totalCleared !== 1 ? "s" : ""} successfully`,
       );
       await loadFailedItems();
     } catch (error) {
@@ -736,7 +736,7 @@ function FailedSyncManagement() {
         setIsClearing(false);
       }
     },
-    [loadFailedItems]
+    [loadFailedItems],
   );
 
   const totalCount =
@@ -811,7 +811,7 @@ function FailedSyncManagement() {
               <button
                 onClick={() =>
                   setExpandedSection(
-                    expandedSection === "attempts" ? null : "attempts"
+                    expandedSection === "attempts" ? null : "attempts",
                   )
                 }
                 className="w-full p-4 flex items-center justify-between hover:bg-secondary/50 transition-colors"
@@ -873,7 +873,7 @@ function FailedSyncManagement() {
               <button
                 onClick={() =>
                   setExpandedSection(
-                    expandedSection === "audio" ? null : "audio"
+                    expandedSection === "audio" ? null : "audio",
                   )
                 }
                 className="w-full p-4 flex items-center justify-between hover:bg-secondary/50 transition-colors"
@@ -1119,7 +1119,7 @@ export function ParentalSettings() {
     (newSettings: Partial<typeof localSettings>) => {
       setLocalSettings((prev) => ({ ...prev, ...newSettings }));
     },
-    []
+    [],
   );
 
   const handleLimitChange = useCallback((minutes: number) => {
