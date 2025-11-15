@@ -7,6 +7,8 @@ import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/app/supabase";
 import { Button } from "@/app/components/Button";
 import { Card } from "@/app/components/Card";
+import { PinSetupStep } from "@/app/components/PinSetupStep";
+import { useParentalSettingsStore } from "@/app/store/parentalSettings";
 
 const signupSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -154,6 +156,9 @@ function SignupForm() {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showPinSetup, setShowPinSetup] = useState(false);
+  const [accountData, setAccountData] = useState<SignupFormData | null>(null);
+  const { setPinCode, unlock } = useParentalSettingsStore();
 
   const {
     register,
@@ -164,6 +169,18 @@ function SignupForm() {
   });
 
   const onSubmit = async (data: SignupFormData) => {
+    // If parent role, show PIN setup first
+    if (data.role === "parent") {
+      setAccountData(data);
+      setShowPinSetup(true);
+      return;
+    }
+
+    // For child accounts, proceed directly
+    await createAccount(data);
+  };
+
+  const createAccount = async (data: SignupFormData, pin?: string) => {
     setIsLoading(true);
     setError(null);
 
@@ -212,6 +229,12 @@ function SignupForm() {
           }
         }
 
+        // If PIN was provided, set it
+        if (pin) {
+          await setPinCode(pin);
+          unlock(); // Unlock so they don't see PIN prompt immediately
+        }
+
         // Redirect based on role
         if (data.role === "parent") {
           navigate("/parent/dashboard");
@@ -226,6 +249,28 @@ function SignupForm() {
       setIsLoading(false);
     }
   };
+
+  const handlePinComplete = async (pin: string) => {
+    if (accountData) {
+      await createAccount(accountData, pin);
+    }
+  };
+
+  const handlePinSkip = async () => {
+    if (accountData) {
+      await createAccount(accountData);
+    }
+  };
+
+  // Show PIN setup for parent accounts
+  if (showPinSetup && accountData?.role === "parent") {
+    return (
+      <>
+        {error && <ErrorAlert message={error} />}
+        <PinSetupStep onComplete={handlePinComplete} onSkip={handlePinSkip} />
+      </>
+    );
+  }
 
   return (
     <>

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/app/hooks/useAuth";
 import { Button } from "@/app/components/Button";
 import { Card } from "@/app/components/Card";
@@ -17,7 +17,8 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 
 function LoginForm() {
-  const { signIn } = useAuth();
+  const { signIn, profile } = useAuth();
+  const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -56,7 +57,10 @@ function LoginForm() {
 
     // Try to sign in with whatever they entered
     // If it's a username, they'll need to use the full email (parent+username@domain.com)
-    const { error: signInError } = await signIn(emailToUse, data.password);
+    const { data: authData, error: signInError } = await signIn(
+      emailToUse,
+      data.password
+    );
 
     if (signInError) {
       // Provide helpful error message for username-only logins
@@ -72,7 +76,30 @@ function LoginForm() {
       return;
     }
 
-    // Navigation will be handled by router guards based on profile role
+    if (authData?.user) {
+      // Wait for profile to be fetched, then redirect
+      // The useAuth hook will update the profile via the auth state change listener
+      // Give it a moment to fetch the profile
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Fetch profile to determine redirect
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", authData.user.id)
+        .single();
+
+      if (profileData) {
+        if (profileData.role === "parent") {
+          navigate("/parent/dashboard");
+        } else {
+          navigate("/child/home");
+        }
+      } else {
+        setError("Profile not found. Please contact support.");
+      }
+    }
+
     setIsLoading(false);
   };
 

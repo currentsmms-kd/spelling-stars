@@ -1133,7 +1133,7 @@ export function PlaySaySpell() {
 
         // Debug: Log attempt data and auth state
         logger.debug("Attempting to save (online):", {
-          mode: "say-spell",
+          mode: "say_spell", // FIXED: Use underscore
           profileId: profile.id,
           wordId,
           listId,
@@ -1146,7 +1146,7 @@ export function PlaySaySpell() {
             child_id: profile.id, // FIXED: Use profile.id to match offline mode and RLS policy
             word_id: wordId,
             list_id: listId,
-            mode: "say-spell" as const,
+            mode: "say_spell" as const, // FIXED: Use underscore to match CHECK constraint
             correct,
             quality, // Quality score (0-5) based on correctness, first-try, hints
             typed_answer: typedAnswer,
@@ -1203,7 +1203,7 @@ export function PlaySaySpell() {
           userId, // profile.id matches auth.uid() for RLS policy validation
           wordId,
           listId,
-          "say-spell",
+          "say_spell", // FIXED: Use underscore to match CHECK constraint
           correct,
           typedAnswer,
           audioBlobId

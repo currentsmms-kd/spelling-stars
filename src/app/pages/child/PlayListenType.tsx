@@ -23,6 +23,7 @@ import {
   useAwardStars,
   useUpdateDailyStreak,
   computeAttemptQuality,
+  getSignedPromptAudioUrls,
 } from "@/app/api/supa";
 import { queueSrsUpdate, queueStarTransaction } from "@/lib/sync";
 import type { Tables } from "@/types/database.types";
@@ -658,6 +659,7 @@ export function PlayListenType() {
     data: listData,
     isLoading,
     error: listError,
+    isError,
   } = useQuery<ListWithWords>({
     queryKey: ["list-with-words", listId],
     queryFn: async () => {
@@ -695,20 +697,40 @@ export function PlayListenType() {
 
       const words = listWords?.map((lw) => lw.words as Word) || [];
 
-      // CRITICAL FIX: Generate signed URLs for prompt audio (private bucket)
-      // Import getSignedPromptAudioUrls from supa.ts for batch signed URL generation
-      const { getSignedPromptAudioUrls } = await import("@/app/api/supa");
+      if (words.length === 0) {
+        logger.warn("[PlayListenType] No words found in list");
+        return {
+          ...list,
+          words: [],
+        };
+      }
 
+      // CRITICAL FIX: Generate signed URLs for prompt audio (private bucket)
       const pathsToSign = words
         .filter((w): w is typeof w & { prompt_audio_path: string } =>
           Boolean(w.prompt_audio_path)
         )
         .map((w) => w.prompt_audio_path);
 
-      const signedUrlMap =
-        pathsToSign.length > 0
-          ? await getSignedPromptAudioUrls(pathsToSign)
-          : {};
+      logger.debug("[PlayListenType] Generating signed URLs:", {
+        wordCount: words.length,
+        pathCount: pathsToSign.length,
+        paths: pathsToSign,
+      });
+
+      let signedUrlMap: Record<string, string | null> = {};
+
+      if (pathsToSign.length > 0) {
+        try {
+          signedUrlMap = await getSignedPromptAudioUrls(pathsToSign);
+          logger.debug("[PlayListenType] Signed URLs generated:", {
+            urlCount: Object.keys(signedUrlMap).length,
+          });
+        } catch (error) {
+          logger.error("[PlayListenType] Error generating signed URLs:", error);
+          // Continue without prompt audio - TTS will be used as fallback
+        }
+      }
 
       // Add signed URLs to words
       const wordsWithSignedUrls = words.map((word) => {
@@ -730,6 +752,9 @@ export function PlayListenType() {
     retry: 2,
     retryDelay: 1000,
     staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 10,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   /**
@@ -795,7 +820,7 @@ export function PlayListenType() {
           child_id: profile.id, // Must match auth.uid() in RLS policy
           word_id: wordId,
           list_id: listId,
-          mode: "listen-type" as const,
+          mode: "listen_type" as const, // FIXED: Use underscore to match CHECK constraint
           correct,
           quality, // Quality score (0-5) based on correctness, first-try, hints
           typed_answer: typedAnswer,
@@ -856,7 +881,7 @@ export function PlayListenType() {
           userId, // profile.id matches auth.uid() for RLS policy validation
           wordId,
           listId,
-          "listen-type",
+          "listen_type", // FIXED: Use underscore to match CHECK constraint
           correct,
           typedAnswer
         );
@@ -933,6 +958,27 @@ export function PlayListenType() {
       // Wait for audio element to be ready, then play
       setTimeout(() => {
         if (audioRef.current) {
+          // Add error handler for failed audio load (404, network error, etc.)
+          audioRef.current.onerror = () => {
+            logger.warn("Recorded audio failed to load, falling back to TTS", {
+              url: currentWord.prompt_audio_url,
+              word: currentWord.text,
+            });
+
+            // Clear the audio URL to prevent further errors
+            setCurrentAudioUrl(null);
+
+            // Fall back to TTS
+            const utterance = new SpeechSynthesisUtterance(currentWord.text);
+            const voice = getVoiceWithFallback(
+              currentWord.tts_voice || undefined
+            );
+            if (voice) {
+              utterance.voice = voice;
+            }
+            speechSynthesis.speak(utterance);
+          };
+
           audioRef.current.play().catch((error) => {
             // Autoplay was blocked by the browser
             logger.warn("Audio autoplay blocked by browser", error);
@@ -1339,6 +1385,12 @@ export function PlayListenType() {
   }
 
   if (isLoading || !listData) {
+    logger.debug("[PlayListenType] Loading state:", {
+      isLoading,
+      hasListData: Boolean(listData),
+      isError,
+      listId,
+    });
     return (
       <AppShell title="Listen & Type" variant="child">
         <div className="max-w-3xl mx-auto">

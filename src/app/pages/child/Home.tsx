@@ -432,7 +432,9 @@ export function ChildHome() {
 
   const handleContinueList = useCallback(
     (listId: string, mode: string) => {
-      navigate(`/child/play/${mode}?listId=${listId}`);
+      // Convert database mode format (underscore) to route format (hyphen)
+      const routeMode = mode.replace(/_/g, "-");
+      navigate(`/child/play/${routeMode}?listId=${listId}`);
     },
     [navigate]
   );
