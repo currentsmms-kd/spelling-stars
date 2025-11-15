@@ -17,6 +17,21 @@ interface NgramErrorPattern {
   last_seen: string;
 }
 
+// Type for hardest word entry
+interface HardestWordEntry {
+  word_id: string;
+  word: string;
+  error_rate: number;
+  ease: number;
+}
+
+// Type for parent overview data returned by RPC
+interface ParentOverviewData {
+  hardest_words?: HardestWordEntry[];
+  common_mistake_patterns?: NgramErrorPattern[];
+  [key: string]: unknown; // Allow additional properties from RPC
+}
+
 // Component for mistake pattern row
 function MistakePatternRow({ pattern }: { pattern: NgramErrorPattern }) {
   return (
@@ -97,8 +112,7 @@ function MistakePatternTableHeader() {
 function HardestWordsSection({
   hardestWords,
 }: {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  hardestWords: any[];
+  hardestWords: HardestWordEntry[];
 }) {
   return (
     <Card>
@@ -109,8 +123,7 @@ function HardestWordsSection({
         </h3>
       </div>
       <div className="space-y-2">
-        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        {hardestWords.map((entry: any) => (
+        {hardestWords.map((entry) => (
           <div
             key={entry.word_id}
             className="flex items-center justify-between p-2 bg-destructive/10 rounded text-sm sm:text-base"
@@ -327,7 +340,7 @@ export function Dashboard() {
   // State for filters - use parent ID as default (testing without child relationship)
   const [selectedChildId, setSelectedChildId] = useState<string>("");
   const [timeRange, setTimeRange] = useState<"7d" | "30d" | "90d" | "all">(
-    "30d",
+    "30d"
   );
   const [dateFrom, setDateFrom] = useState<Date>(() => {
     const date = new Date();
@@ -346,7 +359,7 @@ export function Dashboard() {
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       setTimeRange(e.target.value as typeof timeRange);
     },
-    [],
+    []
   );
 
   // Auto-select parent ID for testing (in production would use actual child selector)
@@ -392,8 +405,7 @@ export function Dashboard() {
   );
 
   // Type assertion for overview (RPC returns Json type)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const typedOverview = overview as any;
+  const typedOverview = overview as ParentOverviewData | undefined;
 
   return (
     <AppShell title="SpellStars" variant="parent">
