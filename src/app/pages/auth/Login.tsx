@@ -59,7 +59,7 @@ function LoginForm() {
     // If it's a username, they'll need to use the full email (parent+username@domain.com)
     const { data: authData, error: signInError } = await signIn(
       emailToUse,
-      data.password
+      data.password,
     );
 
     if (signInError) {
@@ -67,7 +67,7 @@ function LoginForm() {
       if (!emailToUse.includes("@")) {
         setError(
           "Please use your full login email. Ask your parent for the email address " +
-            "(it looks like: parentemail+yourname@domain.com)"
+            "(it looks like: parentemail+yourname@domain.com)",
         );
       } else {
         setError(signInError.message);
