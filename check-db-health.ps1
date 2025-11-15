@@ -3,7 +3,7 @@
 
 $ErrorActionPreference = "Stop"
 
-$projectRef = "mxgamemjvrcajwhbefvz"
+$projectRef = "tucdqibvxioxbeyrbsef"
 
 Write-Host "=== SUPABASE DATABASE HEALTH CHECK ===" -ForegroundColor Yellow
 Write-Host "Project: spelling-stars ($projectRef)" -ForegroundColor Green

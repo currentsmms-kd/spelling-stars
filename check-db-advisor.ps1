@@ -3,7 +3,7 @@
 
 $ErrorActionPreference = "Stop"
 
-$projectRef = "mxgamemjvrcajwhbefvz"
+$projectRef = "tucdqibvxioxbeyrbsef"
 
 Write-Host "=== SPELLSTARS DATABASE ADVISOR ===" -ForegroundColor Yellow
 Write-Host "Project: spelling-stars" -ForegroundColor Green

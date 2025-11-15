@@ -1,4 +1,4 @@
-$projectRef = "mxgamemjvrcajwhbefvz"
+$projectRef = "tucdqibvxioxbeyrbsef"
 $accessToken = doppler secrets get SUPABASE_ACCESS_TOKEN --plain
 
 # Read the migration file to get the statements

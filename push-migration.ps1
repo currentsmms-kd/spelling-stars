@@ -1,5 +1,5 @@
 # Push Supabase migrations using Management API
-$projectRef = "mxgamemjvrcajwhbefvz"
+$projectRef = "tucdqibvxioxbeyrbsef"
 $accessToken = doppler secrets get SUPABASE_ACCESS_TOKEN --plain
 
 # Read all migration files

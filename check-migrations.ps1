@@ -1,4 +1,4 @@
-$projectRef = "mxgamemjvrcajwhbefvz"
+$projectRef = "tucdqibvxioxbeyrbsef"
 $accessToken = doppler secrets get SUPABASE_ACCESS_TOKEN --plain
 
 # Check the schema_migrations table

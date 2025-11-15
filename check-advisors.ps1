@@ -7,7 +7,7 @@ Write-Host "Fetching Supabase project information..." -ForegroundColor Cyan
 
 # Get project reference
 # Use the known project ID
-$projectRef = "mxgamemjvrcajwhbefvz"
+$projectRef = "tucdqibvxioxbeyrbsef"
 Write-Host "Project ID: $projectRef" -ForegroundColor Green
 Write-Host "Project Name: spelling-stars" -ForegroundColor Green
 Write-Host ""
