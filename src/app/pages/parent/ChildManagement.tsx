@@ -445,7 +445,7 @@ export function ChildManagement() {
             "Invalid username format. Please use only letters and numbers, starting with a letter.";
           setUsernameError("Invalid format");
         } else {
-          errorMessage = `Failed to create account. Please try again or contact support if the problem persists.`;
+          errorMessage = "Failed to create account. Please try again or contact support if the problem persists.";
         }
       }
 
