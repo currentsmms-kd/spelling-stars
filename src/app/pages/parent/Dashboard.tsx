@@ -6,15 +6,7 @@ import { AnalyticsDashboard } from "@/app/components/AnalyticsDashboard";
 import { ExportButton } from "@/app/components/ExportButton";
 import { useAuth } from "@/app/hooks/useAuth";
 import { Link, useNavigate } from "react-router-dom";
-import {
-  Plus,
-  List,
-  TrendingUp,
-  AlertTriangle,
-  Play,
-  Calendar,
-  Users,
-} from "lucide-react";
+import { Plus, List, AlertTriangle, Play, Calendar, Users } from "lucide-react";
 import { useParentOverview } from "@/app/api/supa";
 
 // Type for n-gram error patterns returned by the RPC

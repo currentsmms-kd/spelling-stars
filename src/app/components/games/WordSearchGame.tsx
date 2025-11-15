@@ -86,8 +86,8 @@ export function WordSearchGame({
   onRestart,
   onNewPuzzleRequest,
   onSettingsClick,
-  listTitle = "",
-  usingDemoList = false,
+  // listTitle = "",
+  // usingDemoList = false,
 }: WordSearchGameProps) {
   const [internalSeed, setInternalSeed] = useState(() => seed ?? Date.now());
   const [dragStart, setDragStart] = useState<CellCoord | null>(null);

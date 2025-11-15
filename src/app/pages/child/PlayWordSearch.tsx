@@ -51,7 +51,7 @@ interface WordSearchResultPayload {
 async function recordWordSearchResult(
   payload: WordSearchResultPayload
 ): Promise<void> {
-  const { error } = await supabase.rpc("record_word_search_result", {
+  const { error } = await supabase.rpc("record_word_search_result" as any, {
     p_list_id: payload.listId,
     p_seed: payload.seed,
     p_duration_seconds: payload.seconds,

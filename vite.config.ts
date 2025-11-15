@@ -158,4 +158,11 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    // Restrict CORS to prevent unauthorized access during development
+    cors: {
+      origin: false, // Disable CORS in development for security
+    },
+    strictPort: true,
+  },
 });
