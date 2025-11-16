@@ -308,86 +308,64 @@ export function ChildManagement() {
       username,
       password,
       displayName,
-      parentId,
     }: {
       username: string;
       password: string;
       displayName: string;
-      parentId: string;
     }) => {
-      // Use parent's email with plus addressing for child accounts
-      // Format: parent+childusername@domain.com
-      // This way:
-      // - All emails go to the parent (they control everything)
-      // - Each child has a unique, valid email for Supabase Auth
-      // - Children still log in with just their username
-      // - Supabase accepts it as a valid email format
-
       if (!user?.email) {
-        throw new Error("Parent email not found. Please log in again.");
+        throw new Error("Parent email is required");
       }
 
-      // Extract email parts: user@domain.com -> user + domain.com
-      const emailParts = user.email.split("@");
-      if (emailParts.length !== 2) {
+      // Generate child email using parent's email with plus-addressing
+      const [localPart, domain] = user.email.split("@");
+      if (!localPart || !domain) {
         throw new Error("Invalid parent email format");
       }
 
-      const [localPart, domain] = emailParts;
-      // Generate: parent+childusername@domain.com
       const generatedEmail = `${localPart}+${username}@${domain}`;
 
-      logger.info("Creating child account with username:", username);
-      logger.info("Using parent email plus addressing:", generatedEmail);
+      logger.info("Creating child account", {
+        username,
+        generatedEmail,
+      });
 
-      // Sign up child account with metadata
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      // Create child account via standard signup
+      const { data, error } = await supabase.auth.signUp({
         email: generatedEmail,
         password,
         options: {
           data: {
             role: "child",
+            username,
             display_name: displayName,
-            parent_id: parentId,
-            username, // Store username in metadata for easy lookup
-            parent_email: user.email, // Store parent email for reference
+            parent_id: user.id,
+            parent_email: user.email,
           },
         },
       });
 
-      if (authError) {
-        logger.error("Supabase auth.signUp error:", authError);
-        throw authError;
-      }
-      if (!authData.user) {
-        const error = new Error("No user created");
-        logger.error("No user returned from signUp");
-        throw error;
-      }
+      if (error) throw error;
+      if (!data.user) throw new Error("Failed to create user");
 
-      logger.info("Child user created successfully:", authData.user.id);
-
-      // Wait a moment for the trigger to create the profile
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Update profile with parent_id (in case trigger didn't get it from metadata)
+      // Update profile with parent relationship
       const { error: profileError } = await supabase
         .from("profiles")
         .update({
-          parent_id: parentId,
+          parent_id: user.id,
           display_name: displayName,
         })
-        .eq("id", authData.user.id);
+        .eq("id", data.user.id);
 
       if (profileError) {
-        logger.warn(
-          "Profile update after creation failed (might be okay):",
-          profileError
-        );
-        // Don't throw - the trigger should have created the profile
+        logger.warn("Profile update warning", profileError);
       }
 
-      return { user: authData.user, loginEmail: generatedEmail };
+      return {
+        userId: data.user.id,
+        loginEmail: generatedEmail,
+        username,
+      };
     },
     onSuccess: (data) => {
       const loginInfo = `Login Email: ${data.loginEmail}`;
@@ -408,7 +386,7 @@ export function ChildManagement() {
       logger.info("CHILD ACCOUNT CREATED SUCCESSFULLY");
       logger.info("=".repeat(60));
       logger.info(`Login Email: ${data.loginEmail}`);
-      logger.info(`Username: ${childUsername}`);
+      logger.info(`Username: ${data.username}`);
       logger.info("=".repeat(60));
       logger.info("IMPORTANT: Save this login email!");
       logger.info("Your child will need this email to log in.");
@@ -540,7 +518,6 @@ export function ChildManagement() {
       username: childUsername,
       password: childPassword,
       displayName: childName,
-      parentId: user.id,
     });
   };
 

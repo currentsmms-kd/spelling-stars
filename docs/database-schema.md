@@ -138,6 +138,7 @@ Performance indexes are created on frequently queried columns:
 - `idx_list_words_list_sort` - Ordered words within a list
 - `idx_attempts_child_word_started` - Child's attempt history for a word
 - `idx_attempts_list_id` - Analytics queries for specific lists
+- `idx_attempts_list_child` - Combined list + child filters for per-child analytics
 - `idx_srs_child_due` - Find due words for a child
 - `idx_srs_child_word` - Lookup SRS status for a specific word
 

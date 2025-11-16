@@ -6,6 +6,10 @@
 COMMENT ON COLUMN parental_settings.pin_code IS
   'PBKDF2-HMAC-SHA256 hash in format "salt:hash" (both base64). 100k iterations, 16-byte salt, 32-byte hash.';
 
+-- Ensure pin_code can be temporarily cleared even if previous migrations enforced NOT NULL
+ALTER TABLE parental_settings
+  ALTER COLUMN pin_code DROP NOT NULL;
+
 -- Clear all existing PINs as they are in the old Base64 format
 -- Parents will be prompted to set a new PIN on their next login
 UPDATE parental_settings

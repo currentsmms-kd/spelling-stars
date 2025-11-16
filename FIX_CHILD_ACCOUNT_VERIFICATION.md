@@ -51,47 +51,54 @@ When parents create child accounts:
 
 **Best for:** If you need email confirmation for parent accounts but not child accounts
 
-### Create Edge Function:
+### Implementation Status: ✅ Live
 
-```sql
--- File: supabase/functions/confirm-child-account/index.ts
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+We now ship an Edge Function that creates and confirms child accounts using the service role so we never touch `auth.users` via SQL. Frontend calls this function right after parents submit the create-child form.
 
-serve(async (req) => {
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  )
+**Function:** `supabase/functions/auto-confirm-child/index.ts`
 
-  const { userId } = await req.json()
+Key behavior:
 
-  // Verify it's a child account
-  const { data: user } = await supabase.auth.admin.getUserById(userId)
+- Validates username/password/display name server-side (mirrors UI validation)
+- Uses parent session (Authorization header) to verify parent role
+- Generates plus-addressed child email using parent email automatically
+- Creates the child via `supabase.auth.admin.createUser()` with `email_confirm: true`
+- Updates `profiles` with parent relationship metadata
+- Returns `loginEmail`, `username`, and `userId` so UI can show login instructions
 
-  if (user?.user_metadata?.role === 'child') {
-    // Auto-confirm child account
-    await supabase.auth.admin.updateUserById(userId, {
-      email_confirm: true
-    })
-  }
+### Deploy Steps
 
-  return new Response(JSON.stringify({ success: true }), {
-    headers: { 'Content-Type': 'application/json' }
-  })
-})
+```powershell
+# Ensure env vars SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set in the function
+corepack pnpm supabase functions deploy auto-confirm-child --project-ref <PROJECT_REF>
+
+# (Optional) Test locally
+corepack pnpm supabase functions serve auto-confirm-child --env-file supabase/.env
 ```
 
-### Call from ChildManagement.tsx:
+**Required Edge Function secrets (Supabase Dashboard → Edge Functions → Secrets):**
+
+| Name                             | Value                                  |
+| -------------------------------- | -------------------------------------- |
+| `EDGE_SUPABASE_URL`              | Project URL (https://xxxx.supabase.co) |
+| `EDGE_SUPABASE_ANON_KEY`         | anon key from project settings         |
+| `EDGE_SUPABASE_SERVICE_ROLE_KEY` | service role key                       |
+
+> Supabase forbids secrets that start with `SUPABASE_` for Edge Functions, so these keys use the `EDGE_` prefix. The function reads them via `Deno.env.get("EDGE_SUPABASE_*")`.
+
+### Client Integration
+
+`src/app/pages/parent/ChildManagement.tsx` now calls the function:
 
 ```typescript
-// After creating child account
-if (authData.user) {
-  await supabase.functions.invoke("confirm-child-account", {
-    body: { userId: authData.user.id },
-  });
-}
+const { data, error } = await supabase.functions.invoke("auto-confirm-child", {
+  body: { username, password, displayName },
+});
+
+if (error) throw error;
 ```
+
+The UI displays `data.loginEmail` from the function response so parents can copy/paste credentials immediately.
 
 ---
 

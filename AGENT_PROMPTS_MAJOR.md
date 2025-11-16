@@ -314,9 +314,22 @@ DELIVERABLES:
 
 ---
 
-## Issue #6: Missing Index on attempts.list_id
+## Issue #6: Missing Index on attempts.list_id ✅ RESOLVED
 
-### Prompt for Agent
+**STATUS:** ✅ **COMPLETED - November 15, 2025**
+
+**Resolution Summary:**
+- Migration `20251115120000_add_attempts_list_id_index.sql` created and applied successfully
+- Index `idx_attempts_list_id` confirmed present in database
+- Also added composite index `idx_attempts_list_child` for multi-column queries
+- Documentation updated in `docs/database-schema.md`
+- Verified via database health check (see `db-health-report.txt`)
+
+**Note:** Investigation revealed the index already existed in the original schema (`20241108000000_initial_schema.sql`) and was re-confirmed in the list_id migration (`20251110214233_add_list_id_to_attempts.sql`). The new migration adds it redundantly with `IF NOT EXISTS` for safety and adds an additional composite index.
+
+---
+
+### Original Prompt for Agent (HISTORICAL - ISSUE RESOLVED)
 
 ```
 

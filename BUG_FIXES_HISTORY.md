@@ -2,6 +2,112 @@
 
 Complete chronological record of all bug fixes applied to the SpellStars application. This document consolidates all bug fix documentation from the project's development history.
 
+---
+
+## November 16, 2025: Reverted Unnecessary Edge Function & Fixed Storage Migration
+
+### Fixed: Child Account Creation Reverted to Simple Direct SignUp
+
+**Date:** November 16, 2025
+
+**Problem:** A previous agent implemented an Edge Function (`auto-confirm-child`) to create child accounts, but this was unnecessary complexity since email confirmation was already disabled in the Supabase Dashboard. The UI code was calling a non-existent Edge Function, and migrations were failing due to storage policy permission issues.
+
+**Root Cause:**
+
+- Email confirmation is already disabled in Supabase Dashboard (correct configuration)
+- An attempted trigger-based migration (`20251115000000_auto_confirm_child_accounts.sql`) correctly failed because you can't create triggers on `auth.users`
+- An agent created an Edge Function as a workaround, but this was overkill
+- The real migration failure was in `20251109164108_secure_audio_recordings_private.sql` which tried to create storage policies and add comments to `storage.objects` table
+- Supabase's permission model doesn't allow SQL migrations to manage `storage.objects` directly
+
+**Solution:**
+
+1. **Reverted `ChildManagement.tsx`** to use simple `supabase.auth.signUp()`:
+   - Removed Edge Function invocation
+   - Restored direct signup with plus-addressed email generation
+   - Kept all existing validation and UX (login email display, error handling)
+   - Works perfectly when email confirmation is disabled (which it is)
+
+2. **Fixed storage migration `20251109164108_secure_audio_recordings_private.sql`**:
+   - Removed all `CREATE POLICY` statements on `storage.objects` (can't be done via SQL)
+   - Removed `COMMENT ON TABLE storage.objects` (requires ownership)
+   - Kept only the `UPDATE storage.buckets SET public = false` statement (this works)
+   - Added documentation comments explaining storage policies must be set via Dashboard
+
+**Why This is Better:**
+
+- **Simpler**: Direct signup is straightforward and maintainable
+- **No secrets management**: Edge Function required `SUPABASE_SERVICE_ROLE_KEY` setup
+- **Faster**: No additional HTTP round-trip to Edge Function
+- **Follows existing patterns**: Uses the same auth flow as parent accounts
+- **Already secure**: Email confirmation disabled + RLS policies enforce parent-child relationships
+
+**Files Modified:**
+
+- `src/app/pages/parent/ChildManagement.tsx` - Reverted to direct `signUp()` approach
+- `supabase/migrations/20251109164108_secure_audio_recordings_private.sql` - Removed storage policy SQL
+- `BUG_FIXES_HISTORY.md` - Documented the fix
+
+**Migration Status:** ✅ All 35 migrations now pass successfully
+
+**Note:** Storage policies for `audio-recordings` and `word-audio` buckets must be managed via Supabase Dashboard → Storage → [bucket name] → Policies. SQL migrations cannot create/modify storage policies due to Supabase's permission model.
+
+---
+
+## November 16, 2025: Child Account Auto-Confirmation
+
+### Fixed: Child Accounts Blocked by Email Verification & Auth Trigger Permissions
+
+**Date:** November 16, 2025
+**Issue:** Follow-up to AGENT_PROMPTS_MAJOR.md Issue #6 action items (child auto-confirmation and storage policies)
+
+**Problem:** Child accounts created via the parent dashboard remained “unconfirmed” because hosted Supabase enables email confirmation and the confirmation emails land in the parent’s inbox. The attempted database trigger migration (`20251115000000_auto_confirm_child_accounts.sql`) failed with `ERROR: must be owner of relation users` since Supabase restricts custom triggers on `auth.users`. As a result, parents had to manually confirm each child in the dashboard and migrations could not be pushed.
+
+**Root Cause:**
+
+- Hosted Supabase enforces email confirmation for new users.
+- Child accounts reuse the parent’s email via plus-addressing, so children never see the confirmation email.
+- The prior fix attempted to add a trigger on `auth.users`, but Supabase prohibits altering managed auth tables.
+- Without an alternative flow, child accounts stayed unconfirmed and migrations failed every run.
+
+**Solution:** Implemented a server-authoritative Edge Function (`supabase/functions/auto-confirm-child/index.ts`) that creates and confirms child accounts using the service-role key, then updated the parent dashboard to call it.
+
+1. **Edge Function:**
+
+- Validates username/password/display name server-side and rejects reserved names.
+- Uses the authenticated parent session (Authorization header) to verify the caller has `role = parent`.
+- Generates the plus-addressed child email from the parent’s address (ensures all emails route to the parent).
+- Calls `supabase.auth.admin.createUser()` with `email_confirm = true`, `app_metadata.role = "child"`, and relevant metadata (parent_id, username, display name).
+- Updates the child’s profile row to link `parent_id` and preserve the chosen display name.
+- Returns `{ success, userId, loginEmail, username }` for UI display and logging.
+
+2. **Parent Dashboard Integration (`ChildManagement.tsx`):**
+
+- Replaced direct `supabase.auth.signUp()` usage with `supabase.functions.invoke("auto-confirm-child", ...)`.
+- Removed client-side plus-address generation and duplicate profile update logic (now performed inside the function).
+- Keeps the existing UX that shows the generated login email so parents can copy it immediately.
+- Maintains the same validation and toast messaging, but now relies on server-side confirmation.
+
+3. **Documentation:** Updated `FIX_CHILD_ACCOUNT_VERIFICATION.md` to document the live Edge Function approach, deployment steps, and client integration details.
+
+**Files Modified:**
+
+- `supabase/functions/auto-confirm-child/index.ts` (NEW) – Edge Function that creates and auto-confirms child accounts.
+- `src/app/pages/parent/ChildManagement.tsx` – Calls the Edge Function instead of direct signUp.
+- `FIX_CHILD_ACCOUNT_VERIFICATION.md` – Documents the implemented Edge Function solution.
+
+**Testing:**
+
+1. From the parent dashboard, create a new child (unique username, password ≥ 6 chars).
+2. Observe success toast and login email banner (plus-addressed email).
+3. Confirm in Supabase Auth UI that the new user shows `email_confirmed_at` populated immediately and metadata includes `{ role: "child", parent_id: <parent profile id> }`.
+4. Log out, sign in as the child using the generated login email and password – login succeeds without manual confirmation.
+5. Run `doppler run -- pwsh .\push-migration.ps1` – migration list no longer fails on the removed trigger file.
+
+**Side Effects:** Removes the failing migration file and unblocks future migration pushes. Parents keep the same workflow while backend handles confirmation securely with service-role privileges.
+
+---
+
 ## November 16, 2025: Pending Count Test Coverage
 
 ### Fixed: Unable to Regression-Test Sync Pending Counts

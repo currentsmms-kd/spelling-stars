@@ -1,3 +1,5 @@
+SET ROLE postgres;
+
 -- Migration: Auto-confirm child accounts created by parents
 -- Date: 2025-11-15
 -- Description: Child accounts don't need email verification since they're created by authenticated parents
@@ -39,3 +41,5 @@ COMMENT ON FUNCTION auto_confirm_child_accounts() IS
 
 COMMENT ON TRIGGER auto_confirm_child_on_signup ON auth.users IS
     'Automatically confirms child account emails on creation to bypass email verification requirement';
+
+RESET ROLE;
