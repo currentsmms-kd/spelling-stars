@@ -245,7 +245,7 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
       logger.error("PIN is corrupted or invalid format", { pinCode });
       setIsPinCorrupted(true);
       setError(
-        "PIN configuration error detected. Please reset your PIN to continue."
+        "PIN configuration error detected. Please reset your PIN to continue.",
       );
     }
   }, [pinCode, onUnlock]);
@@ -293,7 +293,7 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
         const remaining = getLockoutTimeRemaining();
         setLockoutSecondsRemaining(remaining);
         setError(
-          `Too many failed attempts. Please wait ${remaining} second${remaining !== 1 ? "s" : ""}.`
+          `Too many failed attempts. Please wait ${remaining} second${remaining !== 1 ? "s" : ""}.`,
         );
         setPin("");
         return;
@@ -315,7 +315,7 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
           logger.error("PIN format invalid during verification");
           setIsPinCorrupted(true);
           setError(
-            "PIN configuration error detected. Please reset your PIN to continue."
+            "PIN configuration error detected. Please reset your PIN to continue.",
           );
           setPin("");
           return;
@@ -334,23 +334,23 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
           // Show progressively stronger warnings based on total attempts
           if (totalAttempts >= 20) {
             setError(
-              "Account locked for 24 hours due to too many failed PIN attempts. Please try again after the lockout period."
+              "Account locked for 24 hours due to too many failed PIN attempts. Please try again after the lockout period.",
             );
           } else if (totalAttempts >= 15) {
             setError(
-              `Incorrect PIN. ${totalAttempts} total failed attempts. You will be locked out for 24 hours after ${20 - totalAttempts} more failures.`
+              `Incorrect PIN. ${totalAttempts} total failed attempts. You will be locked out for 24 hours after ${20 - totalAttempts} more failures.`,
             );
           } else if (totalAttempts >= 12) {
             setError(
-              `Incorrect PIN. ${totalAttempts} total failed attempts. Next lockout will be 1 hour.`
+              `Incorrect PIN. ${totalAttempts} total failed attempts. Next lockout will be 1 hour.`,
             );
           } else if (totalAttempts >= 9) {
             setError(
-              `Incorrect PIN. ${totalAttempts} total failed attempts. Lockouts are now 30 minutes.`
+              `Incorrect PIN. ${totalAttempts} total failed attempts. Lockouts are now 30 minutes.`,
             );
           } else if (totalAttempts >= 6) {
             setError(
-              `Incorrect PIN. ${totalAttempts} total failed attempts. Lockouts are now 15 minutes.`
+              `Incorrect PIN. ${totalAttempts} total failed attempts. Lockouts are now 15 minutes.`,
             );
           } else if (attempts >= 3) {
             const nextLockout =
@@ -360,11 +360,11 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
                   ? "1 minute"
                   : "2 minutes";
             setError(
-              `Incorrect PIN. ${attempts} failed attempts. Next failure will lock you out for ${nextLockout}.`
+              `Incorrect PIN. ${attempts} failed attempts. Next failure will lock you out for ${nextLockout}.`,
             );
           } else {
             setError(
-              `Incorrect PIN. ${attempts} failed attempt${attempts !== 1 ? "s" : ""}.`
+              `Incorrect PIN. ${attempts} failed attempt${attempts !== 1 ? "s" : ""}.`,
             );
           }
           setPin("");
@@ -384,7 +384,7 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
       pinCode,
       onUnlock,
       recordFailedAttempt,
-    ]
+    ],
   );
 
   const handleNumberClick = useCallback(
@@ -402,7 +402,7 @@ export function PinLock({ onUnlock, onCancel }: PinLockProps) {
         }
       }
     },
-    [pin, isVerifying, isLockedOut, validatePin]
+    [pin, isVerifying, isLockedOut, validatePin],
   );
 
   const handleBackspace = useCallback(() => {

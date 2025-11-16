@@ -103,7 +103,7 @@ export const useSessionStore = create<SessionStore>()(
         set((state) => {
           // Check if word already tracked
           const existingIndex = state.wordsAttempted.findIndex(
-            (w) => w.wordId === wordId
+            (w) => w.wordId === wordId,
           );
 
           let newWordsAttempted = [...state.wordsAttempted];
@@ -125,7 +125,7 @@ export const useSessionStore = create<SessionStore>()(
 
               logger.debug(
                 `Session word limit reached (${MAX_WORDS_TRACKED}). ` +
-                  `Removed ${WORDS_TO_REMOVE} oldest entries.`
+                  `Removed ${WORDS_TO_REMOVE} oldest entries.`,
               );
             }
           } else {
@@ -178,7 +178,7 @@ export const useSessionStore = create<SessionStore>()(
                   (wordId: string) => ({
                     wordId,
                     timestamp: Date.now(),
-                  })
+                  }),
                 );
               }
             } else {
@@ -196,6 +196,6 @@ export const useSessionStore = create<SessionStore>()(
         },
         removeItem: (name) => sessionStorage.removeItem(name),
       },
-    }
-  )
+    },
+  ),
 );

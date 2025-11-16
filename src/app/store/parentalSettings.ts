@@ -96,7 +96,7 @@ export const useParentalSettingsStore = create<ParentalSettingsState>()(
         if (state.totalFailedAttempts > 0) {
           logger.info(
             `PIN unlocked successfully. ` +
-              `Total failed attempts decayed from ${state.totalFailedAttempts} to ${decayedTotal}`
+              `Total failed attempts decayed from ${state.totalFailedAttempts} to ${decayedTotal}`,
           );
         }
       },
@@ -130,7 +130,7 @@ export const useParentalSettingsStore = create<ParentalSettingsState>()(
 
           logger.warn(
             `PIN permanently locked after ${totalAttempts} failed attempts. ` +
-              `Unlock available after 24 hours.`
+              `Unlock available after 24 hours.`,
           );
           return;
         }
@@ -165,7 +165,7 @@ export const useParentalSettingsStore = create<ParentalSettingsState>()(
           const minutes = Math.floor(lockoutDuration / 60000);
           const seconds = Math.floor((lockoutDuration % 60000) / 1000);
           logger.warn(
-            `PIN locked for ${minutes}m ${seconds}s after ${totalAttempts} total failed attempts`
+            `PIN locked for ${minutes}m ${seconds}s after ${totalAttempts} total failed attempts`,
           );
         }
       },
@@ -190,7 +190,7 @@ export const useParentalSettingsStore = create<ParentalSettingsState>()(
               totalFailedAttempts: 10, // Start at elevated level
             });
             logger.info(
-              "Permanent lock period expired. Unlock available with elevated protection."
+              "Permanent lock period expired. Unlock available with elevated protection.",
             );
             return false;
           }
@@ -248,6 +248,6 @@ export const useParentalSettingsStore = create<ParentalSettingsState>()(
         isPermanentlyLocked: state.isPermanentlyLocked,
         permanentLockResetTime: state.permanentLockResetTime,
       }),
-    }
-  )
+    },
+  ),
 );
