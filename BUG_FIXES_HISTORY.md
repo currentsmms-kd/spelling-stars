@@ -2,7 +2,36 @@
 
 Complete chronological record of all bug fixes applied to the SpellStars application. This document consolidates all bug fix documentation from the project's development history.
 
----
+## November 16, 2025: Pending Count Test Coverage
+
+### Fixed: Unable to Regression-Test Sync Pending Counts
+
+**Date:** November 16, 2025
+**Issue:** Follow-up to Major Issue #5 from AGENT_PROMPTS_MAJOR.md
+
+**Problem:** After the initial fix for Issue #5, `getPendingCounts()` still lacked automated test coverage. The function hard-coded the global IndexedDB instance, making it impossible to inject deterministic test data. As a result, regressions (e.g., missing queue types, incorrect totals, or unhandled IndexedDB failures) could slip through without detection.
+
+**Root Cause:** `getPendingCounts()` always referenced the shared `db` instance from `@/data/db`, which cannot be easily mocked in Vitest. Without dependency injection, we could not assert behavior against controlled datasets or simulate IndexedDB failures.
+
+**Solution:**
+
+1. **Dependency Injection Support:** Updated `getPendingCounts()` in `src/lib/sync.ts` to accept an optional `SpellStarsDB` parameter (defaulting to the real `db`). Callers are unaffected, but tests can now provide a lightweight mock database.
+2. **Unit Tests:** Added `src/lib/sync.test.ts` to validate:
+
+- Accurate aggregation across attempts, audio, SRS updates, and star transactions
+- Failed-item breakdown totals
+- Graceful fallback to zero counts when IndexedDB operations throw
+
+3. **Supabase Mock:** Tests mock `@/app/supabase` to avoid environment-variable checks during Vitest runs.
+
+**Files Modified:**
+
+- `src/lib/sync.ts` (dependency injection for `getPendingCounts`)
+- `src/lib/sync.test.ts` (new test suite covering success and failure paths)
+
+**Testing:**
+
+- `corepack pnpm test:run src/lib/sync.test.ts`
 
 ## November 15, 2025: Accurate Sync Status Counts
 

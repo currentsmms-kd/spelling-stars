@@ -4,6 +4,7 @@ import type {
   QueuedAudio,
   QueuedSrsUpdate,
   QueuedStarTransaction,
+  SpellStarsDB,
 } from "@/data/db";
 import { supabase } from "@/app/supabase";
 import { logger } from "@/lib/logger";
@@ -741,7 +742,7 @@ export async function hasPendingSync(): Promise<boolean> {
  *
  * @returns Object with counts for each queue type and total
  */
-export async function getPendingCounts(): Promise<{
+export async function getPendingCounts(database: SpellStarsDB = db): Promise<{
   attempts: number;
   audio: number;
   srsUpdates: number;
@@ -767,24 +768,26 @@ export async function getPendingCounts(): Promise<{
       failedSrs,
       failedStars,
     ] = await Promise.all([
-      db.queuedAttempts
+      database.queuedAttempts
         .filter((item: QueuedAttempt) => !item.synced && !item.failed)
         .count(),
-      db.queuedAudio
+      database.queuedAudio
         .filter((item: QueuedAudio) => !item.synced && !item.failed)
         .count(),
-      db.queuedSrsUpdates
+      database.queuedSrsUpdates
         .filter((item: QueuedSrsUpdate) => !item.synced && !item.failed)
         .count(),
-      db.queuedStarTransactions
+      database.queuedStarTransactions
         .filter((item: QueuedStarTransaction) => !item.synced && !item.failed)
         .count(),
-      db.queuedAttempts.filter((item: QueuedAttempt) => item.failed).count(),
-      db.queuedAudio.filter((item: QueuedAudio) => item.failed).count(),
-      db.queuedSrsUpdates
+      database.queuedAttempts
+        .filter((item: QueuedAttempt) => item.failed)
+        .count(),
+      database.queuedAudio.filter((item: QueuedAudio) => item.failed).count(),
+      database.queuedSrsUpdates
         .filter((item: QueuedSrsUpdate) => item.failed)
         .count(),
-      db.queuedStarTransactions
+      database.queuedStarTransactions
         .filter((item: QueuedStarTransaction) => item.failed)
         .count(),
     ]);
