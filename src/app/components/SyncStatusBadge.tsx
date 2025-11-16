@@ -551,7 +551,7 @@ export function SyncStatusBadge({ variant = "parent" }: SyncStatusBadgeProps) {
         logger.error(`Failed to retry ${type} ${id}:`, error);
       }
     },
-    [actions]
+    [actions],
   );
 
   const handleToggleExpand = useCallback(() => {
