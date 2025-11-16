@@ -4,6 +4,117 @@ Complete chronological record of all bug fixes applied to the SpellStars applica
 
 ---
 
+## November 15, 2025 (Late Night - Part 2): Service Worker Cache Policy Fixes
+
+### Fixed: Service Worker Caching Signed URLs from word-audio Bucket
+
+**Date:** November 15, 2025 (Late PM)
+
+**Problem:** The service worker was caching signed URLs from the `word-audio` bucket using `CacheFirst` strategy. Since signed URLs expire after 1 hour, all cached URLs would return 403 Forbidden errors after expiration, causing custom prompt audio to fail silently and fall back to TTS.
+
+**Root Cause:**
+
+The service worker configuration treated `word-audio` as a public bucket with `CacheFirst` strategy:
+
+```typescript
+// BEFORE (BUGGY):
+{
+  // Public static assets (word-audio prompt files) - cache with reduced TTL
+  urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/public\/word-audio\/.*/i,
+  handler: "CacheFirst",  // ❌ Caches signed URLs
+  options: {
+    cacheName: `public-audio-${CACHE_VERSION}`,
+    expiration: {
+      maxAgeSeconds: 60 * 60 * 24 * 2, // 2 days - but signed URLs expire in 1 hour!
+    },
+  },
+}
+```
+
+However, the application code generates signed URLs with 1-hour TTL:
+
+```typescript
+// src/app/api/supa.ts
+export async function getSignedPromptAudioUrl(path: string, expiresIn = 3600) {
+  const { data, error } = await supabase.storage
+    .from("word-audio") // Private bucket
+    .createSignedUrl(path, expiresIn); // 1-hour TTL
+  return data.signedUrl; // Contains ?token=... parameter
+}
+```
+
+**The Problem Timeline:**
+
+1. First audio playback: Generate signed URL, service worker caches it
+2. 1 hour later: Signed URL token expires on Supabase
+3. Subsequent playbacks: Service worker serves cached (expired) URL
+4. Result: 403 Forbidden error, silent fallback to TTS
+5. User impact: Custom pronunciations appear to work initially but fail after 1 hour
+
+**Solution:** Updated service worker to treat `word-audio` bucket as private and use `NetworkOnly` strategy:
+
+```typescript
+// AFTER (FIXED):
+{
+  // Private audio with signed URLs - never cache
+  // Includes both audio-recordings (child recordings) and word-audio (parent prompts)
+  // CRITICAL: Signed URLs expire after 1 hour - caching them causes 403 errors
+  urlPattern: ({ url }: { url: URL }) => {
+    const isStorage = url.hostname.includes(".supabase.co") &&
+                      url.pathname.includes("/storage/");
+    const isAudioRecordings = url.pathname.includes("/audio-recordings/");
+    const isWordAudio = url.pathname.includes("/word-audio/");
+    const hasSignedToken = url.searchParams.has("token");
+    // Don't cache if it's any audio bucket OR has a signed URL token
+    const isPrivateAudioUrl = isStorage &&
+                              (isAudioRecordings || isWordAudio || hasSignedToken);
+    return isPrivateAudioUrl;
+  },
+  handler: "NetworkOnly",  // ✅ Always fetch fresh signed URLs
+  options: {
+    cacheName: `private-audio-${CACHE_VERSION}`,
+    // NetworkOnly ignores cache entirely
+  },
+}
+```
+
+**Why This Was Critical:**
+
+1. **Silent Feature Degradation**: After 1 hour, custom audio stopped working without error messages
+2. **Violated Documented Best Practices**: Project guidelines state "Generate signed URLs on-demand (never cache, 1-hour TTL)"
+3. **Recent Fix Incomplete**: Nov 15 evening fixes added signed URL generation but didn't update service worker
+4. **Affects Core User Value**: Parents upload custom pronunciations that children should always hear
+5. **Production-Breaking**: Manifests after PWA installation with aggressive caching enabled
+6. **Inconsistent Architecture**: `audio-recordings` correctly used `NetworkOnly`, but `word-audio` did not
+
+**Verification:**
+
+Both audio buckets are now consistently private:
+
+- `audio-recordings` (child recordings): Private → Signed URLs → NetworkOnly ✅
+- `word-audio` (parent prompts): Private → Signed URLs → NetworkOnly ✅
+
+All bucket access verified to use signed URLs only (no public URLs):
+
+- `src/app/api/supa.ts`: `getSignedPromptAudioUrl()` for `word-audio`
+- `src/app/api/supa.ts`: `getSignedAudioUrl()` for `audio-recordings`
+- `src/lib/sync.ts`: Stores paths, generates signed URLs on playback
+- `src/app/pages/child/*.tsx`: Uses signed URLs for all audio playback
+
+**Files Modified:**
+
+- `vite.config.ts` (lines 75-96: consolidated private audio handling, removed public caching)
+
+**Testing Recommendations:**
+
+1. Clear PWA cache and reinstall service worker
+2. Play custom prompt audio immediately (should work)
+3. Wait 1+ hours, play same audio (should still work - new signed URL generated)
+4. Verify DevTools Network tab shows `?token=...` in audio URLs
+5. Verify no audio URLs are served from cache after 1 hour
+
+---
+
 ## November 15, 2025 (Late Night): Audio Ref Management Fixes
 
 ### Fixed: PlaySaySpell - Audio Ref Collision Between Prompt and Recorded Audio

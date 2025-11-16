@@ -75,39 +75,27 @@ export default defineConfig({
             },
           },
           {
-            // Private audio recordings with signed URLs - never cache
+            // Private audio with signed URLs - never cache
+            // Includes both audio-recordings (child recordings) and word-audio (parent prompts)
+            // CRITICAL: Signed URLs expire after 1 hour - caching them causes 403 errors
             urlPattern: ({ url }: { url: URL }) => {
               const isStorage =
                 url.hostname.includes(".supabase.co") &&
                 url.pathname.includes("/storage/");
               const isAudioRecordings =
                 url.pathname.includes("/audio-recordings/");
+              const isWordAudio = url.pathname.includes("/word-audio/");
               const hasSignedToken = url.searchParams.has("token");
-              // Don't cache if it's audio-recordings bucket OR has a signed URL token
+              // Don't cache if it's any audio bucket OR has a signed URL token
               const isPrivateAudioUrl =
-                isStorage && (isAudioRecordings || hasSignedToken);
+                isStorage &&
+                (isAudioRecordings || isWordAudio || hasSignedToken);
               return isPrivateAudioUrl;
             },
             handler: "NetworkOnly",
             options: {
               cacheName: `private-audio-${CACHE_VERSION}`,
-              // NetworkOnly ignores cache entirely
-            },
-          },
-          {
-            // Public static assets (word-audio prompt files) - cache with reduced TTL
-            urlPattern:
-              /^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/public\/word-audio\/.*/i,
-            handler: "CacheFirst",
-            options: {
-              cacheName: `public-audio-${CACHE_VERSION}`,
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 * 2, // 2 days (reduced from 7)
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
+              // NetworkOnly ignores cache entirely - always fetch fresh signed URLs
             },
           },
           {
