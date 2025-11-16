@@ -1932,7 +1932,7 @@ const playWord = useCallback(() => {
           setCurrentAudioUrl(null);
           const utterance = new SpeechSynthesisUtterance(currentWord.text);
           const voice = getVoiceWithFallback(
-            currentWord.tts_voice || undefined
+            currentWord.tts_voice || undefined,
           );
           if (voice) utterance.voice = voice;
           speechSynthesis.speak(utterance);
