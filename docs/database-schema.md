@@ -1,6 +1,9 @@
 # SpellStars Database Schema
 
-This document describes the Supabase database schema for SpellStars.
+> **Schema Version:** November 2025 (Production)
+> **Last Updated:** November 15, 2025
+
+This document describes the Supabase database schema for SpellStars. For migration history, see `supabase/migrations/` directory.
 
 ## Tables
 
@@ -8,39 +11,72 @@ This document describes the Supabase database schema for SpellStars.
 
 Stores user profile information.
 
-| Column     | Type      | Description                        |
-| ---------- | --------- | ---------------------------------- |
-| id         | uuid      | Primary key, references auth.users |
-| email      | text      | User email (unique)                |
-| role       | text      | 'parent' or 'child'                |
-| created_at | timestamp | When profile was created           |
-| updated_at | timestamp | When profile was last updated      |
+| Column       | Type      | Description                        |
+| ------------ | --------- | ---------------------------------- |
+| id           | uuid      | Primary key, references auth.users |
+| role         | text      | 'parent' or 'child'                |
+| display_name | text      | User display name (optional)       |
+| avatar_url   | text      | URL to user avatar (optional)      |
+| created_at   | timestamp | When profile was created           |
+| updated_at   | timestamp | When profile was last updated      |
 
-### spelling_lists
+**Note:** The `email` column was removed in favor of using `auth.users.email` directly.
 
-Stores spelling word lists created by parents.
+### word_lists
 
-| Column      | Type      | Description                |
-| ----------- | --------- | -------------------------- |
-| id          | uuid      | Primary key                |
-| parent_id   | uuid      | Foreign key to profiles    |
-| title       | text      | List title                 |
-| description | text      | Optional description       |
-| created_at  | timestamp | When list was created      |
-| updated_at  | timestamp | When list was last updated |
+Stores spelling word lists created by parents (renamed from `spelling_lists`).
+
+| Column          | Type      | Description                |
+| --------------- | --------- | -------------------------- |
+| id              | uuid      | Primary key                |
+| created_by      | uuid      | Foreign key to profiles    |
+| title           | text      | List title                 |
+| week_start_date | date      | Optional week start date   |
+| created_at      | timestamp | When list was created      |
+| updated_at      | timestamp | When list was last updated |
+
+**Changes from original schema:**
+
+- Renamed from `spelling_lists` to `word_lists`
+- Renamed `parent_id` to `created_by`
+- Removed `description` field
+- Added `week_start_date` field
 
 ### words
 
-Stores individual words in spelling lists.
+Stores individual vocabulary words (no longer directly linked to lists).
 
-| Column     | Type      | Description                         |
-| ---------- | --------- | ----------------------------------- |
-| id         | uuid      | Primary key                         |
-| list_id    | uuid      | Foreign key to spelling_lists       |
-| word       | text      | The spelling word                   |
-| audio_url  | text      | Optional URL to audio pronunciation |
-| order      | integer   | Display order in list               |
-| created_at | timestamp | When word was added                 |
+| Column           | Type      | Description                                    |
+| ---------------- | --------- | ---------------------------------------------- |
+| id               | uuid      | Primary key                                    |
+| text             | text      | The spelling word                              |
+| prompt_audio_url | text      | Storage path to audio pronunciation (optional) |
+| phonetic         | text      | Phonetic spelling (optional)                   |
+| tts_voice        | text      | Text-to-speech voice preference (optional)     |
+| created_at       | timestamp | When word was added                            |
+
+**Changes from original schema:**
+
+- Removed `list_id` column (now uses `list_words` junction table)
+- Renamed `word` to `text`
+- Renamed `audio_url` to `prompt_audio_url`
+- Removed `order` field (now in `list_words.sort_index`)
+- Added `phonetic` and `tts_voice` fields
+
+**Important:** The same word can now appear in multiple lists, avoiding duplication.
+
+### list_words
+
+Junction table enabling many-to-many relationship between lists and words.
+
+| Column     | Type    | Description                     |
+| ---------- | ------- | ------------------------------- |
+| list_id    | uuid    | Foreign key to word_lists       |
+| word_id    | uuid    | Foreign key to words            |
+| sort_index | integer | Display order within the list   |
+|            |         | Primary key: (list_id, word_id) |
+
+**Purpose:** Allows the same word to exist in multiple lists without duplication.
 
 ### attempts
 
@@ -94,17 +130,57 @@ Stores audio files uploaded by children during "Say & Spell" mode.
 - File size limit: 10MB
 - Allowed MIME types: audio/webm, audio/mp4, audio/wav
 
+## Indexes
+
+Performance indexes are created on frequently queried columns:
+
+- `idx_word_lists_created_by` - Lookup lists by creator
+- `idx_list_words_list_sort` - Ordered words within a list
+- `idx_attempts_child_word_started` - Child's attempt history for a word
+- `idx_attempts_list_id` - Analytics queries for specific lists
+- `idx_srs_child_due` - Find due words for a child
+- `idx_srs_child_word` - Lookup SRS status for a specific word
+
 ## Row Level Security (RLS)
 
 All tables have RLS enabled with appropriate policies:
 
-- Users can only view/edit their own data
-- Parents can manage their own lists and words
-- Children can create attempts for any word
-- Parents can view their children's attempts (requires additional parent-child relationship)
+### Profiles
+
+- **Parents** can read all profiles (to view child accounts)
+- **Children** can read only their own profile
+- **All users** can update their own profile
+
+### Word Lists
+
+- **All authenticated users** can read word lists
+- **Parents only** can insert, update, and delete word lists
+
+### Words & List Words
+
+- **All authenticated users** can read words and list-word associations
+- **Parents only** can insert, update, and delete words and list-word associations
+
+### Attempts
+
+- **Children** can insert and read their own attempts
+- **Parents** can read attempts for words in their own lists (via `list_id` foreign key)
+
+### SRS
+
+- **Children** can fully manage (insert, update, delete, read) their own SRS entries
+- **Parents** can read all SRS entries (for reporting/analytics)
 
 ## Triggers
 
 ### on_auth_user_created
 
-Automatically creates a profile entry when a new user signs up.
+Automatically creates a profile entry when a new user signs up, using:
+
+- `id` from `auth.users.id`
+- `role` from user metadata (defaults to 'parent')
+- `display_name` from user metadata (defaults to email username)
+
+### update_updated_at_column
+
+Updates the `updated_at` timestamp on profiles, word_lists, and srs tables before each UPDATE operation.

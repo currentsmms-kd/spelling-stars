@@ -303,132 +303,389 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 ### 3. Set Up Supabase Database
 
-Run the following SQL in your Supabase SQL editor to create the required tables:
+> **Schema Version:** This schema reflects production as of November 2025.
+> For complete migration history, see `supabase/migrations/` directory.
+> For detailed documentation, see [docs/database-schema.md](docs/database-schema.md).
+
+**Key Schema Changes from Original:**
+
+- `spelling_lists` → `word_lists` (table renamed)
+- `word_lists.parent_id` → `word_lists.created_by` (column renamed)
+- `words.list_id` removed - now uses `list_words` junction table (many-to-many)
+- `words.word` → `words.text` (column renamed)
+- `words.audio_url` → `words.prompt_audio_url` (column renamed)
+- `attempts.is_correct` → `attempts.correct` (column renamed)
+- `attempts.created_at` → `attempts.started_at` (column renamed)
+- Added `list_words` junction table for flexible word-list relationships
+- Added `srs` table for spaced repetition algorithm
+- Added `profiles.display_name` and `profiles.avatar_url` fields
+- Removed `profiles.email` (use `auth.users.email` instead)
+
+**Recommended:** Use the automated migration script:
+
+```powershell
+.\push-migration.ps1
+```
+
+**Alternative:** If you prefer manual setup, run the following SQL in your Supabase SQL editor:
 
 ```sql
--- Enable UUID extension
-create extension if not exists "uuid-ossp";
-
 -- Create profiles table
-create table profiles (
-  id uuid references auth.users on delete cascade primary key,
-  email text unique not null,
-  role text not null check (role in ('parent', 'child')),
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+CREATE TABLE profiles (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK (role IN ('parent', 'child')),
+    display_name TEXT,
+    avatar_url TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Create spelling_lists table
-create table spelling_lists (
-  id uuid default uuid_generate_v4() primary key,
-  parent_id uuid references profiles(id) on delete cascade not null,
-  title text not null,
-  description text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+-- Create word_lists table (renamed from spelling_lists)
+CREATE TABLE word_lists (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_by UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    week_start_date DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Create words table
-create table words (
-  id uuid default uuid_generate_v4() primary key,
-  list_id uuid references spelling_lists(id) on delete cascade not null,
-  word text not null,
-  audio_url text,
-  "order" integer not null default 0,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+-- Create words table (no longer directly linked to lists - uses junction table)
+CREATE TABLE words (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    text TEXT NOT NULL,
+    prompt_audio_url TEXT,
+    phonetic TEXT,
+    tts_voice TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create list_words junction table (enables same word in multiple lists)
+CREATE TABLE list_words (
+    list_id UUID REFERENCES word_lists(id) ON DELETE CASCADE,
+    word_id UUID REFERENCES words(id) ON DELETE CASCADE,
+    sort_index INTEGER NOT NULL,
+    PRIMARY KEY (list_id, word_id)
 );
 
 -- Create attempts table
--- NOTE: This is an illustrative example. The actual production schema includes
--- additional columns (mode, quality, duration_ms) and uses 'correct' instead of 'is_correct'
--- and 'started_at' instead of 'created_at'. See docs/database-schema.md for the complete schema.
-create table attempts (
-  id uuid default uuid_generate_v4() primary key,
-  child_id uuid references profiles(id) on delete cascade not null,
-  word_id uuid references words(id) on delete cascade not null,
-  list_id uuid references word_lists(id) on delete cascade not null,
-  mode text not null check (mode in ('listen-type', 'say-spell', 'flash')),
-  correct boolean not null,
-  quality integer check (quality >= 0 and quality <= 5),
-  typed_answer text,
-  audio_url text,
-  duration_ms integer,
-  started_at timestamp with time zone default timezone('utc'::text, now()) not null
+CREATE TABLE attempts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    child_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    word_id UUID NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+    list_id UUID NOT NULL REFERENCES word_lists(id) ON DELETE CASCADE,
+    mode TEXT NOT NULL CHECK (mode IN ('listen_type', 'say_spell', 'flash')),
+    correct BOOLEAN NOT NULL,
+    quality INTEGER CHECK (quality >= 0 AND quality <= 5),
+    typed_answer TEXT,
+    audio_url TEXT,
+    duration_ms INTEGER,
+    started_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Create srs table (spaced repetition system)
+CREATE TABLE srs (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    child_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    word_id UUID NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+    ease REAL DEFAULT 2.5 NOT NULL CHECK (ease >= 1.3),
+    interval_days INTEGER DEFAULT 0 NOT NULL CHECK (interval_days >= 0),
+    due_date DATE DEFAULT CURRENT_DATE NOT NULL,
+    reps INTEGER DEFAULT 0 NOT NULL CHECK (reps >= 0),
+    lapses INTEGER DEFAULT 0 NOT NULL CHECK (lapses >= 0),
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    UNIQUE(child_id, word_id)
+);
+
+-- Create indexes for better query performance
+CREATE INDEX idx_word_lists_created_by ON word_lists(created_by);
+CREATE INDEX idx_list_words_list_sort ON list_words(list_id, sort_index);
+CREATE INDEX idx_attempts_child_word_started ON attempts(child_id, word_id, started_at DESC);
+CREATE INDEX idx_attempts_list_id ON attempts(list_id);
+CREATE INDEX idx_srs_child_due ON srs(child_id, due_date);
+CREATE INDEX idx_srs_child_word ON srs(child_id, word_id);
+
 -- Enable Row Level Security
-alter table profiles enable row level security;
-alter table spelling_lists enable row level security;
-alter table words enable row level security;
-alter table attempts enable row level security;
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE word_lists ENABLE ROW LEVEL SECURITY;
+ALTER TABLE words ENABLE ROW LEVEL SECURITY;
+ALTER TABLE list_words ENABLE ROW LEVEL SECURITY;
+ALTER TABLE attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE srs ENABLE ROW LEVEL SECURITY;
 
 -- Profiles policies
-create policy "Users can view their own profile"
-  on profiles for select
-  using (auth.uid() = id);
+CREATE POLICY "Parents can read all profiles"
+    ON profiles FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM profiles p
+            WHERE p.id = auth.uid() AND p.role = 'parent'
+        )
+    );
 
-create policy "Users can update their own profile"
-  on profiles for update
-  using (auth.uid() = id);
+CREATE POLICY "Children can read own profile"
+    ON profiles FOR SELECT
+    USING (auth.uid() = id AND role = 'child');
 
--- Spelling lists policies
-create policy "Parents can view their own lists"
-  on spelling_lists for select
-  using (auth.uid() = parent_id);
+CREATE POLICY "Users can update own profile"
+    ON profiles FOR UPDATE
+    USING (auth.uid() = id);
 
-create policy "Parents can create lists"
-  on spelling_lists for insert
-  with check (auth.uid() = parent_id);
+-- Word lists policies
+CREATE POLICY "Authenticated users can read word_lists"
+    ON word_lists FOR SELECT
+    TO authenticated
+    USING (true);
 
-create policy "Parents can update their own lists"
-  on spelling_lists for update
-  using (auth.uid() = parent_id);
+CREATE POLICY "Parents can insert word_lists"
+    ON word_lists FOR INSERT
+    TO authenticated
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM profiles
+            WHERE profiles.id = auth.uid() AND profiles.role = 'parent'
+        )
+    );
 
-create policy "Parents can delete their own lists"
-  on spelling_lists for delete
-  using (auth.uid() = parent_id);
+CREATE POLICY "Parents can update word_lists"
+    ON word_lists FOR UPDATE
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM profiles
+            WHERE profiles.id = auth.uid() AND profiles.role = 'parent'
+        )
+    );
+
+CREATE POLICY "Parents can delete word_lists"
+    ON word_lists FOR DELETE
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM profiles
+            WHERE profiles.id = auth.uid() AND profiles.role = 'parent'
+        )
+    );
 
 -- Words policies
-create policy "Users can view words from lists"
-  on words for select
-  using (true);
+CREATE POLICY "Authenticated users can read words"
+    ON words FOR SELECT
+    TO authenticated
+    USING (true);
 
-create policy "Parents can insert words"
-  on words for insert
-  with check (exists (
-    select 1 from spelling_lists
-    where spelling_lists.id = words.list_id
-    and spelling_lists.parent_id = auth.uid()
-  ));
+CREATE POLICY "Parents can insert words"
+    ON words FOR INSERT
+    TO authenticated
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM profiles
+            WHERE profiles.id = auth.uid() AND profiles.role = 'parent'
+        )
+    );
+
+CREATE POLICY "Parents can update words"
+    ON words FOR UPDATE
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM profiles
+            WHERE profiles.id = auth.uid() AND profiles.role = 'parent'
+        )
+    );
+
+CREATE POLICY "Parents can delete words"
+    ON words FOR DELETE
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM profiles
+            WHERE profiles.id = auth.uid() AND profiles.role = 'parent'
+        )
+    );
+
+-- List words policies
+CREATE POLICY "Authenticated users can read list_words"
+    ON list_words FOR SELECT
+    TO authenticated
+    USING (true);
+
+CREATE POLICY "Parents can insert list_words"
+    ON list_words FOR INSERT
+    TO authenticated
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM profiles
+            WHERE profiles.id = auth.uid() AND profiles.role = 'parent'
+        )
+    );
+
+CREATE POLICY "Parents can update list_words"
+    ON list_words FOR UPDATE
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM profiles
+            WHERE profiles.id = auth.uid() AND profiles.role = 'parent'
+        )
+    );
+
+CREATE POLICY "Parents can delete list_words"
+    ON list_words FOR DELETE
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM profiles
+            WHERE profiles.id = auth.uid() AND profiles.role = 'parent'
+        )
+    );
 
 -- Attempts policies
-create policy "Users can view their own attempts"
-  on attempts for select
-  using (auth.uid() = child_id);
+CREATE POLICY "Children can insert own attempts"
+    ON attempts FOR INSERT
+    TO authenticated
+    WITH CHECK (auth.uid() = child_id);
 
-create policy "Users can create attempts"
-  on attempts for insert
-  with check (auth.uid() = child_id);
+CREATE POLICY "Children can read own attempts"
+    ON attempts FOR SELECT
+    TO authenticated
+    USING (auth.uid() = child_id);
+
+CREATE POLICY "Parents can read attempts for their lists"
+    ON attempts FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM word_lists wl
+            WHERE wl.id = attempts.list_id
+            AND wl.created_by = auth.uid()
+        )
+    );
+
+-- SRS policies
+CREATE POLICY "Children can manage own SRS"
+    ON srs FOR ALL
+    TO authenticated
+    USING (
+        auth.uid() = child_id
+        AND EXISTS (
+            SELECT 1 FROM profiles
+            WHERE profiles.id = auth.uid()
+            AND profiles.role = 'child'
+        )
+    )
+    WITH CHECK (
+        auth.uid() = child_id
+        AND EXISTS (
+            SELECT 1 FROM profiles
+            WHERE profiles.id = auth.uid()
+            AND profiles.role = 'child'
+        )
+    );
+
+CREATE POLICY "Parents can view all SRS"
+    ON srs FOR SELECT
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM profiles
+            WHERE profiles.id = auth.uid()
+            AND profiles.role = 'parent'
+        )
+    );
+
+-- Create storage bucket for audio recordings
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('audio-recordings', 'audio-recordings', false)
+ON CONFLICT (id) DO NOTHING;
 
 -- Create function to handle new user profile creation
-create or replace function public.handle_new_user()
-returns trigger as $$
-begin
-  insert into public.profiles (id, email, role)
-  values (
-    new.id,
-    new.email,
-    coalesce(new.raw_user_meta_data->>'role', 'parent')
-  );
-  return new;
-end;
-$$ language plpgsql security definer;
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    INSERT INTO public.profiles (id, role, display_name)
+    VALUES (
+        NEW.id,
+        COALESCE(NEW.raw_user_meta_data->>'role', 'parent'),
+        COALESCE(NEW.raw_user_meta_data->>'display_name', split_part(NEW.email, '@', 1))
+    );
+    RETURN NEW;
+END;
+$$;
 
 -- Create trigger for new user
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW
+    EXECUTE FUNCTION handle_new_user();
+
+-- Create function to update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$;
+
+-- Triggers to update updated_at
+CREATE TRIGGER update_profiles_updated_at
+    BEFORE UPDATE ON profiles
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_word_lists_updated_at
+    BEFORE UPDATE ON word_lists
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER set_srs_updated_at
+    BEFORE UPDATE ON srs
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
 ```
+
+#### Database Health Checks
+
+After setting up your database, verify everything is working correctly:
+
+```powershell
+# Check all tables exist
+.\check-tables.ps1
+
+# View migration history
+.\check-migrations.ps1
+
+# Run comprehensive health check
+.\check-db-health.ps1
+```
+
+#### Migration Management
+
+The project uses numbered SQL migrations in `supabase/migrations/`:
+
+- Migrations are idempotent (can be run multiple times safely)
+- Each migration uses `IF NOT EXISTS` checks
+- Migrations are applied in alphabetical order by filename
+- Format: `YYYYMMDDHHMMSS_description.sql`
+
+To apply all migrations to a fresh database:
+
+```powershell
+.\push-migration.ps1
+```
+
+To record a new migration as applied:
+
+```powershell
+.\record-migration.ps1 -migrationName "20241108000000_initial_schema"
+```
+
+**Important:** If you used the manual SQL setup above, you should still run the migration script to ensure all recent updates are applied (SRS features, parent-child relationships, rewards system, etc.).
 
 ### 4. Run Development Server
 
@@ -599,10 +856,13 @@ The project maintains high code quality standards:
 
 **Testing**
 
-- TypeScript strict mode catches type errors
-- React Query handles loading/error states
-- Manual testing checklist for new features
-- Accessibility testing with keyboard and screen readers
+- Comprehensive test suite using Vitest
+- Unit tests for critical algorithms (SRS, crypto, utils)
+- 80%+ coverage on core libraries
+- Integration tests for game logic (coming soon)
+- Component tests with React Testing Library (coming soon)
+
+See [Running Tests](#running-tests) section for details.
 
 **Performance**
 
@@ -760,6 +1020,141 @@ doppler run -- pwsh .\check-db-advisor.ps1
 
 - See `docs/DATABASE_ADVISOR_REPORT.md` for detailed database optimization findings
 - See `docs/SRS_IMPLEMENTATION.md` for SRS-specific schema details
+
+### Running Tests
+
+SpellStars uses **Vitest** for unit and integration testing. The test suite covers critical algorithms and utilities to ensure correctness and prevent regressions.
+
+**Test Commands:**
+
+```powershell
+# Run tests in watch mode (recommended for development)
+pnpm test
+
+# Run tests once with full output
+pnpm test:run
+
+# Run tests with coverage report
+pnpm test:coverage
+
+# Run tests with interactive UI
+pnpm test:ui
+```
+
+**Test Coverage:**
+
+The test suite focuses on critical business logic:
+
+1. **SRS Algorithm (`src/lib/srs.test.ts`)** - 100+ tests
+   - SM-2-lite spaced repetition calculations
+   - Success/failure state transitions
+   - Edge cases (minimum ease, large intervals)
+   - Integration scenarios (learning progression)
+
+2. **PIN Security (`src/lib/crypto.test.ts`)** - 80+ tests
+   - PBKDF2 hashing with 100k iterations
+   - Constant-time comparison (timing attack resistance)
+   - Salt randomness and uniqueness
+   - Format validation and error handling
+   - Security properties (256-bit hash, 128-bit salt)
+
+3. **Spelling Normalization (`src/lib/utils.test.ts`)** - 120+ tests
+   - Case sensitivity handling
+   - Punctuation normalization (preserve vs. remove)
+   - Compound words and contractions
+   - Hint generation consistency
+   - Unicode and edge cases
+
+**Coverage Targets:**
+
+- **Critical Libraries**: 80%+ coverage (currently 90%+)
+- **Lines**: 80% minimum
+- **Branches**: 75% minimum
+- **Functions**: 80% minimum
+
+**Running Coverage:**
+
+```powershell
+pnpm test:coverage
+
+# View HTML coverage report
+start coverage/index.html  # Opens in default browser
+```
+
+**Test File Structure:**
+
+```
+src/
+├── lib/
+│   ├── srs.ts           # Spaced repetition algorithm
+│   ├── srs.test.ts      # 100+ tests for SRS
+│   ├── crypto.ts        # PIN hashing and verification
+│   ├── crypto.test.ts   # 80+ tests for security
+│   ├── utils.ts         # Spelling normalization
+│   └── utils.test.ts    # 120+ tests for utilities
+└── test/
+    └── setup.ts         # Test configuration (mocks, globals)
+```
+
+**Adding New Tests:**
+
+1. Create `*.test.ts` file next to the file you're testing
+2. Import functions to test and Vitest utilities:
+
+```typescript
+import { describe, it, expect } from "vitest";
+import { myFunction } from "./myFile";
+
+describe("myFunction", () => {
+  it("should do something specific", () => {
+    const result = myFunction("input");
+    expect(result).toBe("expected output");
+  });
+});
+```
+
+3. Run tests in watch mode: `pnpm test`
+4. Verify coverage: `pnpm test:coverage`
+
+**Best Practices:**
+
+- **Test pure functions first** - Easiest to test, highest value
+- **Mock external dependencies** - Use Vitest mocks for Supabase, IndexedDB, etc.
+- **Test edge cases** - Empty strings, null, undefined, large values
+- **Use descriptive test names** - "should reject PIN that differs by one digit"
+- **Group related tests** - Use `describe` blocks for organization
+- **Test error handling** - Verify graceful failure modes
+- **Keep tests fast** - Avoid unnecessary async operations
+
+**Coming Soon:**
+
+- Integration tests for game logic (attempt flow, audio recording)
+- Component tests with React Testing Library
+- E2E tests with Playwright (sign up → create list → play game)
+- CI/CD integration (GitHub Actions)
+
+**Debugging Tests:**
+
+```powershell
+# Run specific test file
+pnpm test src/lib/srs.test.ts
+
+# Run tests matching pattern
+pnpm test -t "should increase ease factor"
+
+# Run with verbose output
+pnpm test --reporter=verbose
+
+# Debug in VS Code
+# Set breakpoint in test file, run "Debug Test" from test explorer
+```
+
+**Test Configuration:**
+
+- **Config**: `vitest.config.ts`
+- **Setup**: `src/test/setup.ts`
+- **Environment**: `happy-dom` (lightweight DOM for React tests)
+- **Coverage**: `v8` provider (fast, accurate)
 
 ### Key Concepts
 
