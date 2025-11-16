@@ -191,7 +191,7 @@ function MasteryTableView({
             total_words: number;
             mastery_percentage: number;
           },
-          index: number
+          index: number,
         ) => (
           <MasteryListDetail
             key={list.list_id}
@@ -199,7 +199,7 @@ function MasteryTableView({
             index={index}
             colors={colors}
           />
-        )
+        ),
       )}
     </div>
   );
