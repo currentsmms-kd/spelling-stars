@@ -527,7 +527,7 @@ const updateSW = registerSW({
         () => {
           registration.update();
         },
-        60 * 60 * 1000
+        60 * 60 * 1000,
       );
     }
   },

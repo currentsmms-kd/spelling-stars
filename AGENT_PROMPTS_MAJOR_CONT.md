@@ -225,7 +225,7 @@ if (newWordsAttempted.length > MAX_WORDS_TRACKED * 0.8) {
   logger.warn(
     `Session has tracked ${newWordsAttempted.length} unique words. ` +
       `Approaching limit of ${MAX_WORDS_TRACKED}. ` +
-      `Consider ending session for accurate statistics.`
+      `Consider ending session for accurate statistics.`,
   );
 }
 ```

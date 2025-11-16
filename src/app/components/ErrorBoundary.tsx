@@ -194,7 +194,7 @@ URL: ${window.location.href}
 // HOC for easy wrapping
 export function withErrorBoundary<P extends object>(
   Component: React.ComponentType<P>,
-  fallback?: ReactNode
+  fallback?: ReactNode,
 ): React.ComponentType<P> {
   const WrappedComponent = (props: P) => (
     <ErrorBoundary fallback={fallback}>
