@@ -60,31 +60,31 @@ describe("normalizeSpellingAnswer", () => {
   describe("With enforceCaseSensitivity: true", () => {
     it("should preserve original case", () => {
       expect(
-        normalizeSpellingAnswer("Apple", { enforceCaseSensitivity: true })
+        normalizeSpellingAnswer("Apple", { enforceCaseSensitivity: true }),
       ).toBe("Apple");
       expect(
-        normalizeSpellingAnswer("APPLE", { enforceCaseSensitivity: true })
+        normalizeSpellingAnswer("APPLE", { enforceCaseSensitivity: true }),
       ).toBe("APPLE");
       expect(
-        normalizeSpellingAnswer("aPpLe", { enforceCaseSensitivity: true })
+        normalizeSpellingAnswer("aPpLe", { enforceCaseSensitivity: true }),
       ).toBe("aPpLe");
     });
 
     it("should still remove sentence punctuation", () => {
       expect(
-        normalizeSpellingAnswer("Hello!", { enforceCaseSensitivity: true })
+        normalizeSpellingAnswer("Hello!", { enforceCaseSensitivity: true }),
       ).toBe("Hello");
       expect(
-        normalizeSpellingAnswer("World.", { enforceCaseSensitivity: true })
+        normalizeSpellingAnswer("World.", { enforceCaseSensitivity: true }),
       ).toBe("World");
     });
 
     it("should preserve hyphens and apostrophes", () => {
       expect(
-        normalizeSpellingAnswer("T-Shirt", { enforceCaseSensitivity: true })
+        normalizeSpellingAnswer("T-Shirt", { enforceCaseSensitivity: true }),
       ).toBe("T-Shirt");
       expect(
-        normalizeSpellingAnswer("Don't", { enforceCaseSensitivity: true })
+        normalizeSpellingAnswer("Don't", { enforceCaseSensitivity: true }),
       ).toBe("Don't");
     });
   });
@@ -92,34 +92,34 @@ describe("normalizeSpellingAnswer", () => {
   describe("With ignorePunctuation: true", () => {
     it("should remove all punctuation including hyphens", () => {
       expect(
-        normalizeSpellingAnswer("ice-cream", { ignorePunctuation: true })
+        normalizeSpellingAnswer("ice-cream", { ignorePunctuation: true }),
       ).toBe("ice cream");
       expect(
-        normalizeSpellingAnswer("mother-in-law", { ignorePunctuation: true })
+        normalizeSpellingAnswer("mother-in-law", { ignorePunctuation: true }),
       ).toBe("mother in law");
       expect(
-        normalizeSpellingAnswer("T-shirt", { ignorePunctuation: true })
+        normalizeSpellingAnswer("T-shirt", { ignorePunctuation: true }),
       ).toBe("t shirt");
     });
 
     it("should remove all punctuation including apostrophes", () => {
       expect(
-        normalizeSpellingAnswer("don't", { ignorePunctuation: true })
+        normalizeSpellingAnswer("don't", { ignorePunctuation: true }),
       ).toBe("dont");
       expect(normalizeSpellingAnswer("it's", { ignorePunctuation: true })).toBe(
-        "its"
+        "its",
       );
       expect(
-        normalizeSpellingAnswer("cat's", { ignorePunctuation: true })
+        normalizeSpellingAnswer("cat's", { ignorePunctuation: true }),
       ).toBe("cats");
     });
 
     it("should still convert to lowercase by default", () => {
       expect(
-        normalizeSpellingAnswer("DON'T", { ignorePunctuation: true })
+        normalizeSpellingAnswer("DON'T", { ignorePunctuation: true }),
       ).toBe("dont");
       expect(
-        normalizeSpellingAnswer("Ice-Cream", { ignorePunctuation: true })
+        normalizeSpellingAnswer("Ice-Cream", { ignorePunctuation: true }),
       ).toBe("ice cream");
     });
   });

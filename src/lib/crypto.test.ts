@@ -321,7 +321,7 @@ describe("PBKDF2 security properties", () => {
     const hashes = await Promise.all(
       Array(10)
         .fill(0)
-        .map(() => hashPin(pin))
+        .map(() => hashPin(pin)),
     );
 
     const salts = hashes.map((h) => h.split(":")[0]);
@@ -394,7 +394,7 @@ describe("Integration: hash and verify workflow", () => {
     ];
 
     const results = await Promise.all(
-      commonPins.map((pin) => verifyPin(pin, storedHash))
+      commonPins.map((pin) => verifyPin(pin, storedHash)),
     );
 
     // Only the correct PIN should verify
