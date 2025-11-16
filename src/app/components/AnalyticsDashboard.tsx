@@ -121,38 +121,6 @@ function MasteryListDetail({
   );
 }
 
-// Mastery Section Component
-function MasterySection({
-  masteryData,
-  colors,
-}: {
-  masteryData: Array<{
-    list_id: string;
-    list_title: string;
-    mastered_count: number;
-    total_words: number;
-    mastery_percentage: number;
-  }>;
-  colors: string[];
-}) {
-  if (masteryData.length === 0) {
-    return null;
-  }
-
-  return (
-    <>
-      <h3 className="text-xl font-bold mb-4">Mastery by List</h3>
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Pie Chart */}
-        <MasteryPieChart masteryData={masteryData} colors={colors} />
-
-        {/* Table View */}
-        <MasteryTableView masteryData={masteryData} colors={colors} />
-      </div>
-    </>
-  );
-}
-
 // Pie Chart Component
 function MasteryPieChart({
   masteryData,
@@ -175,7 +143,7 @@ function MasteryPieChart({
           cx="50%"
           cy="50%"
           outerRadius={100}
-          label
+          label={true}
         >
           {masteryData.map((entry, index: number) => (
             <Cell
@@ -237,125 +205,35 @@ function MasteryTableView({
   );
 }
 
-export function AnalyticsDashboard({
-  childId,
-  overview,
-}: AnalyticsDashboardProps) {
-  // If overview data not provided, return placeholder
-  if (!childId) {
-    return (
-      <Card>
-        <div className="text-center py-8 text-muted-foreground">
-          Select a child to view analytics
-        </div>
-      </Card>
-    );
-  }
-
-  if (!overview) {
-    return (
-      <Card>
-        <div className="text-center py-8 text-muted-foreground">
-          Loading analytics...
-        </div>
-      </Card>
-    );
-  }
-
-  const { summary, accuracy_over_time, attempts_by_mode, mastery_by_list } =
-    overview;
-
-  // Prepare data for charts
-  const accuracyData = accuracy_over_time || [];
-
-  const modeData = attempts_by_mode
-    ? Object.entries(attempts_by_mode).map(([mode, count]) => ({
-        mode: mode === "listen-type" ? "Listen & Type" : "Say & Spell",
-        count: count as number,
-      }))
-    : [];
-
-  const masteryData = mastery_by_list || [];
-
-  // Chart colors from theme
-  const COLORS = [
-    "hsl(var(--primary))",
-    "hsl(var(--secondary))",
-    "hsl(var(--accent))",
-    "hsl(var(--destructive))",
-    "hsl(var(--muted))",
-  ];
-
-  return (
-    <AnalyticsDashboardContent
-      summary={summary}
-      accuracyData={accuracyData}
-      modeData={modeData}
-      masteryData={masteryData}
-      colors={COLORS}
-    />
-  );
-}
-
-// Dashboard Content Component
-function AnalyticsDashboardContent({
-  summary,
-  accuracyData,
-  modeData,
+// Mastery Section Component
+function MasterySection({
   masteryData,
   colors,
 }: {
-  summary: ParentOverviewData["summary"];
-  accuracyData: ParentOverviewData["accuracy_over_time"];
-  modeData: Array<{ mode: string; count: number }>;
-  masteryData: ParentOverviewData["mastery_by_list"];
+  masteryData: Array<{
+    list_id: string;
+    list_title: string;
+    mastered_count: number;
+    total_words: number;
+    mastery_percentage: number;
+  }>;
   colors: string[];
 }) {
+  if (masteryData.length === 0) {
+    return null;
+  }
+
   return (
-    <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <SummaryCard
-          icon={<Award className="text-secondary" size={24} />}
-          iconColor="bg-secondary/10"
-          value={summary?.total_words_mastered || 0}
-          label="Words Mastered"
-        />
-        <SummaryCard
-          icon={<TrendingUp className="text-primary" size={24} />}
-          iconColor="bg-primary/10"
-          value={`${summary?.current_streak_days || 0} days`}
-          label="Current Streak"
-        />
-        <SummaryCard
-          icon={<Target className="text-accent" size={24} />}
-          iconColor="bg-accent/10"
-          value={`${summary?.avg_accuracy_7d?.toFixed(0) || 0}%`}
-          label="7-Day Accuracy"
-        />
-        <SummaryCard
-          icon={<Clock className="text-secondary" size={24} />}
-          iconColor="bg-secondary/10"
-          value={`${Math.floor(summary?.total_time_on_task_minutes || 0)} min`}
-          label="Time on Task"
-        />
+    <>
+      <h3 className="text-xl font-bold mb-4">Mastery by List</h3>
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Pie Chart */}
+        <MasteryPieChart masteryData={masteryData} colors={colors} />
+
+        {/* Table View */}
+        <MasteryTableView masteryData={masteryData} colors={colors} />
       </div>
-
-      <AccuracyChart accuracyData={accuracyData} />
-      <AttemptsModeChart modeData={modeData} />
-      <MasterySection masteryData={masteryData} colors={colors} />
-
-      {/* Empty State */}
-      {accuracyData.length === 0 &&
-        modeData.length === 0 &&
-        masteryData.length === 0 && (
-          <Card>
-            <div className="text-center py-8 text-muted-foreground">
-              No practice data available for the selected time range.
-            </div>
-          </Card>
-        )}
-    </div>
+    </>
   );
 }
 
@@ -445,5 +323,127 @@ function AttemptsModeChart({
         </BarChart>
       </ResponsiveContainer>
     </Card>
+  );
+}
+
+// Dashboard Content Component
+function AnalyticsDashboardContent({
+  summary,
+  accuracyData,
+  modeData,
+  masteryData,
+  colors,
+}: {
+  summary: ParentOverviewData["summary"];
+  accuracyData: ParentOverviewData["accuracy_over_time"];
+  modeData: Array<{ mode: string; count: number }>;
+  masteryData: ParentOverviewData["mastery_by_list"];
+  colors: string[];
+}) {
+  return (
+    <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <SummaryCard
+          icon={<Award className="text-secondary" size={24} />}
+          iconColor="bg-secondary/10"
+          value={summary?.total_words_mastered || 0}
+          label="Words Mastered"
+        />
+        <SummaryCard
+          icon={<TrendingUp className="text-primary" size={24} />}
+          iconColor="bg-primary/10"
+          value={`${summary?.current_streak_days || 0} days`}
+          label="Current Streak"
+        />
+        <SummaryCard
+          icon={<Target className="text-accent" size={24} />}
+          iconColor="bg-accent/10"
+          value={`${summary?.avg_accuracy_7d?.toFixed(0) || 0}%`}
+          label="7-Day Accuracy"
+        />
+        <SummaryCard
+          icon={<Clock className="text-secondary" size={24} />}
+          iconColor="bg-secondary/10"
+          value={`${Math.floor(summary?.total_time_on_task_minutes || 0)} min`}
+          label="Time on Task"
+        />
+      </div>
+
+      <AccuracyChart accuracyData={accuracyData} />
+      <AttemptsModeChart modeData={modeData} />
+      <MasterySection masteryData={masteryData} colors={colors} />
+
+      {/* Empty State */}
+      {accuracyData.length === 0 &&
+        modeData.length === 0 &&
+        masteryData.length === 0 && (
+          <Card>
+            <div className="text-center py-8 text-muted-foreground">
+              No practice data available for the selected time range.
+            </div>
+          </Card>
+        )}
+    </div>
+  );
+}
+
+export function AnalyticsDashboard({
+  childId,
+  overview,
+}: AnalyticsDashboardProps) {
+  // If overview data not provided, return placeholder
+  if (!childId) {
+    return (
+      <Card>
+        <div className="text-center py-8 text-muted-foreground">
+          Select a child to view analytics
+        </div>
+      </Card>
+    );
+  }
+
+  if (!overview) {
+    return (
+      <Card>
+        <div className="text-center py-8 text-muted-foreground">
+          Loading analytics...
+        </div>
+      </Card>
+    );
+  }
+
+  const { summary, accuracy_over_time, attempts_by_mode, mastery_by_list } =
+    overview;
+
+  // Prepare data for charts
+  const accuracyData = accuracy_over_time || [];
+
+  const modeData = attempts_by_mode
+    ? Object.entries(attempts_by_mode).map(([mode, count]) => ({
+        mode: mode === "listen-type" ? "Listen & Type" : "Say & Spell",
+        count: count as number,
+      }))
+    : [];
+
+  const masteryData = mastery_by_list || [];
+
+  // Chart colors from theme
+  const COLORS = [
+    "hsl(var(--primary))",
+    "hsl(var(--secondary))",
+    "hsl(var(--accent))",
+    "hsl(var(--destructive))",
+    "hsl(var(--muted))",
+  ];
+
+  return (
+    <AnalyticsDashboardContent
+      summary={summary}
+      accuracyData={accuracyData}
+      modeData={modeData}
+      masteryData={masteryData}
+      colors={COLORS}
+    />
   );
 }

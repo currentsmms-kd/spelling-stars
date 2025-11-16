@@ -631,9 +631,115 @@ const playWord = useCallback(() => {
 
 ---
 
+## November 15, 2025 (Late Evening): TypeScript Build Fixes
+
+### Fixed: TypeScript Build Failure - Recharts Label Prop Type Error
+
+**Date:** November 15, 2025 (PM)
+
+**Problem:** Application failed TypeScript compilation with error at `AnalyticsDashboard.tsx:194`:
+
+```text
+Type '(props: PieLabelProps) => string' is not assignable to type 'PieLabel | undefined'
+```
+
+This blocked ALL builds and deployments, making the application impossible to compile in production.
+
+**Root Cause:** The `label` prop on the `<Pie>` component was set to `label` (shorthand for `label={true}`), but TypeScript was inferring an incorrect type signature. Recharts v3.3.0 expects an explicit boolean type for the default label behavior.
+
+**Solution:** Explicitly set `label={true}` instead of using the shorthand `label`:
+
+```typescript
+// BEFORE (FAILING):
+<Pie
+  data={masteryData}
+  dataKey="mastery_percentage"
+  nameKey="list_title"
+  cx="50%"
+  cy="50%"
+  outerRadius={100}
+  label  // ❌ TypeScript infers wrong type
+>
+
+// AFTER (FIXED):
+<Pie
+  data={masteryData}
+  dataKey="mastery_percentage"
+  nameKey="list_title"
+  cx="50%"
+  cy="50%"
+  outerRadius={100}
+  label={true}  // ✅ Explicit boolean type
+>
+```
+
+**Why This Was Critical:**
+
+1. **Blocked all builds**: `pnpm run build` failed with TypeScript error
+2. **Prevented deployment**: Production deployments impossible
+3. **Broke CI/CD**: Any automated build pipeline would fail
+4. **Development impact**: Could not create production builds for testing
+
+**Files Modified:**
+
+- `src/app/components/AnalyticsDashboard.tsx` (line 178)
+
+---
+
+### Fixed: Additional TypeScript Errors Blocking Build
+
+**Date:** November 15, 2025 (PM)
+
+**Problem:** After fixing the Recharts error, two additional TypeScript errors prevented build:
+
+1. **Login.tsx:20** - Unused variable `profile` declared but never used
+2. **router.tsx:175** - Invalid React Router future flag `v7_startTransition`
+
+**Root Cause:**
+
+1. `profile` variable was destructured from `useAuth()` but never referenced in component
+2. `v7_startTransition` flag is not supported in current React Router version
+
+**Solution:**
+
+Step 1: Removed unused `profile` from destructuring:
+
+```typescript
+// BEFORE: const { signIn, profile } = useAuth();
+// AFTER:  const { signIn } = useAuth();
+```
+
+Step 2: Removed unsupported future flag:
+
+```typescript
+// BEFORE:
+{
+  future: {
+    v7_relativeSplatPath: true,
+    v7_startTransition: true,  // ❌ Not supported
+  },
+}
+
+// AFTER:
+{
+  future: {
+    v7_relativeSplatPath: true,
+  },
+}
+```
+
+**Build Result:** ✅ Build now succeeds with no TypeScript errors
+
+**Files Modified:**
+
+- `src/app/pages/auth/Login.tsx` (line 20)
+- `src/app/router.tsx` (line 175)
+
+---
+
 ## Summary
 
-### Total Fixes: 21+ critical bugs resolved
+### Total Fixes: 23 critical bugs resolved
 
 ### Database Migrations Created
 
