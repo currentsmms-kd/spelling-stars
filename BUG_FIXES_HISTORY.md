@@ -539,9 +539,101 @@ const wordsWithSignedUrls = words.map((word) => {
 
 ---
 
+## November 15, 2025 (Evening): Audio Playback Fix
+
+### Fixed: PlaySaySpell - Missing Prompt Audio Playback
+
+**Date:** November 15, 2025 (PM)
+
+**Problem:** Say & Spell game mode never played custom parent-uploaded prompt audio. The game only used TTS fallback, completely ignoring any custom pronunciations uploaded by parents.
+
+**Root Cause:** The `playWord()` callback in `PlaySaySpell.tsx` only implemented TTS playback logic. Unlike `PlayListenType.tsx` which checks for `prompt_audio_url` first and falls back to TTS, `PlaySaySpell` jumped straight to TTS without checking for custom audio.
+
+```typescript
+// BEFORE (BUGGY):
+const playWord = useCallback(() => {
+  if (!currentWord) return;
+  speechSynthesis.cancel();
+
+  // PROBLEM: Never checks prompt_audio_url!
+  const utterance = new SpeechSynthesisUtterance(currentWord.text);
+  const voice = getVoiceWithFallback(currentWord.tts_voice || undefined);
+  if (voice) utterance.voice = voice;
+  speechSynthesis.speak(utterance);
+}, [currentWord, getVoiceWithFallback, voicesLoading]);
+```
+
+**Solution:** Implemented the same audio playback logic used in `PlayListenType.tsx`:
+
+1. Added `audioRef` (HTMLAudioElement ref) and `currentAudioUrl` state
+2. Modified `playWord()` to check `prompt_audio_url` first
+3. If custom audio exists: Play via audio element with error handler that falls back to TTS
+4. If no custom audio: Use TTS with voice selection
+5. Added audio element to JSX with proper cleanup
+6. Updated cleanup effect to stop audio playback on unmount
+
+**Implementation Details:**
+
+```typescript
+// AFTER (FIXED):
+const playWord = useCallback(() => {
+  if (!currentWord) return;
+
+  // Stop any previous audio
+  if (audioRef.current) {
+    audioRef.current.pause();
+    audioRef.current = null;
+  }
+  speechSynthesis.cancel();
+
+  // CHECK FOR CUSTOM PROMPT AUDIO FIRST
+  if (currentWord.prompt_audio_url) {
+    setCurrentAudioUrl(currentWord.prompt_audio_url);
+    setTimeout(() => {
+      if (audioRef.current) {
+        audioRef.current.onerror = () => {
+          // Fall back to TTS on error
+          setCurrentAudioUrl(null);
+          const utterance = new SpeechSynthesisUtterance(currentWord.text);
+          const voice = getVoiceWithFallback(
+            currentWord.tts_voice || undefined
+          );
+          if (voice) utterance.voice = voice;
+          speechSynthesis.speak(utterance);
+        };
+        audioRef.current.play().catch((error) => {
+          logger.warn("Audio autoplay blocked", error);
+          toast("👆 Tap the Play button to hear the word");
+        });
+      }
+    }, 100);
+  } else {
+    // Fall back to TTS (existing logic)
+    // ... TTS implementation with retry logic ...
+  }
+}, [currentWord, getVoiceWithFallback, voicesLoading]);
+```
+
+**Why This Was Critical:**
+
+1. **Broken parent-child workflow**: Parents could upload custom pronunciations but children never heard them in Say & Spell mode
+2. **Silent failure**: No error shown - game just ignored custom audio
+3. **Inconsistent behavior**: Feature worked in Listen & Type but not Say & Spell
+4. **Accessibility impact**: Custom audio may include specific pronunciations, regional accents, or clarifications that TTS cannot provide
+5. **Data waste**: Signed URLs were being generated correctly but never used
+
+**Files Modified:**
+
+- `src/app/pages/child/PlaySaySpell.tsx` (lines 932-934: added audioRef and currentAudioUrl state)
+- `src/app/pages/child/PlaySaySpell.tsx` (lines 1250-1394: rewrote playWord callback)
+- `src/app/pages/child/PlaySaySpell.tsx` (lines 1424-1433: added audio cleanup)
+- `src/app/pages/child/PlaySaySpell.tsx` (lines 1815-1823: added audio element to JSX)
+
+---
+
 ## Summary
 
-### Total Fixes: 20+ critical bugs resolved
+### Total Fixes: 21+ critical bugs resolved
 
 ### Database Migrations Created
 
@@ -556,7 +648,7 @@ const wordsWithSignedUrls = words.map((word) => {
 ### Most-Modified Components
 
 1. `src/app/pages/child/PlayListenType.tsx` - 7 separate fixes across all sessions
-2. `src/app/pages/child/PlaySaySpell.tsx` - 5 separate fixes
+2. `src/app/pages/child/PlaySaySpell.tsx` - 6 separate fixes (including audio playback)
 3. `src/app/api/supa.ts` - Word count aggregation
 4. `src/app/hooks/useAudioRecorder.ts` - Enhanced error handling
 
@@ -569,6 +661,7 @@ const wordsWithSignedUrls = words.map((word) => {
 - **Enhanced error logging** with context, error codes, and detailed information
 - **Non-blocking star awards** with try-catch (don't let rewards block gameplay)
 - **Guard clauses** for early returns on missing data
+- **Consistent audio playback logic** across all game modes (prompt audio → TTS fallback)
 
 ### Testing Status
 
@@ -582,5 +675,6 @@ const wordsWithSignedUrls = words.map((word) => {
 - List selection and gameplay (both game modes)
 - Online/offline synchronization
 - Audio recording and playback (both child recordings and parent prompts)
+- **Custom prompt audio playback in Say & Spell mode (NEW FIX)**
 - Star awards and daily streak tracking
 - Analytics and progress visualization

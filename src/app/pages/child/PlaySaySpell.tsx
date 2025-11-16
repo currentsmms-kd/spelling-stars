@@ -929,6 +929,7 @@ export function PlaySaySpell() {
   const [starsEarned, setStarsEarned] = useState(0); // Stars earned this session
   const [isFirstAttempt, setIsFirstAttempt] = useState(true); // True until first wrong answer
   const [showConfetti, setShowConfetti] = useState(false); // Confetti animation trigger
+  const [currentAudioUrl, setCurrentAudioUrl] = useState<string | null>(null); // Current word's audio URL
 
   // Refs for timeout cleanup
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -936,6 +937,7 @@ export function PlaySaySpell() {
   const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const ttsRetryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const ttsRetryCountRef = useRef<number>(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Ref to track last played word - prevents duplicate TTS playback
   const lastPlayedWordIdRef = useRef<string | null>(null);
@@ -1246,56 +1248,136 @@ export function PlaySaySpell() {
 
   const currentWord = listData?.words[currentWordIndex];
 
+  /**
+   * Play the current word's audio (prompt audio or TTS fallback)
+   *
+   * CRITICAL FIX: Matches PlayListenType implementation to support custom prompt audio
+   *
+   * @remarks
+   * - Checks for prompt_audio_url first (parent-uploaded custom pronunciation)
+   * - Falls back to browser TTS with voice selection
+   * - Retries up to 50 times (5 seconds) if voices are loading
+   * - Uses getVoiceWithFallback to ensure a voice is always available
+   * - Falls back to default speechSynthesis without explicit voice if cap reached
+   * - Handles autoplay blocking by prompting user to tap Play button
+   * - Stops any previous audio before playing new audio
+   */
   const playWord = useCallback(() => {
-    if (!currentWord) return;
-
-    // Cancel any ongoing TTS speech before playing new word
-    speechSynthesis.cancel();
-
-    // Wait for voices to load before using TTS
-    if (voicesLoading) {
-      // Cap retries at TTS_CONSTANTS.MAX_RETRY_COUNT attempts
-      if (ttsRetryCountRef.current >= TTS_CONSTANTS.MAX_RETRY_COUNT) {
-        logger.warn(
-          "TTS voices failed to load after 50 retries, proceeding with default voice"
-        );
-        // Proceed with default speechSynthesis without explicit voice
-        const utterance = new SpeechSynthesisUtterance(currentWord.text);
-        speechSynthesis.speak(utterance);
-        // Reset retry counter for next word
-        ttsRetryCountRef.current = 0;
-        return;
-      }
-
-      logger.warn(
-        `TTS voices still loading, retry ${ttsRetryCountRef.current + 1}/${TTS_CONSTANTS.MAX_RETRY_COUNT}`
-      );
-      ttsRetryCountRef.current += 1;
-
-      // Track timeout for cleanup
-      if (ttsRetryTimeoutRef.current) {
-        clearTimeout(ttsRetryTimeoutRef.current);
-      }
-      ttsRetryTimeoutRef.current = setTimeout(
-        () => playWord(),
-        TTS_CONSTANTS.RETRY_INTERVAL_MS
-      );
+    if (!currentWord) {
       return;
     }
 
-    // Reset retry counter when voices finish loading
-    ttsRetryCountRef.current = 0;
-
-    const utterance = new SpeechSynthesisUtterance(currentWord.text);
-
-    // Get voice with fallback - ensures we always have a voice when loaded
-    const voice = getVoiceWithFallback(currentWord.tts_voice || undefined);
-    if (voice) {
-      utterance.voice = voice;
+    // Stop any previous audio
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
     }
-    // If voice is null, browser will use default voice
 
-    speechSynthesis.speak(utterance);
+    // Cancel any ongoing TTS speech
+    speechSynthesis.cancel();
+
+    // CRITICAL FIX: Check for custom prompt audio first (like PlayListenType does)
+    if (currentWord.prompt_audio_url) {
+      // Update state to trigger audio element src change
+      setCurrentAudioUrl(currentWord.prompt_audio_url);
+
+      // Wait for audio element to be ready, then play
+      setTimeout(() => {
+        if (audioRef.current) {
+          // Add error handler for failed audio load (404, network error, etc.)
+          audioRef.current.onerror = () => {
+            logger.warn("Recorded audio failed to load, falling back to TTS", {
+              url: currentWord.prompt_audio_url,
+              word: currentWord.text,
+            });
+
+            // Clear the audio URL to prevent further errors
+            setCurrentAudioUrl(null);
+
+            // Fall back to TTS
+            const utterance = new SpeechSynthesisUtterance(currentWord.text);
+            const voice = getVoiceWithFallback(
+              currentWord.tts_voice || undefined
+            );
+            if (voice) {
+              utterance.voice = voice;
+            }
+            speechSynthesis.speak(utterance);
+          };
+
+          audioRef.current.play().catch((error) => {
+            // Autoplay was blocked by the browser
+            logger.warn("Audio autoplay blocked by browser", error);
+
+            // Show a friendly toast prompting the user to tap Play
+            toast("👆 Tap the Play button to hear the word", {
+              duration: 3000,
+              icon: "🔊",
+            });
+          });
+        }
+      }, 100);
+
+      // Reset retry counter when successfully playing audio
+      ttsRetryCountRef.current = 0;
+    } else {
+      // No custom audio - fall back to TTS
+      // Wait for voices to load before using TTS
+      if (voicesLoading) {
+        // Cap retries at TTS_CONSTANTS.MAX_RETRY_COUNT attempts
+        if (ttsRetryCountRef.current >= TTS_CONSTANTS.MAX_RETRY_COUNT) {
+          logger.warn(
+            "TTS voices failed to load after 50 retries, proceeding with default voice"
+          );
+          // Proceed with default speechSynthesis without explicit voice
+          const utterance = new SpeechSynthesisUtterance(currentWord.text);
+
+          // Add error handler for TTS failures
+          utterance.onerror = (event) => {
+            logger.warn("TTS error on default voice fallback", event);
+          };
+
+          speechSynthesis.speak(utterance);
+          // Reset retry counter for next word
+          ttsRetryCountRef.current = 0;
+          return;
+        }
+
+        logger.warn(
+          `TTS voices still loading, retry ${ttsRetryCountRef.current + 1}/${TTS_CONSTANTS.MAX_RETRY_COUNT}`
+        );
+        ttsRetryCountRef.current += 1;
+
+        // Track timeout for cleanup
+        if (ttsRetryTimeoutRef.current) {
+          clearTimeout(ttsRetryTimeoutRef.current);
+        }
+        ttsRetryTimeoutRef.current = setTimeout(
+          () => playWord(),
+          TTS_CONSTANTS.RETRY_INTERVAL_MS
+        );
+        return;
+      }
+
+      // Reset retry counter when voices finish loading
+      ttsRetryCountRef.current = 0;
+
+      const utterance = new SpeechSynthesisUtterance(currentWord.text);
+
+      // Get voice with fallback - ensures we always have a voice when loaded
+      const voice = getVoiceWithFallback(currentWord.tts_voice || undefined);
+      if (voice) {
+        utterance.voice = voice;
+      }
+      // If voice is null, browser will use default voice
+
+      // Add error handler for TTS failures
+      utterance.onerror = (event) => {
+        logger.warn("TTS error", event);
+      };
+
+      speechSynthesis.speak(utterance);
+    }
   }, [currentWord, getVoiceWithFallback, voicesLoading]);
 
   // Auto-play ONCE on word change - only when word ID actually changes
@@ -1327,6 +1409,11 @@ export function PlaySaySpell() {
       }
       if (ttsRetryTimeoutRef.current) {
         clearTimeout(ttsRetryTimeoutRef.current);
+      }
+      // Stop any audio playback
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
       }
       // Cancel any ongoing TTS
       speechSynthesis.cancel();
@@ -1717,6 +1804,14 @@ export function PlaySaySpell() {
 
   return (
     <AppShell title="Say & Spell" variant="child">
+      {/* Hidden audio element for playing custom prompt audio */}
+      <audio
+        ref={audioRef}
+        src={currentAudioUrl || ""}
+        onEnded={() => {
+          audioRef.current = null;
+        }}
+      />
       <GameContent
         listData={listData}
         currentWordIndex={currentWordIndex}
