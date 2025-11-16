@@ -9,6 +9,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { prepareSrsUpdate } from "../../lib/srs";
 import type { SrsEntry, SrsInsert, SrsUpdate } from "../../lib/srs";
 import { logger } from "@/lib/logger";
+import {
+  queryKeys,
+  invalidateWordListQueries,
+  invalidateSrsQueries,
+  invalidateProfileQueries,
+} from "./queryKeys";
 
 // Type aliases for convenience
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
@@ -878,7 +884,9 @@ export async function getMostLapsedWords(
  */
 export function useWordLists(userId?: string) {
   return useQuery({
-    queryKey: ["word_lists", userId],
+    queryKey: userId
+      ? queryKeys.wordLists.byUser(userId)
+      : queryKeys.wordLists.all,
     queryFn: async () => {
       if (!userId) return [];
 
@@ -918,7 +926,9 @@ export function useWordLists(userId?: string) {
  */
 export function useWordList(listId?: string) {
   return useQuery({
-    queryKey: ["word_list", listId],
+    queryKey: listId
+      ? queryKeys.wordLists.detail(listId)
+      : queryKeys.wordLists.all,
     queryFn: async () => {
       if (!listId) return null;
       return getListWithWords(listId);
@@ -946,7 +956,7 @@ export function useCreateWordList() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ["word_lists", variables.created_by],
+        queryKey: queryKeys.wordLists.byUser(variables.created_by),
       });
     },
   });
@@ -977,10 +987,7 @@ export function useUpdateWordList() {
       return data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["word_list", data.id] });
-      queryClient.invalidateQueries({
-        queryKey: ["word_lists", data.created_by],
-      });
+      invalidateWordListQueries(queryClient, data.id, data.created_by);
     },
   });
 }
@@ -1015,7 +1022,7 @@ export function useDeleteWordList() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ["word_lists", variables.userId],
+        queryKey: queryKeys.wordLists.byUser(variables.userId),
       });
     },
   });
@@ -1071,7 +1078,7 @@ export function useDuplicateWordList() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ["word_lists", variables.userId],
+        queryKey: queryKeys.wordLists.byUser(variables.userId),
       });
     },
   });
@@ -1121,7 +1128,10 @@ export function useUpdateWord() {
     },
     onSuccess: () => {
       // Invalidate all word lists since we don't know which list this word belongs to
-      queryClient.invalidateQueries({ queryKey: ["word_list"] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.wordLists.all,
+        exact: false,
+      });
     },
   });
 }
@@ -1150,7 +1160,9 @@ export function useDeleteWordFromList() {
       return { listId, wordId };
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["word_list", data.listId] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.wordLists.detail(data.listId),
+      });
     },
   });
 }
@@ -1180,17 +1192,18 @@ export function useBulkDeleteWords() {
     },
     onMutate: async ({ listId, wordIds }) => {
       // Cancel outgoing queries
-      await queryClient.cancelQueries({ queryKey: ["word_list", listId] });
+      await queryClient.cancelQueries({
+        queryKey: queryKeys.wordLists.detail(listId),
+      });
 
       // Snapshot previous value
-      const previous = queryClient.getQueryData<WordListWithWords>([
-        "word_list",
-        listId,
-      ]);
+      const previous = queryClient.getQueryData<WordListWithWords>(
+        queryKeys.wordLists.detail(listId)
+      );
 
       // Optimistically update cache
       queryClient.setQueryData<WordListWithWords>(
-        ["word_list", listId],
+        queryKeys.wordLists.detail(listId),
         (old) => {
           if (!old) return old;
           return {
@@ -1205,12 +1218,17 @@ export function useBulkDeleteWords() {
     onError: (_err, { listId }, context) => {
       // Rollback on error
       if (context?.previous) {
-        queryClient.setQueryData(["word_list", listId], context.previous);
+        queryClient.setQueryData(
+          queryKeys.wordLists.detail(listId),
+          context.previous
+        );
       }
     },
     onSettled: (data) => {
       if (data) {
-        queryClient.invalidateQueries({ queryKey: ["word_list", data.listId] });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.wordLists.detail(data.listId),
+        });
       }
     },
   });
@@ -1250,13 +1268,14 @@ export function useReorderWords() {
     },
     onMutate: async ({ listId, updates }) => {
       // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ["word_list", listId] });
+      await queryClient.cancelQueries({
+        queryKey: queryKeys.wordLists.detail(listId),
+      });
 
       // Snapshot the previous value
-      const previousList = queryClient.getQueryData<WordListWithWords>([
-        "word_list",
-        listId,
-      ]);
+      const previousList = queryClient.getQueryData<WordListWithWords>(
+        queryKeys.wordLists.detail(listId)
+      );
 
       // Optimistically update
       if (previousList) {
@@ -1269,10 +1288,13 @@ export function useReorderWords() {
         });
         newWords.sort((a, b) => a.sort_index - b.sort_index);
 
-        queryClient.setQueryData<WordListWithWords>(["word_list", listId], {
-          ...previousList,
-          words: newWords,
-        });
+        queryClient.setQueryData<WordListWithWords>(
+          queryKeys.wordLists.detail(listId),
+          {
+            ...previousList,
+            words: newWords,
+          }
+        );
       }
 
       return { previousList };
@@ -1280,11 +1302,18 @@ export function useReorderWords() {
     onError: (_err, { listId }, context) => {
       // Rollback on error
       if (context?.previousList) {
-        queryClient.setQueryData(["word_list", listId], context.previousList);
+        queryClient.setQueryData(
+          queryKeys.wordLists.detail(listId),
+          context.previousList
+        );
       }
     },
     onSettled: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["word_list", data] });
+      if (data) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.wordLists.detail(data),
+        });
+      }
     },
   });
 }
@@ -1331,7 +1360,7 @@ export function useAddWordToList() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ["word_list", variables.listId],
+        queryKey: queryKeys.wordLists.detail(variables.listId),
       });
     },
   });
@@ -1382,7 +1411,7 @@ export function useUploadAudio() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ["word_list", variables.listId],
+        queryKey: queryKeys.wordLists.detail(variables.listId),
       });
     },
   });
@@ -1393,7 +1422,7 @@ export function useUploadAudio() {
  */
 export function useDueWords(childId?: string) {
   return useQuery({
-    queryKey: ["due_words", childId],
+    queryKey: childId ? queryKeys.srs.dueWords(childId) : queryKeys.srs.all,
     queryFn: async () => {
       if (!childId) return [];
       return getDueWords(childId);
@@ -1407,7 +1436,9 @@ export function useDueWords(childId?: string) {
  */
 export function useHardestWords(childId?: string, limit?: number) {
   return useQuery({
-    queryKey: ["hardest_words", childId, limit],
+    queryKey: childId
+      ? queryKeys.srs.hardestWords(childId, limit || 10)
+      : queryKeys.srs.all,
     queryFn: () => getHardestWords(childId, limit),
     enabled: Boolean(childId),
   });
@@ -1418,7 +1449,9 @@ export function useHardestWords(childId?: string, limit?: number) {
  */
 export function useMostLapsedWords(childId?: string, limit?: number) {
   return useQuery({
-    queryKey: ["most_lapsed_words", childId, limit],
+    queryKey: childId
+      ? queryKeys.srs.mostLapsedWords(childId, limit || 10)
+      : queryKeys.srs.all,
     queryFn: () => getMostLapsedWords(childId, limit),
     enabled: Boolean(childId),
   });
@@ -1443,13 +1476,8 @@ export function useUpdateSrs() {
       return updateSrsAfterAttempt(childId, wordId, isCorrectFirstTry);
     },
     onSuccess: (_, variables) => {
-      // Invalidate due words for this child
-      queryClient.invalidateQueries({
-        queryKey: ["due_words", variables.childId],
-      });
-      // Invalidate hardest/lapsed words reports
-      queryClient.invalidateQueries({ queryKey: ["hardest_words"] });
-      queryClient.invalidateQueries({ queryKey: ["most_lapsed_words"] });
+      // Invalidate all SRS-related queries for this child
+      invalidateSrsQueries(queryClient, variables.childId);
     },
   });
 }
@@ -1465,7 +1493,9 @@ export function useUpdateSrs() {
  */
 export function useAttempts(childId?: string) {
   return useQuery({
-    queryKey: ["attempts", childId],
+    queryKey: childId
+      ? queryKeys.attempts.byChild(childId)
+      : queryKeys.attempts.all,
     queryFn: async () => {
       if (!childId) return [];
       const attempts = await getAttempts(childId);
@@ -1484,7 +1514,10 @@ export function useAttempts(childId?: string) {
  */
 export function useAttemptsForWord(childId?: string, wordId?: string) {
   return useQuery({
-    queryKey: ["attempts", childId, wordId],
+    queryKey:
+      childId && wordId
+        ? queryKeys.attempts.byChildAndWord(childId, wordId)
+        : queryKeys.attempts.all,
     queryFn: async () => {
       if (!childId || !wordId) return [];
       const attempts = await getAttemptsForWord(childId, wordId);
@@ -1527,7 +1560,9 @@ export function useParentOverview(
   dateTo?: Date
 ) {
   return useQuery({
-    queryKey: ["parent_overview", parentId, dateFrom, dateTo],
+    queryKey: parentId
+      ? queryKeys.analytics.parentOverview(parentId, dateFrom, dateTo)
+      : queryKeys.analytics.all,
     queryFn: () => {
       if (!parentId) throw new Error("parentId is required");
       return getParentOverview(parentId, dateFrom, dateTo);
@@ -1555,7 +1590,9 @@ export async function getChildMastery(childId: string) {
  */
 export function useChildMastery(childId?: string) {
   return useQuery({
-    queryKey: ["child_mastery", childId],
+    queryKey: childId
+      ? queryKeys.analytics.childMastery(childId)
+      : queryKeys.analytics.all,
     queryFn: () => {
       if (!childId) throw new Error("childId is required");
       return getChildMastery(childId);
@@ -1584,7 +1621,9 @@ export async function getNgramErrors(childId: string, limit = 10) {
  */
 export function useNgramErrors(childId?: string, limit = 10) {
   return useQuery({
-    queryKey: ["ngram_errors", childId, limit],
+    queryKey: childId
+      ? queryKeys.analytics.ngramErrors(childId, limit)
+      : queryKeys.analytics.all,
     queryFn: () => {
       if (!childId) throw new Error("childId is required");
       return getNgramErrors(childId, limit);
@@ -1610,7 +1649,9 @@ export async function getChildrenForParent(parentId: string) {
  */
 export function useChildrenForParent(parentId?: string) {
   return useQuery({
-    queryKey: ["children_for_parent", parentId],
+    queryKey: parentId
+      ? queryKeys.children.byParent(parentId)
+      : queryKeys.children.all,
     queryFn: () => {
       if (!parentId) throw new Error("parentId is required");
       return getChildrenForParent(parentId);
@@ -1699,7 +1740,9 @@ export function useNextBatch(
   strictMode = false
 ) {
   return useQuery({
-    queryKey: ["next_batch", childId, listId, limit, strictMode],
+    queryKey: childId
+      ? queryKeys.srs.nextBatch(childId, listId, limit, strictMode)
+      : queryKeys.srs.all,
     queryFn: () => {
       if (!childId) throw new Error("childId is required");
       return getNextBatch(childId, listId, limit, strictMode);
@@ -1784,7 +1827,7 @@ export function useRewardsCatalog(
   type?: "avatar" | "theme" | "coupon" | "badge"
 ) {
   return useQuery({
-    queryKey: ["rewards_catalog", type],
+    queryKey: queryKeys.rewards.catalog(type),
     queryFn: () => getRewardsCatalog(type),
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
@@ -1813,7 +1856,9 @@ export async function getUserRewards(userId: string): Promise<UserReward[]> {
  */
 export function useUserRewards(userId?: string) {
   return useQuery({
-    queryKey: ["user_rewards", userId],
+    queryKey: userId
+      ? queryKeys.rewards.userRewards(userId)
+      : queryKeys.rewards.all,
     queryFn: () => {
       if (!userId) throw new Error("userId is required");
       return getUserRewards(userId);
@@ -1865,8 +1910,7 @@ export function usePurchaseReward() {
       purchaseReward(userId, rewardId),
     onSuccess: (_, { userId }) => {
       // Invalidate relevant queries
-      queryClient.invalidateQueries({ queryKey: ["user_rewards", userId] });
-      queryClient.invalidateQueries({ queryKey: ["profile", userId] });
+      invalidateProfileQueries(queryClient, userId);
     },
   });
 }
@@ -1910,8 +1954,7 @@ export function useEquipReward() {
       equipReward(userId, rewardId),
     onSuccess: (_, { userId }) => {
       // Invalidate relevant queries
-      queryClient.invalidateQueries({ queryKey: ["user_rewards", userId] });
-      queryClient.invalidateQueries({ queryKey: ["profile", userId] });
+      invalidateProfileQueries(queryClient, userId);
     },
   });
 }
@@ -1954,7 +1997,9 @@ export function useAwardStars() {
       reason?: string;
     }) => awardStars(userId, amount, reason),
     onSuccess: (_, { userId }) => {
-      queryClient.invalidateQueries({ queryKey: ["profile", userId] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.profiles.detail(userId),
+      });
     },
   });
 }
@@ -1988,7 +2033,9 @@ export function useUpdateDailyStreak() {
   return useMutation({
     mutationFn: (userId: string) => updateDailyStreak(userId),
     onSuccess: (_, userId) => {
-      queryClient.invalidateQueries({ queryKey: ["profile", userId] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.profiles.detail(userId),
+      });
     },
   });
 }
@@ -2038,8 +2085,13 @@ export function useUpdateChildProfile() {
       };
     }) => updateChildProfile(childId, updates),
     onSuccess: (_, { childId }) => {
-      queryClient.invalidateQueries({ queryKey: ["children"] });
-      queryClient.invalidateQueries({ queryKey: ["profile", childId] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.children.all,
+        exact: false,
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.profiles.detail(childId),
+      });
     },
   });
 }

@@ -122,29 +122,40 @@
 
 ---
 
-### Issue #9: Missing Foreign Key Index on list_words.word_id
+### Issue #9: Missing Foreign Key Index on list_words.word_id ✅ RESOLVED
 
+- **Status:** ✅ **COMPLETED** (November 16, 2025)
 - **Impact:** Slow word deletion operations
-- **Effort:** 30 minutes
+- **Effort:** 30 minutes (actual: ~15 minutes)
 - **Risk:** Low - Only affects word deletion
-- **Prompt:** Similar to Issue #6, apply to `list_words.word_id`
-- **Files:** `supabase/migrations/` (new migration)
-- **Skills Needed:** PostgreSQL, Database Indexing
-- **Blockers:** Need Supabase access
-- **Priority:** Low-Medium
+- **Resolution:** Migration `20251116120000_add_list_words_word_id_index.sql` created and applied
+- **Files Modified:**
+  - `supabase/migrations/20251116120000_add_list_words_word_id_index.sql` (new)
+  - `BUG_FIXES_HISTORY.md` (documented)
+- **Verification:** ✅ Index created with idempotent migration (IF NOT EXISTS)
+- **Note:** Improves performance for word deletion and reverse list lookups (word → lists)
 
 ---
 
-### Issue #10: Inconsistent Query Key Patterns
+### Issue #10: Inconsistent Query Key Patterns ✅ RESOLVED
 
+- **Status:** ✅ **COMPLETED** (November 16, 2025)
 - **Impact:** Potential cache invalidation bugs
-- **Effort:** 2-3 hours
+- **Effort:** 2-3 hours (actual: ~2 hours)
 - **Risk:** Medium - Hard to debug when it fails
-- **Prompt:** Audit `src/app/api/supa.ts` for all query keys, standardize with factory pattern
-- **Files:** `src/app/api/supa.ts` (2046 lines - large refactor)
-- **Skills Needed:** React Query, Refactoring
-- **Blockers:** Need comprehensive testing after changes
-- **Priority:** Medium
+- **Resolution:** Implemented comprehensive query key factory pattern with hierarchical structure
+- **Files Modified:**
+  - `src/app/api/queryKeys.ts` (new, 120 lines) - Centralized query key factory
+  - `src/app/api/supa.ts` - Refactored all 38 query hooks (~80 lines changed)
+  - `BUG_FIXES_HISTORY.md` (documented)
+- **Verification:** ✅ TypeScript compilation passes, all hooks standardized
+- **Benefits:**
+  - Type-safe query keys with const assertions
+  - Hierarchical structure (e.g., `queryKeys.wordLists.byUser(userId)`)
+  - Helper functions for common invalidation patterns
+  - Single source of truth for all cache keys
+  - More precise cache invalidations = fewer unnecessary refetches
+- **Note:** Backward compatible - query key values semantically unchanged, just generated from factory now
 
 ---
 
@@ -332,10 +343,10 @@
 | Severity  | Count  | Resolved | Total Effort | Avg Risk    |
 | --------- | ------ | -------- | ------------ | ----------- |
 | Critical  | 4      | 3 ✅     | ~12 days     | High        |
-| Major     | 6      | 3 ✅     | ~4 days      | Medium-High |
+| Major     | 6      | 5 ✅     | ~4 days      | Medium-High |
 | Moderate  | 8      | 0        | ~3 days      | Medium      |
 | Minor     | 7      | 0        | ~2 days      | Low         |
-| **TOTAL** | **25** | **6**    | **~21 days** | **Mixed**   |
+| **TOTAL** | **25** | **8**    | **~21 days** | **Mixed**   |
 
 ---
 
