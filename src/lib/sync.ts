@@ -36,7 +36,7 @@ interface InferListIdResult {
  * @returns InferListIdResult with success status, listId, or error details
  */
 async function inferListIdForAttempt(
-  wordId: string
+  wordId: string,
 ): Promise<InferListIdResult> {
   try {
     // Query Supabase to find list_id for this word_id
@@ -106,10 +106,10 @@ async function inferListIdForAttempt(
  */
 export async function enrichLegacyAttempts(
   attempts: QueuedAttempt[],
-  trans: Transaction
+  trans: Transaction,
 ): Promise<void> {
   logger.log(
-    `Enriching ${attempts.length} legacy queued attempts with list_id...`
+    `Enriching ${attempts.length} legacy queued attempts with list_id...`,
   );
 
   let enriched = 0;
@@ -134,7 +134,7 @@ export async function enrichLegacyAttempts(
             list_id: result.listId,
           });
         logger.log(
-          `Enriched attempt ${attempt.id} with list_id ${result.listId}`
+          `Enriched attempt ${attempt.id} with list_id ${result.listId}`,
         );
         enriched++;
       }
@@ -148,7 +148,7 @@ export async function enrichLegacyAttempts(
             last_error: result.error,
           });
         logger.warn(
-          `Deferred enrichment for attempt ${attempt.id}: ${result.error}`
+          `Deferred enrichment for attempt ${attempt.id}: ${result.error}`,
         );
         deferred++;
       }
@@ -162,7 +162,7 @@ export async function enrichLegacyAttempts(
             last_error: result.error,
           });
         logger.error(
-          `Permanently failed enrichment for attempt ${attempt.id}: ${result.error}`
+          `Permanently failed enrichment for attempt ${attempt.id}: ${result.error}`,
         );
         failed++;
       }
@@ -170,7 +170,7 @@ export async function enrichLegacyAttempts(
   }
 
   logger.log(
-    `Legacy attempt enrichment complete: ${enriched} enriched, ${deferred} deferred for retry, ${failed} permanently failed`
+    `Legacy attempt enrichment complete: ${enriched} enriched, ${deferred} deferred for retry, ${failed} permanently failed`,
   );
 }
 
@@ -207,7 +207,7 @@ function sleep(ms: number): Promise<void> {
 async function syncQueuedAudio(): Promise<void> {
   const queuedAudio = await db.queuedAudio
     .filter(
-      (audio: QueuedAudio) => audio.synced === false && audio.failed === false
+      (audio: QueuedAudio) => audio.synced === false && audio.failed === false,
     )
     .toArray();
 
@@ -248,7 +248,7 @@ async function syncQueuedAudio(): Promise<void> {
           if (attempt > 0) {
             const delay = calculateBackoffDelay(attempt - 1);
             logger.log(
-              `Audio ${audio.filename}: Retry ${attempt}/${MAX_RETRY_ATTEMPTS} after ${delay}ms`
+              `Audio ${audio.filename}: Retry ${attempt}/${MAX_RETRY_ATTEMPTS} after ${delay}ms`,
             );
             await sleep(delay);
           }
@@ -304,7 +304,7 @@ async function syncQueuedAudio(): Promise<void> {
             }
             logger.error(
               `Audio ${audio.filename}: Permanently failed after ${MAX_RETRY_ATTEMPTS} attempts`,
-              error
+              error,
             );
             logger.metrics.audioFailed();
             break;
@@ -335,7 +335,7 @@ async function syncQueuedAudio(): Promise<void> {
  * Helper: Get audio path for an attempt
  */
 async function getAudioPathForAttempt(
-  attempt: QueuedAttempt
+  attempt: QueuedAttempt,
 ): Promise<string | undefined | null> {
   if (!attempt.audio_blob_id) {
     return undefined;
@@ -346,7 +346,7 @@ async function getAudioPathForAttempt(
   // Audio record not found - should not happen but handle gracefully
   if (!audioRecord) {
     logger.error(
-      `Attempt ${attempt.id}: Audio record ${attempt.audio_blob_id} not found`
+      `Attempt ${attempt.id}: Audio record ${attempt.audio_blob_id} not found`,
     );
     return null; // Signal to skip this attempt
   }
@@ -354,7 +354,7 @@ async function getAudioPathForAttempt(
   // Skip if audio is not yet synced
   if (!audioRecord.synced) {
     logger.log(
-      `Attempt ${attempt.id}: Deferring - audio ${attempt.audio_blob_id} not yet synced`
+      `Attempt ${attempt.id}: Deferring - audio ${attempt.audio_blob_id} not yet synced`,
     );
     return null; // Signal to skip this attempt for now
   }
@@ -362,7 +362,7 @@ async function getAudioPathForAttempt(
   // Skip if audio failed
   if (audioRecord.failed) {
     logger.error(
-      `Attempt ${attempt.id}: Blocking - audio ${attempt.audio_blob_id} permanently failed`
+      `Attempt ${attempt.id}: Blocking - audio ${attempt.audio_blob_id} permanently failed`,
     );
 
     // Mark attempt as failed too since its audio failed
@@ -379,7 +379,7 @@ async function getAudioPathForAttempt(
   // This handles edge cases where synced was set but storage_url is missing
   if (!audioRecord.storage_url) {
     logger.warn(
-      `Attempt ${attempt.id}: Deferring - audio ${attempt.audio_blob_id} marked as synced but storage_url is missing`
+      `Attempt ${attempt.id}: Deferring - audio ${attempt.audio_blob_id} marked as synced but storage_url is missing`,
     );
 
     // Reset synced flag to force re-upload on next sync cycle
@@ -430,7 +430,7 @@ async function attemptExists(attempt: QueuedAttempt): Promise<boolean> {
  */
 async function insertAttemptWithRetry(
   attempt: QueuedAttempt,
-  audioPath: string | undefined
+  audioPath: string | undefined,
 ): Promise<boolean> {
   let insertSuccess = false;
   let insertError: Error | null = null;
@@ -444,7 +444,7 @@ async function insertAttemptWithRetry(
       if (retry > 0) {
         const delay = calculateBackoffDelay(retry - 1);
         logger.log(
-          `Attempt ${attempt.id}: Retry ${retry}/${MAX_RETRY_ATTEMPTS} after ${delay}ms`
+          `Attempt ${attempt.id}: Retry ${retry}/${MAX_RETRY_ATTEMPTS} after ${delay}ms`,
         );
         await sleep(delay);
       }
@@ -499,7 +499,7 @@ async function insertAttemptWithRetry(
         }
         logger.error(
           `Attempt ${attempt.id}: Permanently failed after ${MAX_RETRY_ATTEMPTS} attempts`,
-          error
+          error,
         );
         logger.metrics.attemptFailed();
         break;
@@ -522,7 +522,7 @@ async function syncQueuedAttempts(): Promise<void> {
   const queuedAttempts = await db.queuedAttempts
     .filter(
       (attempt: QueuedAttempt) =>
-        attempt.synced === false && attempt.failed === false
+        attempt.synced === false && attempt.failed === false,
     )
     .toArray();
 
@@ -533,7 +533,7 @@ async function syncQueuedAttempts(): Promise<void> {
       // Guard: Check if list_id is present (required field in database)
       if (!attempt.list_id) {
         logger.warn(
-          `Attempt ${attempt.id} missing list_id, attempting inference...`
+          `Attempt ${attempt.id} missing list_id, attempting inference...`,
         );
 
         // Attempt to infer list_id using shared helper
@@ -547,12 +547,12 @@ async function syncQueuedAttempts(): Promise<void> {
           });
           attempt.list_id = result.listId; // Update in-memory object
           logger.log(
-            `Inferred list_id ${result.listId} for attempt ${attempt.id}`
+            `Inferred list_id ${result.listId} for attempt ${attempt.id}`,
           );
         } else if (result.retriable) {
           // Retriable error (e.g., offline, Supabase error) - skip for now, retry later
           logger.warn(
-            `Attempt ${attempt.id}: Deferring inference due to retriable error: ${result.error}`
+            `Attempt ${attempt.id}: Deferring inference due to retriable error: ${result.error}`,
           );
           if (attempt.id !== undefined) {
             await db.queuedAttempts.update(attempt.id, {
@@ -563,7 +563,7 @@ async function syncQueuedAttempts(): Promise<void> {
         } else {
           // Non-retriable data issue - mark as permanently failed
           logger.error(
-            `Attempt ${attempt.id}: Permanently failed - ${result.error}`
+            `Attempt ${attempt.id}: Permanently failed - ${result.error}`,
           );
           if (attempt.id !== undefined) {
             await db.queuedAttempts.update(attempt.id, {
@@ -645,7 +645,7 @@ export async function queueAttempt(
   mode: string,
   correct: boolean,
   typedAnswer?: string,
-  audioBlobId?: number
+  audioBlobId?: number,
 ): Promise<void> {
   // Defensive validation: listId is a required, non-nullable database column
   if (!listId || listId.trim() === "") {
@@ -657,10 +657,10 @@ export async function queueAttempt(
     };
     logger.error(
       "listId is required for queueAttempt - cannot queue attempt without a valid list_id",
-      errorContext
+      errorContext,
     );
     throw new Error(
-      `listId is required for queueAttempt - cannot queue attempt without a valid list_id. Context: ${JSON.stringify(errorContext)}`
+      `listId is required for queueAttempt - cannot queue attempt without a valid list_id. Context: ${JSON.stringify(errorContext)}`,
     );
   }
 
@@ -680,7 +680,7 @@ export async function queueAttempt(
 
   logger.metrics.attemptQueued();
   logger.log(
-    `Queued attempt for word ${wordId} in list ${listId} (offline mode)`
+    `Queued attempt for word ${wordId} in list ${listId} (offline mode)`,
   );
 }
 
@@ -696,7 +696,7 @@ export async function queueAttempt(
  */
 export async function queueAudio(
   blob: Blob,
-  filename: string
+  filename: string,
 ): Promise<number> {
   const id = await db.queuedAudio.add({
     blob,
@@ -719,13 +719,13 @@ export async function hasPendingSync(): Promise<boolean> {
   const pendingAttempts = await db.queuedAttempts
     .filter(
       (attempt: QueuedAttempt) =>
-        attempt.synced === false && attempt.failed === false
+        attempt.synced === false && attempt.failed === false,
     )
     .count();
 
   const pendingAudio = await db.queuedAudio
     .filter(
-      (audio: QueuedAudio) => audio.synced === false && audio.failed === false
+      (audio: QueuedAudio) => audio.synced === false && audio.failed === false,
     )
     .count();
 
@@ -889,7 +889,7 @@ export async function clearFailedItems(): Promise<void> {
     .delete();
 
   logger.log(
-    `Cleared ${deletedAttempts} failed attempts and ${deletedAudio} failed audio files`
+    `Cleared ${deletedAttempts} failed attempts and ${deletedAudio} failed audio files`,
   );
 }
 
@@ -900,7 +900,7 @@ export async function clearFailedItems(): Promise<void> {
  */
 export async function retryFailedItem(
   type: "attempt" | "audio",
-  id: number
+  id: number,
 ): Promise<void> {
   if (type === "attempt") {
     await db.queuedAttempts.update(id, {
@@ -960,7 +960,7 @@ export async function migrateSyncedFieldToBoolean(): Promise<void> {
     }
 
     logger.log(
-      `Migration complete: Updated ${attemptsUpdated} attempts and ${audioUpdated} audio records`
+      `Migration complete: Updated ${attemptsUpdated} attempts and ${audioUpdated} audio records`,
     );
   } catch (error) {
     logger.error("Error during synced field migration:", error);
@@ -974,7 +974,7 @@ export async function migrateSyncedFieldToBoolean(): Promise<void> {
 export async function queueSrsUpdate(
   childId: string,
   wordId: string,
-  isCorrectFirstTry: boolean
+  isCorrectFirstTry: boolean,
 ): Promise<void> {
   await db.queuedSrsUpdates.add({
     child_id: childId,
@@ -996,7 +996,7 @@ export async function queueSrsUpdate(
 export async function queueStarTransaction(
   userId: string,
   amount: number,
-  reason: string
+  reason: string,
 ): Promise<void> {
   await db.queuedStarTransactions.add({
     user_id: userId,
@@ -1018,7 +1018,7 @@ async function syncQueuedSrsUpdates(): Promise<void> {
   const queuedUpdates = await db.queuedSrsUpdates
     .filter(
       (update: QueuedSrsUpdate) =>
-        update.synced === false && update.failed === false
+        update.synced === false && update.failed === false,
     )
     .toArray();
 
@@ -1038,7 +1038,7 @@ async function syncQueuedSrsUpdates(): Promise<void> {
       const { prepareSrsUpdate } = await import("@/lib/srs");
       const srsValues = prepareSrsUpdate(
         update.is_correct_first_try,
-        existing || undefined
+        existing || undefined,
       );
 
       // Upsert SRS entry
@@ -1069,7 +1069,7 @@ async function syncQueuedSrsUpdates(): Promise<void> {
         }
         logger.error(
           `SRS update ${update.id} permanently failed after ${MAX_RETRY_ATTEMPTS} attempts:`,
-          error
+          error,
         );
       } else {
         // Update retry count for next attempt
@@ -1093,7 +1093,7 @@ async function syncQueuedStarTransactions(): Promise<void> {
   const queuedTransactions = await db.queuedStarTransactions
     .filter(
       (transaction: QueuedStarTransaction) =>
-        transaction.synced === false && transaction.failed === false
+        transaction.synced === false && transaction.failed === false,
     )
     .toArray();
 
@@ -1108,7 +1108,7 @@ async function syncQueuedStarTransactions(): Promise<void> {
           p_user_id: transaction.user_id,
           p_amount: transaction.amount,
           p_reason: transaction.reason,
-        } as unknown as { p_child: string; p_amount: number }
+        } as unknown as { p_child: string; p_amount: number },
       );
 
       if (error) throw error;
@@ -1134,7 +1134,7 @@ async function syncQueuedStarTransactions(): Promise<void> {
         }
         logger.error(
           `Star transaction ${transaction.id} permanently failed after ${MAX_RETRY_ATTEMPTS} attempts:`,
-          error
+          error,
         );
       } else {
         // Update retry count for next attempt
@@ -1146,7 +1146,7 @@ async function syncQueuedStarTransactions(): Promise<void> {
         }
         logger.warn(
           `Star transaction ${transaction.id} failed, will retry:`,
-          error
+          error,
         );
         await sleep(calculateBackoffDelay(retryCount));
       }
