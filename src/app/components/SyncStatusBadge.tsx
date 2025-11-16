@@ -50,6 +50,16 @@ interface FailedItemsProps {
   onRetryItem: (type: "attempt" | "audio", id: number) => void;
 }
 
+interface PendingItemsProps {
+  pendingCount: number;
+  pendingDetails: {
+    attempts: number;
+    audio: number;
+    srsUpdates: number;
+    starTransactions: number;
+  };
+}
+
 const formatTimestamp = (timestamp?: string) => {
   if (!timestamp) return "Never";
 
@@ -140,6 +150,48 @@ function MetricItem({
       <div className="text-muted-foreground">{label}</div>
       <div className={`font-mono font-bold ${success ? "text-green-600" : ""}`}>
         {value}
+      </div>
+    </div>
+  );
+}
+
+// Component to display pending items with breakdown by type
+function PendingItems({ pendingCount, pendingDetails }: PendingItemsProps) {
+  if (pendingCount === 0) return null;
+
+  return (
+    <div className="border-t pt-4 space-y-2">
+      <h3 className="font-semibold text-sm flex items-center gap-1">
+        <RefreshCw className="w-4 h-4" />
+        Pending Items ({pendingCount})
+      </h3>
+      <div className="space-y-1 text-xs">
+        {pendingDetails.attempts > 0 && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Attempts:</span>
+            <span className="font-medium">{pendingDetails.attempts}</span>
+          </div>
+        )}
+        {pendingDetails.audio > 0 && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Audio files:</span>
+            <span className="font-medium">{pendingDetails.audio}</span>
+          </div>
+        )}
+        {pendingDetails.srsUpdates > 0 && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Progress updates:</span>
+            <span className="font-medium">{pendingDetails.srsUpdates}</span>
+          </div>
+        )}
+        {pendingDetails.starTransactions > 0 && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Star rewards:</span>
+            <span className="font-medium">
+              {pendingDetails.starTransactions}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -426,7 +478,7 @@ export function SyncStatusBadge({ variant = "parent" }: SyncStatusBadgeProps) {
   const [isSyncing, setIsSyncing] = useState(false);
 
   const isChild = variant === "child";
-  const buttonSize = isChild ? "child" : "default";
+  const buttonSize: "child" | "default" = isChild ? "child" : "default";
 
   // Determine badge color and icon based on status
   const getBadgeStatus = () => {
@@ -458,7 +510,7 @@ export function SyncStatusBadge({ variant = "parent" }: SyncStatusBadgeProps) {
       return {
         icon: <RefreshCw className="w-4 h-4" />,
         color: "bg-accent text-accent-foreground",
-        label: "Pending",
+        label: `${status.pendingCount} Pending`,
       };
     }
 
@@ -491,13 +543,16 @@ export function SyncStatusBadge({ variant = "parent" }: SyncStatusBadgeProps) {
     }
   }, [actions]);
 
-  const handleRetryItem = useCallback(async (type: "attempt" | "audio", id: number) => {
-    try {
-      await actions.retryItem(type, id);
-    } catch (error) {
-      logger.error(`Failed to retry ${type} ${id}:`, error);
-    }
-  }, [actions]);
+  const handleRetryItem = useCallback(
+    async (type: "attempt" | "audio", id: number) => {
+      try {
+        await actions.retryItem(type, id);
+      } catch (error) {
+        logger.error(`Failed to retry ${type} ${id}:`, error);
+      }
+    },
+    [actions]
+  );
 
   const handleToggleExpand = useCallback(() => {
     setIsExpanded(!isExpanded);
@@ -546,6 +601,12 @@ export function SyncStatusBadge({ variant = "parent" }: SyncStatusBadgeProps) {
 
             {/* Metrics */}
             <SyncMetrics metrics={status.metrics} />
+
+            {/* Pending Items Breakdown */}
+            <PendingItems
+              pendingCount={status.pendingCount}
+              pendingDetails={status.pendingDetails}
+            />
 
             {/* Failed Items */}
             <FailedItems

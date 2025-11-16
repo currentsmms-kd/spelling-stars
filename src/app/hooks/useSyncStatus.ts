@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { logger, type SyncMetrics } from "@/lib/logger";
 import {
-  hasPendingSync,
+  getPendingCounts,
   getFailedItems,
   clearFailedItems,
   retryFailedItem,
@@ -11,8 +11,20 @@ import { useOnline } from "./useOnline";
 
 export interface SyncStatus {
   metrics: SyncMetrics;
-  pendingCount: number;
+  pendingCount: number; // Total count of all pending items
+  pendingDetails: {
+    attempts: number;
+    audio: number;
+    srsUpdates: number;
+    starTransactions: number;
+  };
   failedCount: number;
+  failedDetails: {
+    attempts: number;
+    audio: number;
+    srsUpdates: number;
+    starTransactions: number;
+  };
   isOnline: boolean;
   isSyncing: boolean;
   lastSyncTimestamp?: string;
@@ -60,7 +72,19 @@ export function useSyncStatus(): [SyncStatus, SyncActions] {
   const [status, setStatus] = useState<SyncStatus>({
     metrics: logger.metrics.getMetrics(),
     pendingCount: 0,
+    pendingDetails: {
+      attempts: 0,
+      audio: 0,
+      srsUpdates: 0,
+      starTransactions: 0,
+    },
     failedCount: 0,
+    failedDetails: {
+      attempts: 0,
+      audio: 0,
+      srsUpdates: 0,
+      starTransactions: 0,
+    },
     isOnline,
     isSyncing: false,
     failedItems: {
@@ -72,15 +96,27 @@ export function useSyncStatus(): [SyncStatus, SyncActions] {
   // Refresh counts and failed items from IndexedDB
   const refreshStatus = async () => {
     try {
-      const pending = await hasPendingSync();
+      const counts = await getPendingCounts();
       const failed = await getFailedItems();
       const metrics = logger.metrics.getMetrics();
 
       setStatus((prev) => ({
         ...prev,
         metrics,
-        pendingCount: pending ? 1 : 0, // hasPendingSync returns boolean, we'll show indicator if any pending
-        failedCount: failed.failedAttempts.length + failed.failedAudio.length,
+        pendingCount: counts.total,
+        pendingDetails: {
+          attempts: counts.attempts,
+          audio: counts.audio,
+          srsUpdates: counts.srsUpdates,
+          starTransactions: counts.starTransactions,
+        },
+        failedCount: counts.failed.total,
+        failedDetails: {
+          attempts: counts.failed.attempts,
+          audio: counts.failed.audio,
+          srsUpdates: counts.failed.srsUpdates,
+          starTransactions: counts.failed.starTransactions,
+        },
         isSyncing: metrics.syncInProgress,
         lastSyncTimestamp: metrics.lastSyncTimestamp,
         lastSyncDurationMs: metrics.lastSyncDurationMs,
