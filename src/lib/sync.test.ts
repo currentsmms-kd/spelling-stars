@@ -41,7 +41,7 @@ type QueueCountConfig = {
 
 type MockTable = {
   filter: (
-    predicate: (item: { synced: boolean; failed: boolean }) => boolean
+    predicate: (item: { synced: boolean; failed: boolean }) => boolean,
   ) => {
     count: () => Promise<number>;
   };
@@ -49,7 +49,7 @@ type MockTable = {
 
 function evaluatePredicate(
   predicate: (item: { synced: boolean; failed: boolean }) => boolean,
-  sample: { synced: boolean; failed: boolean }
+  sample: { synced: boolean; failed: boolean },
 ): boolean {
   try {
     return Boolean(predicate(sample));
@@ -84,11 +84,11 @@ function createMockDb(config: QueueCountConfig): SpellStarsDB {
     queuedAudio: createMockTable(config.audio, config.failedAudio),
     queuedSrsUpdates: createMockTable(
       config.srsUpdates,
-      config.failedSrsUpdates
+      config.failedSrsUpdates,
     ),
     queuedStarTransactions: createMockTable(
       config.starTransactions,
-      config.failedStarTransactions
+      config.failedStarTransactions,
     ),
   } as unknown as SpellStarsDB;
 }
