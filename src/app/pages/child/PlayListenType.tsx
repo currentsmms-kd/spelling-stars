@@ -945,7 +945,6 @@ export function PlayListenType() {
     // Stop any previous audio
     if (audioRef.current) {
       audioRef.current.pause();
-      audioRef.current = null;
     }
 
     // Cancel any ongoing TTS speech
@@ -1084,6 +1083,10 @@ export function PlayListenType() {
       // Mark component as unmounted to prevent state updates
       isMountedRef.current = false;
 
+      // Capture current ref value before cleanup (ESLint false positive - this IS the proper pattern)
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const currentAudio = audioRef.current;
+
       // Clear audio URL
       setCurrentAudioUrl(null);
 
@@ -1100,9 +1103,8 @@ export function PlayListenType() {
         ttsRetryTimeoutRef.current = null;
       }
       // Stop any playing audio
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
+      if (currentAudio) {
+        currentAudio.pause();
       }
       // Cancel any ongoing TTS
       speechSynthesis.cancel();
@@ -1161,7 +1163,6 @@ export function PlayListenType() {
     // Stop any playing audio before moving to next word
     if (audioRef.current) {
       audioRef.current.pause();
-      audioRef.current = null;
     }
 
     // Cancel any ongoing TTS
@@ -1407,7 +1408,6 @@ export function PlayListenType() {
         ref={audioRef}
         src={currentAudioUrl || ""}
         onEnded={() => {
-          audioRef.current = null;
           setCurrentAudioUrl(null);
         }}
         aria-label="Word pronunciation audio"

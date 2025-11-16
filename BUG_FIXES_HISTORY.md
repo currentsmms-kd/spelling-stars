@@ -4,7 +4,150 @@ Complete chronological record of all bug fixes applied to the SpellStars applica
 
 ---
 
-## November 10, 2025 - Core Functionality Fixes
+## November 15, 2025 (Late Night): Audio Ref Management Fixes
+
+### Fixed: PlaySaySpell - Audio Ref Collision Between Prompt and Recorded Audio
+
+**Date:** November 15, 2025 (PM)
+
+**Problem:** Two separate audio elements (prompt audio and recorded audio) were competing for the same `audioRef`, causing the prompt audio playback to fail intermittently. When the `RecordStep` component rendered its audio element with `ref={audioRef}`, it would overwrite the main component's `audioRef`, breaking custom prompt audio playback.
+
+**Root Cause:**
+
+```typescript
+// MAIN COMPONENT (line 940):
+const audioRef = useRef<HTMLAudioElement | null>(null);
+
+// Used for prompt audio playback (line 1810):
+<audio ref={audioRef} src={currentAudioUrl || ""} />
+
+// RECORDSTEP COMPONENT (line 92):
+const audioRef = React.useRef<HTMLAudioElement>(null);
+
+// Used for recorded audio playback (line 185):
+<audio ref={audioRef} src={audioUrl} />
+```
+
+**The Conflict:**
+
+- Both audio elements tried to use refs named `audioRef`
+- When RecordStep rendered, its local `audioRef` would shadow the parent's ref
+- The `playWord()` function in the main component referenced a ref that might point to the wrong element
+- Custom prompt audio uploaded by parents would fail to play or play through the wrong element
+
+**Solution:** Renamed the main component's `audioRef` to `promptAudioRef` to eliminate naming collision:
+
+```typescript
+// BEFORE:
+const audioRef = useRef<HTMLAudioElement | null>(null);
+
+// AFTER:
+const promptAudioRef = useRef<HTMLAudioElement | null>(null);
+```
+
+**Changes Made:**
+
+1. Renamed `audioRef` to `promptAudioRef` in main component (line 940)
+2. Updated all references in `playWord()` callback (lines 1271-1310)
+3. Updated cleanup effect references (line 1414)
+4. Updated audio element ref attribute (line 1809)
+5. Removed manual `audioRef.current = null` assignments (let React manage lifecycle)
+
+**Why This Was Critical:**
+
+- **Complete feature failure**: Custom prompt audio never played correctly
+- **Silent failure**: No error shown - just fell back to TTS
+- **Recent fix incomplete**: November 15 evening fix added playback logic but ref collision broke it
+- **User impact**: Parents upload custom pronunciations that children never hear properly
+
+**Files Modified:**
+
+- `src/app/pages/child/PlaySaySpell.tsx` (lines 940, 1271-1310, 1414, 1809)
+
+---
+
+### Fixed: PlayListenType - Audio Ref Race Conditions
+
+**Date:** November 15, 2025 (PM)
+
+**Problem:** Manual assignment of `audioRef.current = null` created race conditions with React's ref management system. Audio would intermittently fail to play because the ref was set to null just before React tried to reassign it to the actual DOM element.
+
+**Root Cause:**
+
+The code pattern was fundamentally incompatible with React's declarative rendering:
+
+```typescript
+// ❌ PROBLEMATIC PATTERN:
+playAudio() {
+  audioRef.current.pause();
+  audioRef.current = null;  // Manually set to null
+
+  setCurrentAudioUrl(newUrl); // Triggers re-render
+
+  setTimeout(() => {
+    if (audioRef.current) {  // May be null OR reassigned by React
+      audioRef.current.play(); // 50/50 chance this works
+    }
+  }, 100);
+}
+```
+
+**The Race Condition Timeline:**
+
+1. `audioRef.current = null` executes
+2. `setCurrentAudioUrl()` triggers React re-render
+3. During re-render, React sees `<audio ref={audioRef}>` and reassigns the ref
+4. `setTimeout` fires after 100ms
+5. `audioRef.current` state is unpredictable (null, stale element, or correct element)
+
+**Solution:** Remove all manual `audioRef.current = null` assignments and let React manage the ref lifecycle:
+
+```typescript
+// ✅ FIXED PATTERN:
+playAudio() {
+  if (audioRef.current) {
+    audioRef.current.pause();  // Just pause, don't nullify
+  }
+
+  setCurrentAudioUrl(newUrl);
+
+  setTimeout(() => {
+    if (audioRef.current) {
+      audioRef.current.play();  // React guarantees correct ref
+    }
+  }, 100);
+}
+```
+
+**Changes Made:**
+
+1. Removed `audioRef.current = null` from `playAudio()` function (line 948)
+2. Removed `audioRef.current = null` from audio `onEnded` handler (line 1405)
+3. Removed `audioRef.current = null` from `nextWord()` function (line 1163)
+4. Fixed cleanup effect to capture ref value before cleanup (line 1087)
+5. Added ESLint suppression for false positive warning
+
+**Why This Was Critical:**
+
+- **Intermittent failures**: Audio sometimes didn't play (timing-dependent bug)
+- **Hard to debug**: Race conditions are notoriously difficult to reproduce
+- **Affects core gameplay**: Audio playback is essential to game functionality
+- **Memory leaks**: Audio elements weren't properly cleaned up
+- **User experience**: Kids had to click "Play" multiple times
+
+**Best Practice Established:**
+
+- **NEVER manually assign React refs to null** - let React manage the lifecycle
+- Capture ref values in local variables for cleanup functions
+- Use state changes (`setCurrentAudioUrl(null)`) instead of ref manipulation
+
+**Files Modified:**
+
+- `src/app/pages/child/PlayListenType.tsx` (lines 948, 1087, 1163, 1405)
+
+---
+
+## November 15, 2025 (Evening): Audio Playback Fix
 
 ### Fixed: List Selection Navigation Bug
 

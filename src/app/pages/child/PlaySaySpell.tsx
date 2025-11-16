@@ -937,7 +937,7 @@ export function PlaySaySpell() {
   const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const ttsRetryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const ttsRetryCountRef = useRef<number>(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const promptAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Ref to track last played word - prevents duplicate TTS playback
   const lastPlayedWordIdRef = useRef<string | null>(null);
@@ -1268,9 +1268,9 @@ export function PlaySaySpell() {
     }
 
     // Stop any previous audio
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
+    if (promptAudioRef.current) {
+      promptAudioRef.current.pause();
+      promptAudioRef.current = null;
     }
 
     // Cancel any ongoing TTS speech
@@ -1283,9 +1283,9 @@ export function PlaySaySpell() {
 
       // Wait for audio element to be ready, then play
       setTimeout(() => {
-        if (audioRef.current) {
+        if (promptAudioRef.current) {
           // Add error handler for failed audio load (404, network error, etc.)
-          audioRef.current.onerror = () => {
+          promptAudioRef.current.onerror = () => {
             logger.warn("Recorded audio failed to load, falling back to TTS", {
               url: currentWord.prompt_audio_url,
               word: currentWord.text,
@@ -1305,7 +1305,7 @@ export function PlaySaySpell() {
             speechSynthesis.speak(utterance);
           };
 
-          audioRef.current.play().catch((error) => {
+          promptAudioRef.current.play().catch((error) => {
             // Autoplay was blocked by the browser
             logger.warn("Audio autoplay blocked by browser", error);
 
@@ -1411,9 +1411,9 @@ export function PlaySaySpell() {
         clearTimeout(ttsRetryTimeoutRef.current);
       }
       // Stop any audio playback
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
+      if (promptAudioRef.current) {
+        promptAudioRef.current.pause();
+        promptAudioRef.current = null;
       }
       // Cancel any ongoing TTS
       speechSynthesis.cancel();
@@ -1806,10 +1806,10 @@ export function PlaySaySpell() {
     <AppShell title="Say & Spell" variant="child">
       {/* Hidden audio element for playing custom prompt audio */}
       <audio
-        ref={audioRef}
+        ref={promptAudioRef}
         src={currentAudioUrl || ""}
         onEnded={() => {
-          audioRef.current = null;
+          setCurrentAudioUrl(null);
         }}
       />
       <GameContent
