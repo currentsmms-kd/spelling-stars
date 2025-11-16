@@ -53,14 +53,14 @@ function PinSettings({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setLocalPin(e.target.value.replace(/\D/g, ""));
     },
-    [setLocalPin],
+    [setLocalPin]
   );
 
   const handleConfirmChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setConfirmPin(e.target.value.replace(/\D/g, ""));
     },
-    [setConfirmPin],
+    [setConfirmPin]
   );
 
   return (
@@ -115,6 +115,132 @@ function PinSettings({
   );
 }
 
+// Emergency PIN Reset Component
+function EmergencyPinReset() {
+  const {
+    totalFailedAttempts,
+    isPermanentlyLocked,
+    permanentLockResetTime,
+    setSettings,
+  } = useParentalSettingsStore();
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  // Only show if there are failed attempts or permanent lock
+  if (totalFailedAttempts === 0 && !isPermanentlyLocked) {
+    return null;
+  }
+
+  const handleEmergencyReset = () => {
+    if (!showConfirm) {
+      setShowConfirm(true);
+      return;
+    }
+
+    // Reset all PIN protection state
+    setSettings({
+      totalFailedAttempts: 0,
+      firstFailureTimestamp: null,
+      isPermanentlyLocked: false,
+      permanentLockResetTime: null,
+      failedAttempts: 0,
+      lockoutUntil: null,
+    });
+
+    logger.info(
+      "Emergency PIN protection reset performed by authenticated parent"
+    );
+    setShowConfirm(false);
+  };
+
+  const formatTimeRemaining = () => {
+    if (!permanentLockResetTime) return "";
+    const remaining = Math.max(0, permanentLockResetTime - Date.now());
+    const hours = Math.floor(remaining / (60 * 60 * 1000));
+    const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+    return `${hours}h ${minutes}m`;
+  };
+
+  return (
+    <Card>
+      <div className="flex items-center gap-3 mb-4">
+        <AlertTriangle className="text-destructive" size={24} />
+        <h2 className="text-xl font-bold">PIN Security Status</h2>
+      </div>
+
+      {isPermanentlyLocked ? (
+        <div className="p-4 bg-destructive/10 border-2 border-destructive rounded-lg mb-4">
+          <p className="font-medium text-destructive-foreground mb-2">
+            Account Temporarily Locked
+          </p>
+          <p className="text-sm text-destructive-foreground/80 mb-2">
+            Due to {totalFailedAttempts} failed PIN attempts, this account is
+            locked for 24 hours for security purposes.
+          </p>
+          <p className="text-sm text-destructive-foreground/80">
+            Time remaining: <strong>{formatTimeRemaining()}</strong>
+          </p>
+        </div>
+      ) : (
+        <div className="p-4 bg-yellow-500/10 border-2 border-yellow-500 rounded-lg mb-4">
+          <p className="font-medium text-yellow-900 dark:text-yellow-100 mb-2">
+            Warning: Elevated Security Mode
+          </p>
+          <p className="text-sm text-yellow-800 dark:text-yellow-200">
+            {totalFailedAttempts} total failed PIN attempts detected. After{" "}
+            {20 - totalFailedAttempts} more failures, the account will be locked
+            for 24 hours.
+          </p>
+        </div>
+      )}
+
+      <p className="text-muted-foreground mb-4">
+        As an authenticated parent, you can reset the PIN security protection to
+        clear all failed attempt counters and remove lockouts. This should only
+        be used if you're certain there's no security threat.
+      </p>
+
+      {showConfirm ? (
+        <div className="space-y-3">
+          <div className="p-3 bg-destructive/10 border border-destructive rounded-lg">
+            <p className="text-sm text-destructive-foreground font-medium">
+              Are you sure you want to reset PIN protection?
+            </p>
+            <p className="text-xs text-destructive-foreground/80 mt-1">
+              This will clear all failed attempt counters and unlock the account
+              immediately.
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Button
+              onClick={handleEmergencyReset}
+              variant="danger"
+              className="flex-1"
+            >
+              Confirm Reset
+            </Button>
+            <Button
+              onClick={() => setShowConfirm(false)}
+              variant="outline"
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button
+          onClick={handleEmergencyReset}
+          variant="outline"
+          className="w-full"
+        >
+          <RefreshCw size={16} className="mr-2" />
+          Emergency Reset PIN Protection
+        </Button>
+      )}
+    </Card>
+  );
+}
+
 // Extracted Checkbox Setting Component
 function CheckboxSetting({
   id,
@@ -133,7 +259,7 @@ function CheckboxSetting({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       onChange(e.target.checked);
     },
-    [onChange],
+    [onChange]
   );
 
   return (
@@ -174,42 +300,42 @@ function GameSettings({
       strictSpacedMode: boolean;
       dailySessionLimitMinutes: number;
       defaultTtsVoice: string;
-    }>,
+    }>
   ) => void;
 }) {
   const handleHintsChange = useCallback(
     (checked: boolean) => {
       onSettingsChange({ showHintsOnFirstMiss: checked });
     },
-    [onSettingsChange],
+    [onSettingsChange]
   );
 
   const handleCaseSensitivityChange = useCallback(
     (checked: boolean) => {
       onSettingsChange({ enforceCaseSensitivity: checked });
     },
-    [onSettingsChange],
+    [onSettingsChange]
   );
 
   const handlePunctuationChange = useCallback(
     (checked: boolean) => {
       onSettingsChange({ ignorePunctuation: checked });
     },
-    [onSettingsChange],
+    [onSettingsChange]
   );
 
   const handleReadbackChange = useCallback(
     (checked: boolean) => {
       onSettingsChange({ autoReadbackSpelling: checked });
     },
-    [onSettingsChange],
+    [onSettingsChange]
   );
 
   const handleStrictModeChange = useCallback(
     (checked: boolean) => {
       onSettingsChange({ strictSpacedMode: checked });
     },
-    [onSettingsChange],
+    [onSettingsChange]
   );
 
   return (
@@ -268,7 +394,7 @@ function SessionLimits({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       onLimitChange(parseInt(e.target.value) || 20);
     },
-    [onLimitChange],
+    [onLimitChange]
   );
 
   return (
@@ -314,11 +440,11 @@ function AutoAdvanceSettings({
       // Clamp value between min and max
       const clampedValue = Math.max(
         UI_CONSTANTS.MIN_AUTO_ADVANCE_DELAY_SECONDS,
-        Math.min(UI_CONSTANTS.MAX_AUTO_ADVANCE_DELAY_SECONDS, value),
+        Math.min(UI_CONSTANTS.MAX_AUTO_ADVANCE_DELAY_SECONDS, value)
       );
       onDelayChange(clampedValue);
     },
-    [onDelayChange],
+    [onDelayChange]
   );
 
   return (
@@ -363,7 +489,7 @@ function TtsSettings({
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       onVoiceChange(e.target.value);
     },
-    [onVoiceChange],
+    [onVoiceChange]
   );
 
   return (
@@ -399,7 +525,7 @@ function TtsSettings({
 function CacheInfoDisplay({ cacheInfo }: { cacheInfo: Map<string, number> }) {
   const totalCachedItems = Array.from(cacheInfo.values()).reduce(
     (sum, count) => sum + count,
-    0,
+    0
   );
 
   return (
@@ -666,16 +792,16 @@ function FailedSyncManagement() {
 
       // Filter out items older than 30 days
       const oldAttempts = items.failedAttempts.filter(
-        (a) => new Date(a.startedAt) < thirtyDaysAgo,
+        (a) => new Date(a.startedAt) < thirtyDaysAgo
       );
       const oldAudio = items.failedAudio.filter(
-        (a) => new Date(a.createdAt) < thirtyDaysAgo,
+        (a) => new Date(a.createdAt) < thirtyDaysAgo
       );
 
       // If we found old items, clean them up
       if (oldAttempts.length > 0 || oldAudio.length > 0) {
         logger.log(
-          `Auto-cleaning ${oldAttempts.length} old failed attempts and ${oldAudio.length} old failed audio (>30 days)`,
+          `Auto-cleaning ${oldAttempts.length} old failed attempts and ${oldAudio.length} old failed audio (>30 days)`
         );
         // Clear all failed items (including old ones)
         // Then the filtered result will naturally exclude them
@@ -684,10 +810,10 @@ function FailedSyncManagement() {
       // Set filtered items (exclude old ones from display)
       setFailedItems({
         failedAttempts: items.failedAttempts.filter(
-          (a) => new Date(a.startedAt) >= thirtyDaysAgo,
+          (a) => new Date(a.startedAt) >= thirtyDaysAgo
         ),
         failedAudio: items.failedAudio.filter(
-          (a) => new Date(a.createdAt) >= thirtyDaysAgo,
+          (a) => new Date(a.createdAt) >= thirtyDaysAgo
         ),
       });
     } catch (error) {
@@ -710,7 +836,7 @@ function FailedSyncManagement() {
       const totalCleared =
         failedItems.failedAttempts.length + failedItems.failedAudio.length;
       setMessage(
-        `Cleared ${totalCleared} failed item${totalCleared !== 1 ? "s" : ""} successfully`,
+        `Cleared ${totalCleared} failed item${totalCleared !== 1 ? "s" : ""} successfully`
       );
       await loadFailedItems();
     } catch (error) {
@@ -736,7 +862,7 @@ function FailedSyncManagement() {
         setIsClearing(false);
       }
     },
-    [loadFailedItems],
+    [loadFailedItems]
   );
 
   const totalCount =
@@ -811,7 +937,7 @@ function FailedSyncManagement() {
               <button
                 onClick={() =>
                   setExpandedSection(
-                    expandedSection === "attempts" ? null : "attempts",
+                    expandedSection === "attempts" ? null : "attempts"
                   )
                 }
                 className="w-full p-4 flex items-center justify-between hover:bg-secondary/50 transition-colors"
@@ -873,7 +999,7 @@ function FailedSyncManagement() {
               <button
                 onClick={() =>
                   setExpandedSection(
-                    expandedSection === "audio" ? null : "audio",
+                    expandedSection === "audio" ? null : "audio"
                   )
                 }
                 className="w-full p-4 flex items-center justify-between hover:bg-secondary/50 transition-colors"
@@ -1119,7 +1245,7 @@ export function ParentalSettings() {
     (newSettings: Partial<typeof localSettings>) => {
       setLocalSettings((prev) => ({ ...prev, ...newSettings }));
     },
-    [],
+    []
   );
 
   const handleLimitChange = useCallback((minutes: number) => {
@@ -1193,6 +1319,9 @@ export function ParentalSettings() {
           confirmPin={confirmPin}
           setConfirmPin={setConfirmPin}
         />
+
+        {/* Emergency PIN Reset (only shown if there are failed attempts) */}
+        <EmergencyPinReset />
 
         {/* Game Settings */}
         <GameSettings
