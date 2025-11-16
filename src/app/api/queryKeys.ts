@@ -47,7 +47,7 @@ export const queryKeys = {
       childId: string,
       listId: string | undefined,
       limit: number,
-      strictMode: boolean
+      strictMode: boolean,
     ) =>
       [
         ...queryKeys.srs.all,
@@ -116,7 +116,7 @@ export const queryKeys = {
 export function invalidateWordListQueries(
   queryClient: QueryClient,
   listId: string,
-  userId?: string
+  userId?: string,
 ) {
   queryClient.invalidateQueries({
     queryKey: queryKeys.wordLists.detail(listId),
@@ -134,7 +134,7 @@ export function invalidateWordListQueries(
  */
 export function invalidateSrsQueries(
   queryClient: QueryClient,
-  childId: string
+  childId: string,
 ) {
   queryClient.invalidateQueries({ queryKey: queryKeys.srs.dueWords(childId) });
   // Invalidate all hardest/lapsed queries for this child (all limit variations)
@@ -153,7 +153,7 @@ export function invalidateSrsQueries(
  */
 export function invalidateProfileQueries(
   queryClient: QueryClient,
-  userId: string
+  userId: string,
 ) {
   queryClient.invalidateQueries({
     queryKey: queryKeys.profiles.detail(userId),

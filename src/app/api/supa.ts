@@ -56,7 +56,7 @@ export interface WordWithIndex extends Word {
  */
 export async function getSignedAudioUrl(
   path: string,
-  expiresIn = 3600
+  expiresIn = 3600,
 ): Promise<string | null> {
   try {
     const { data, error } = await supabase.storage
@@ -83,7 +83,7 @@ export async function getSignedAudioUrl(
  */
 export async function getSignedAudioUrls(
   paths: string[],
-  expiresIn = 3600
+  expiresIn = 3600,
 ): Promise<Record<string, string | null>> {
   const urlMap: Record<string, string | null> = {};
 
@@ -91,7 +91,7 @@ export async function getSignedAudioUrls(
     paths.map(async (path) => {
       const signedUrl = await getSignedAudioUrl(path, expiresIn);
       urlMap[path] = signedUrl;
-    })
+    }),
   );
 
   return urlMap;
@@ -105,7 +105,7 @@ export async function getSignedAudioUrls(
  */
 export async function getSignedPromptAudioUrl(
   path: string,
-  expiresIn = 3600
+  expiresIn = 3600,
 ): Promise<string | null> {
   try {
     const { data, error } = await supabase.storage
@@ -132,7 +132,7 @@ export async function getSignedPromptAudioUrl(
  */
 export async function getSignedPromptAudioUrls(
   paths: string[],
-  expiresIn = 3600
+  expiresIn = 3600,
 ): Promise<Record<string, string | null>> {
   const urlMap: Record<string, string | null> = {};
 
@@ -140,7 +140,7 @@ export async function getSignedPromptAudioUrls(
     paths.map(async (path) => {
       const signedUrl = await getSignedPromptAudioUrl(path, expiresIn);
       urlMap[path] = signedUrl;
-    })
+    }),
   );
 
   return urlMap;
@@ -193,7 +193,7 @@ export async function getLists(): Promise<WordList[]> {
  * Get a specific word list with all its words (joined and sorted)
  */
 export async function getListWithWords(
-  listId: string
+  listId: string,
 ): Promise<WordListWithWords | null> {
   // First, get the list
   const { data: list, error: listError } = await supabase
@@ -230,7 +230,7 @@ export async function getListWithWords(
   // Use batch function for efficiency
   const pathsToSign = words
     .filter((w): w is typeof w & { prompt_audio_path: string } =>
-      Boolean(w.prompt_audio_path)
+      Boolean(w.prompt_audio_path),
     )
     .map((w) => w.prompt_audio_path);
 
@@ -258,7 +258,7 @@ export async function getListWithWords(
  * Create or update a word list
  */
 export async function upsertList(
-  list: WordListInsert | (WordListUpdate & { id: string })
+  list: WordListInsert | (WordListUpdate & { id: string }),
 ): Promise<WordList | null> {
   if ("id" in list) {
     // Update existing list
@@ -297,7 +297,7 @@ export async function upsertList(
  * Insert a new attempt for a child
  */
 export async function insertAttempt(
-  attempt: AttemptInsert
+  attempt: AttemptInsert,
 ): Promise<Attempt | null> {
   const { data, error } = await supabase
     .from("attempts")
@@ -374,7 +374,7 @@ export async function getRewards(childId: string): Promise<Reward | null> {
  */
 export async function addStars(
   childId: string,
-  amount: number
+  amount: number,
 ): Promise<number | null> {
   const { data, error } = await supabase.rpc("fn_add_stars", {
     p_child: childId,
@@ -418,7 +418,7 @@ export async function createWord(word: {
 export async function addWordToList(
   listId: string,
   wordId: string,
-  sortIndex: number
+  sortIndex: number,
 ): Promise<ListWord | null> {
   const { data, error } = await supabase
     .from("list_words")
@@ -443,7 +443,7 @@ export async function addWordToList(
  */
 export async function removeWordFromList(
   listId: string,
-  wordId: string
+  wordId: string,
 ): Promise<boolean> {
   const { error } = await supabase
     .from("list_words")
@@ -482,7 +482,7 @@ export async function getAttempts(childId: string): Promise<Attempt[]> {
  */
 export async function getAttemptsForWord(
   childId: string,
-  wordId: string
+  wordId: string,
 ): Promise<Attempt[]> {
   const { data, error } = await supabase
     .from("attempts")
@@ -546,7 +546,7 @@ export interface AttemptWithSignedAudio extends Attempt {
  */
 export async function getAttemptsWithSignedUrls(
   attempts: Attempt[],
-  expiresIn = 3600
+  expiresIn = 3600,
 ): Promise<AttemptWithSignedAudio[]> {
   // Extract unique audio paths that need signed URLs
   const audioPaths = attempts
@@ -582,7 +582,7 @@ export async function getAttemptsWithSignedUrls(
  */
 export async function getSrsEntry(
   childId: string,
-  wordId: string
+  wordId: string,
 ): Promise<SrsEntry | null> {
   const { data, error } = await supabase
     .from("srs")
@@ -603,7 +603,7 @@ export async function getSrsEntry(
  * Upsert an SRS entry (insert or update)
  */
 export async function upsertSrsEntry(
-  entry: SrsInsert | (SrsUpdate & { child_id: string; word_id: string })
+  entry: SrsInsert | (SrsUpdate & { child_id: string; word_id: string }),
 ): Promise<SrsEntry | null> {
   const { data, error } = await supabase
     .from("srs")
@@ -614,7 +614,7 @@ export async function upsertSrsEntry(
       },
       {
         onConflict: "child_id,word_id",
-      }
+      },
     )
     .select()
     .single();
@@ -636,7 +636,7 @@ export async function upsertSrsEntry(
 export async function updateSrsAfterAttempt(
   childId: string,
   wordId: string,
-  isCorrectFirstTry: boolean
+  isCorrectFirstTry: boolean,
 ): Promise<SrsEntry | null> {
   // Get current entry
   const currentEntry = await getSrsEntry(childId, wordId);
@@ -644,7 +644,7 @@ export async function updateSrsAfterAttempt(
   // Calculate new values
   const updates = prepareSrsUpdate(
     isCorrectFirstTry,
-    currentEntry || undefined
+    currentEntry || undefined,
   );
 
   // Upsert with new values
@@ -707,16 +707,16 @@ export async function getDueWords(childId: string): Promise<
         word,
         lists,
       };
-    })
+    }),
   );
 
   // Generate signed URLs for prompt audio paths
   const pathsToSign = wordsWithLists
     .filter(
       (
-        entry
+        entry,
       ): entry is typeof entry & { word: { prompt_audio_path: string } } =>
-        Boolean(entry.word.prompt_audio_path)
+        Boolean(entry.word.prompt_audio_path),
     )
     .map((entry) => entry.word.prompt_audio_path);
 
@@ -750,7 +750,7 @@ const DEFAULT_LIMIT = 10;
  */
 export async function getHardestWords(
   childId?: string,
-  limit?: number
+  limit?: number,
 ): Promise<
   Array<
     SrsEntry & {
@@ -783,9 +783,9 @@ export async function getHardestWords(
   const pathsToSign = entries
     .filter(
       (
-        entry
+        entry,
       ): entry is typeof entry & { word: { prompt_audio_path: string } } =>
-        Boolean(entry.word.prompt_audio_path)
+        Boolean(entry.word.prompt_audio_path),
     )
     .map((entry) => entry.word.prompt_audio_path);
 
@@ -815,7 +815,7 @@ export async function getHardestWords(
  */
 export async function getMostLapsedWords(
   childId?: string,
-  limit?: number
+  limit?: number,
 ): Promise<
   Array<
     SrsEntry & {
@@ -848,9 +848,9 @@ export async function getMostLapsedWords(
   const pathsToSign = entries
     .filter(
       (
-        entry
+        entry,
       ): entry is typeof entry & { word: { prompt_audio_path: string } } =>
-        Boolean(entry.word.prompt_audio_path)
+        Boolean(entry.word.prompt_audio_path),
     )
     .map((entry) => entry.word.prompt_audio_path);
 
@@ -1198,7 +1198,7 @@ export function useBulkDeleteWords() {
 
       // Snapshot previous value
       const previous = queryClient.getQueryData<WordListWithWords>(
-        queryKeys.wordLists.detail(listId)
+        queryKeys.wordLists.detail(listId),
       );
 
       // Optimistically update cache
@@ -1210,7 +1210,7 @@ export function useBulkDeleteWords() {
             ...old,
             words: old.words?.filter((w) => !wordIds.includes(w.id)) ?? [],
           };
-        }
+        },
       );
 
       return { previous };
@@ -1220,7 +1220,7 @@ export function useBulkDeleteWords() {
       if (context?.previous) {
         queryClient.setQueryData(
           queryKeys.wordLists.detail(listId),
-          context.previous
+          context.previous,
         );
       }
     },
@@ -1254,7 +1254,7 @@ export function useReorderWords() {
           .from("list_words")
           .update({ sort_index })
           .eq("list_id", listId)
-          .eq("word_id", word_id)
+          .eq("word_id", word_id),
       );
 
       const results = await Promise.all(promises);
@@ -1274,7 +1274,7 @@ export function useReorderWords() {
 
       // Snapshot the previous value
       const previousList = queryClient.getQueryData<WordListWithWords>(
-        queryKeys.wordLists.detail(listId)
+        queryKeys.wordLists.detail(listId),
       );
 
       // Optimistically update
@@ -1293,7 +1293,7 @@ export function useReorderWords() {
           {
             ...previousList,
             words: newWords,
-          }
+          },
         );
       }
 
@@ -1304,7 +1304,7 @@ export function useReorderWords() {
       if (context?.previousList) {
         queryClient.setQueryData(
           queryKeys.wordLists.detail(listId),
-          context.previousList
+          context.previousList,
         );
       }
     },
@@ -1539,7 +1539,7 @@ export function useAttemptsForWord(childId?: string, wordId?: string) {
 export async function getParentOverview(
   parentId: string,
   dateFrom?: Date,
-  dateTo?: Date
+  dateTo?: Date,
 ) {
   const { data, error } = await supabase.rpc("get_parent_overview", {
     p_parent_id: parentId,
@@ -1557,7 +1557,7 @@ export async function getParentOverview(
 export function useParentOverview(
   parentId?: string,
   dateFrom?: Date,
-  dateTo?: Date
+  dateTo?: Date,
 ) {
   return useQuery({
     queryKey: parentId
@@ -1686,7 +1686,7 @@ export async function getNextBatch(
   childId: string,
   listId?: string,
   limit = 15,
-  strictMode = false
+  strictMode = false,
 ): Promise<NextBatchWord[]> {
   const { data, error } = await supabase.rpc(
     "get_next_batch" as unknown as "fn_add_stars",
@@ -1695,7 +1695,7 @@ export async function getNextBatch(
       p_list_id: listId || null,
       p_limit: limit,
       p_strict_mode: strictMode,
-    } as unknown as { p_child: string; p_amount: number }
+    } as unknown as { p_child: string; p_amount: number },
   );
 
   if (error) {
@@ -1737,7 +1737,7 @@ export function useNextBatch(
   childId?: string,
   listId?: string,
   limit = 15,
-  strictMode = false
+  strictMode = false,
 ) {
   return useQuery({
     queryKey: childId
@@ -1759,7 +1759,7 @@ export function useNextBatch(
 export function computeAttemptQuality(
   correct: boolean,
   isFirstTry: boolean,
-  usedHint = false
+  usedHint = false,
 ): number {
   if (!correct) return 1; // Wrong answer
   if (isFirstTry) {
@@ -1798,7 +1798,7 @@ export interface UserReward {
  * Get rewards catalog (active items only)
  */
 export async function getRewardsCatalog(
-  type?: "avatar" | "theme" | "coupon" | "badge"
+  type?: "avatar" | "theme" | "coupon" | "badge",
 ): Promise<RewardsCatalogItem[]> {
   let query = supabase
     .from("rewards_catalog" as unknown as "profiles")
@@ -1824,7 +1824,7 @@ export async function getRewardsCatalog(
  * Hook to get rewards catalog
  */
 export function useRewardsCatalog(
-  type?: "avatar" | "theme" | "coupon" | "badge"
+  type?: "avatar" | "theme" | "coupon" | "badge",
 ) {
   return useQuery({
     queryKey: queryKeys.rewards.catalog(type),
@@ -1876,7 +1876,7 @@ export async function purchaseReward(userId: string, rewardId: string) {
     {
       p_user_id: userId,
       p_reward_id: rewardId,
-    } as unknown as { p_child: string; p_amount: number }
+    } as unknown as { p_child: string; p_amount: number },
   );
 
   if (error) throw error;
@@ -1924,7 +1924,7 @@ export async function equipReward(userId: string, rewardId: string) {
     {
       p_user_id: userId,
       p_reward_id: rewardId,
-    } as unknown as { p_child: string; p_amount: number }
+    } as unknown as { p_child: string; p_amount: number },
   );
 
   if (error) throw error;
@@ -1965,7 +1965,7 @@ export function useEquipReward() {
 export async function awardStars(
   userId: string,
   amount: number,
-  reason = "practice"
+  reason = "practice",
 ): Promise<number> {
   const { data, error } = await supabase.rpc(
     "award_stars" as unknown as "fn_add_stars",
@@ -1973,7 +1973,7 @@ export async function awardStars(
       p_user_id: userId,
       p_amount: amount,
       p_reason: reason,
-    } as unknown as { p_child: string; p_amount: number }
+    } as unknown as { p_child: string; p_amount: number },
   );
 
   if (error) throw error;
@@ -2012,7 +2012,7 @@ export async function updateDailyStreak(userId: string) {
     "update_daily_streak" as unknown as "fn_add_stars",
     {
       p_user_id: userId,
-    } as unknown as { p_child: string; p_amount: number }
+    } as unknown as { p_child: string; p_amount: number },
   );
 
   if (error) throw error;
@@ -2051,7 +2051,7 @@ export async function updateChildProfile(
     birthday?: string | null;
     equipped_avatar?: string | null;
     favorite_color?: string | null;
-  }
+  },
 ) {
   const { data, error } = await supabase
     .from("profiles")
