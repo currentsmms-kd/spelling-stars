@@ -9,6 +9,7 @@ import {
 import { logger } from "@/lib/logger";
 import { hasSupabaseConfig, getSupabaseConfigErrors } from "./supabase";
 import { SetupError } from "./components/SetupError";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import "../styles/index.css";
 
 // Run one-time migration to normalize synced field types
@@ -37,62 +38,64 @@ const initializeTheme = () => {
 // Initialize theme immediately
 initializeTheme();
 
+// Register service worker using vite-plugin-pwa virtual module
+// This provides proper integration with the plugin and avoids conflicts
+import { registerSW } from "virtual:pwa-register";
+
 // Check for force update flag (for critical releases)
 const FORCE_UPDATE_ON_ACTIVATION =
   import.meta.env.VITE_FORCE_UPDATE === "true" || false;
 
-// Register service worker for PWA
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker
-      .register("/sw.js")
-      .then((registration) => {
-        // Check for updates periodically
-        setInterval(
-          () => {
-            registration.update();
-          },
-          60 * 60 * 1000
-        ); // Check every hour
-
-        // Listen for updates
-        registration.addEventListener("updatefound", () => {
-          const newWorker = registration.installing;
-          if (newWorker) {
-            newWorker.addEventListener("statechange", () => {
-              if (
-                newWorker.state === "activated" &&
-                navigator.serviceWorker.controller
-              ) {
-                // New service worker activated
-                logger.info("New service worker activated");
-
-                if (FORCE_UPDATE_ON_ACTIVATION) {
-                  // Critical release: force immediate reload
-                  logger.info("Force update enabled, reloading immediately");
-                  window.location.reload();
-                } else {
-                  // Standard update: show banner for user control
-                  logger.info("Update available, showing banner");
-                  // Trigger re-render to show banner
-                  window.dispatchEvent(new CustomEvent("sw-update-available"));
-                }
-              }
-            });
-          }
+// Register service worker with automatic update handling
+const updateSW = registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    // New service worker is waiting to activate
+    if (FORCE_UPDATE_ON_ACTIVATION) {
+      // Critical release: force immediate reload
+      logger.info("Force update enabled, applying update immediately");
+      updateSW()
+        .then(() => {
+          window.location.reload();
+        })
+        .catch((error) => {
+          logger.error("Force update failed:", error);
         });
+    } else {
+      // Standard update: show banner for user control
+      logger.info("Service worker update available, showing banner");
+      window.dispatchEvent(new CustomEvent("sw-update-available"));
+    }
+  },
+  onOfflineReady() {
+    logger.info("App is ready for offline use");
+  },
+  onRegistered(registration) {
+    if (registration) {
+      logger.info("Service worker registered successfully");
 
-        // Listen for background sync
-        if ("sync" in registration) {
-          // Background sync is supported
-          logger.info("Background sync is available");
-        }
-      })
-      .catch((error) => {
-        logger.error("SW registration failed:", error);
-      });
-  });
-}
+      // Check for updates every hour
+      setInterval(
+        () => {
+          logger.debug("Checking for service worker updates");
+          registration.update();
+        },
+        60 * 60 * 1000
+      );
+
+      // Check for background sync support
+      if ("sync" in registration) {
+        logger.info("Background sync is available");
+      }
+    }
+  },
+  onRegisterError(error) {
+    logger.error("Service worker registration failed:", error);
+  },
+});
+
+// Expose updateSW globally for UpdateBanner to trigger manual update
+window.__updateServiceWorker = updateSW;
 
 // Import clearAppCaches side effect to expose it globally
 // The cacheUtils module registers window.clearAppCaches for debugging
@@ -237,16 +240,20 @@ if (rootElement) {
 
     createRoot(rootElement).render(
       <StrictMode>
-        <SetupError
-          message="SpellStars requires Supabase configuration to function."
-          details={configErrors}
-        />
+        <ErrorBoundary>
+          <SetupError
+            message="SpellStars requires Supabase configuration to function."
+            details={configErrors}
+          />
+        </ErrorBoundary>
       </StrictMode>
     );
   } else {
     createRoot(rootElement).render(
       <StrictMode>
-        <App />
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
       </StrictMode>
     );
   }

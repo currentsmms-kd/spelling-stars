@@ -22,7 +22,24 @@ export function UpdateBanner({ onUpdate, onDismiss }: UpdateBannerProps) {
   const handleUpdate = () => {
     logger.info("User initiated update from banner");
     setIsVisible(false);
-    onUpdate();
+
+    // Use the global updateSW function if available
+    if (window.__updateServiceWorker) {
+      window
+        .__updateServiceWorker()
+        .then(() => {
+          logger.info("Update applied successfully, reloading page");
+          onUpdate();
+        })
+        .catch((error) => {
+          logger.error("Update failed:", error);
+          // Fallback to simple reload
+          onUpdate();
+        });
+    } else {
+      // Fallback if service worker not available
+      onUpdate();
+    }
   };
 
   const handleDismiss = () => {

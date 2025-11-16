@@ -18,6 +18,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      injectRegister: null, // Don't auto-inject, we use virtual:pwa-register manually
       includeAssets: ["vite.svg"],
       manifest: {
         name: "SpellStars",

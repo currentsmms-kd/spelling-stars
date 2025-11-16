@@ -1,7 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from "react";
 import { Card } from "./Card";
 import { Button } from "./Button";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Copy } from "lucide-react";
 import { logger } from "@/lib/logger";
 
 interface ErrorBoundaryProps {
@@ -13,6 +13,8 @@ interface ErrorBoundaryProps {
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
+  errorInfo: ErrorInfo | null;
+  errorId: string | null;
 }
 
 export class ErrorBoundary extends Component<
@@ -24,20 +26,29 @@ export class ErrorBoundary extends Component<
     this.state = {
       hasError: false,
       error: null,
+      errorInfo: null,
+      errorId: null,
     };
   }
 
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+  static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
+    // Generate unique error ID for support requests
+    const errorId = `ERR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     return {
       hasError: true,
       error,
+      errorId,
     };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+    // Store error info in state for detailed error display
+    this.setState({ errorInfo });
+
     // Log error with stack trace
     logger.error("React Error Boundary caught error:", error, {
       componentStack: errorInfo.componentStack,
+      errorId: this.state.errorId,
     });
 
     // Track error telemetry
@@ -46,6 +57,7 @@ export class ErrorBoundary extends Component<
       message: error.message,
       stack: errorInfo.componentStack || error.stack,
       severity: "critical",
+      errorId: this.state.errorId,
     });
 
     // Call optional error handler
@@ -58,7 +70,35 @@ export class ErrorBoundary extends Component<
     this.setState({
       hasError: false,
       error: null,
+      errorInfo: null,
+      errorId: null,
     });
+  };
+
+  copyErrorDetails = async (): Promise<void> => {
+    const { error, errorInfo, errorId } = this.state;
+    const errorDetails = `
+SpellStars Error Report
+-----------------------
+Error ID: ${errorId}
+Timestamp: ${new Date().toISOString()}
+Message: ${error?.message || "Unknown error"}
+Stack: ${error?.stack || "No stack trace"}
+Component Stack: ${errorInfo?.componentStack || "No component stack"}
+User Agent: ${navigator.userAgent}
+URL: ${window.location.href}
+    `.trim();
+
+    try {
+      await navigator.clipboard.writeText(errorDetails);
+      logger.info("Error details copied to clipboard");
+      // Could add a toast notification here
+    } catch (err) {
+      logger.error("Failed to copy error details:", err);
+      // Fallback: select text for manual copy
+      alert("Failed to copy automatically. Error details logged to console.");
+      console.log(errorDetails);
+    }
   };
 
   render(): ReactNode {
@@ -91,37 +131,55 @@ export class ErrorBoundary extends Component<
 
               {/* Error Message */}
               {this.state.error && (
-                <div className="w-full p-4 rounded-lg bg-destructive/10 border-2 border-destructive/20">
-                  <p className="text-sm text-destructive font-medium break-words">
-                    {this.state.error.message}
-                  </p>
+                <div className="w-full space-y-2">
+                  <div className="p-4 rounded-lg bg-destructive/10 border-2 border-destructive/20">
+                    <p className="text-sm text-destructive font-medium break-words">
+                      {this.state.error.message}
+                    </p>
+                  </div>
+                  {this.state.errorId && (
+                    <p className="text-xs text-muted-foreground font-mono">
+                      Error ID: {this.state.errorId}
+                    </p>
+                  )}
                 </div>
               )}
 
               {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-3 w-full">
+              <div className="flex flex-col gap-3 w-full">
+                <div className="flex flex-col sm:flex-row gap-3 w-full">
+                  <Button
+                    variant="default"
+                    size="default"
+                    onClick={() => window.location.reload()}
+                    className="flex-1"
+                  >
+                    Reload Page
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="default"
+                    onClick={() => (window.location.href = "/")}
+                    className="flex-1"
+                  >
+                    Go Home
+                  </Button>
+                </div>
                 <Button
-                  variant="default"
+                  variant="ghost"
                   size="default"
-                  onClick={() => window.location.reload()}
-                  className="flex-1"
+                  onClick={this.copyErrorDetails}
+                  className="w-full"
                 >
-                  Reload Page
-                </Button>
-                <Button
-                  variant="outline"
-                  size="default"
-                  onClick={() => (window.location.href = "/")}
-                  className="flex-1"
-                >
-                  Go Home
+                  <Copy className="w-4 h-4 mr-2" />
+                  Copy Error Details
                 </Button>
               </div>
 
               {/* Help Text */}
               <p className="text-xs text-muted-foreground">
                 If this problem persists, try clearing your browser cache or
-                contact support.
+                contact support with the error ID above.
               </p>
             </div>
           </Card>

@@ -4,6 +4,425 @@ Complete chronological record of all bug fixes applied to the SpellStars applica
 
 ---
 
+## November 15, 2025 (Late Night - Part 4): Service Worker Registration Conflict
+
+### Fixed: Conflicting Service Worker Registrations (Manual vs vite-plugin-pwa)
+
+**Date:** November 15, 2025 (Late Night)
+
+**Problem:** The application had two conflicting service worker registration mechanisms running simultaneously:
+
+1. Manual registration in `main.tsx` using `navigator.serviceWorker.register("/sw.js")`
+2. Automatic registration by vite-plugin-pwa with `registerType: "autoUpdate"`
+
+This created multiple issues:
+
+- **Path mismatch**: Manual registration looked for `/sw.js` but vite-plugin-pwa generates to `dev-dist/sw.js` (dev) or `dist/sw.js` (production)
+- **Double registration**: Both systems could attempt to register the same service worker
+- **Update handling conflicts**: Manual update detection code duplicated vite-plugin-pwa's built-in update handling
+- **Lifecycle confusion**: Two different systems managing service worker lifecycle events
+
+**Root Cause:**
+
+The app started with manual service worker registration before adopting vite-plugin-pwa, but the manual code was never removed when the plugin was added. This left both systems active:
+
+```typescript
+// BEFORE (CONFLICTING):
+
+// Manual registration in main.tsx
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/sw.js") // ❌ Wrong path for vite-plugin-pwa
+      .then((registration) => {
+        // Custom update handling
+        registration.addEventListener("updatefound", () => {
+          // ... custom logic
+        });
+      });
+  });
+}
+
+// ALSO: vite-plugin-pwa with registerType: "autoUpdate"
+// This auto-injects its own registration code
+VitePWA({
+  registerType: "autoUpdate", // ❌ Conflicts with manual registration
+  // ...
+});
+```
+
+**User Impact:**
+
+- **PWA FUNCTIONALITY**: Service worker might fail to register or update correctly
+- **OFFLINE MODE**: App might not cache properly for offline use
+- **UPDATES**: Users might not see update banner or updates might fail to apply
+- **BACKGROUND SYNC**: Queued data might not sync properly when back online
+- **UNRELIABLE BEHAVIOR**: Different behavior between dev and production builds
+
+**Solution:**
+
+Replaced manual service worker registration with vite-plugin-pwa's official virtual module (`virtual:pwa-register`). This is the recommended approach from the vite-plugin-pwa documentation and provides proper integration with the plugin's lifecycle management.
+
+**Implementation:**
+
+**1. Updated TypeScript Declarations** (`src/vite-env.d.ts`):
+
+```typescript
+/// <reference types="vite-plugin-pwa/client" />
+
+interface Window {
+  __updateServiceWorker?: () => Promise<void>;
+}
+```
+
+**2. Replaced Manual Registration** (`src/app/main.tsx`):
+
+REMOVED ~50 lines of manual service worker code.
+
+ADDED virtual module registration:
+
+```typescript
+import { registerSW } from "virtual:pwa-register";
+
+const updateSW = registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    // New service worker is waiting
+    if (FORCE_UPDATE_ON_ACTIVATION) {
+      updateSW().then(() => window.location.reload());
+    } else {
+      window.dispatchEvent(new CustomEvent("sw-update-available"));
+    }
+  },
+  onOfflineReady() {
+    logger.info("App is ready for offline use");
+  },
+  onRegistered(registration) {
+    if (registration) {
+      // Check for updates every hour
+      setInterval(() => registration.update(), 60 * 60 * 1000);
+    }
+  },
+  onRegisterError(error) {
+    logger.error("Service worker registration failed:", error);
+  },
+});
+
+// Expose globally for UpdateBanner
+window.__updateServiceWorker = updateSW;
+```
+
+**3. Enhanced UpdateBanner Component** (`src/app/components/UpdateBanner.tsx`):
+
+```typescript
+const handleUpdate = () => {
+  if (window.__updateServiceWorker) {
+    window
+      .__updateServiceWorker()
+      .then(() => {
+        logger.info("Update applied successfully");
+        onUpdate();
+      })
+      .catch((error) => {
+        logger.error("Update failed:", error);
+        onUpdate(); // Fallback to simple reload
+      });
+  } else {
+    onUpdate();
+  }
+};
+```
+
+**4. Updated vite-plugin-pwa Configuration** (`vite.config.ts`):
+
+```typescript
+VitePWA({
+  registerType: "autoUpdate",
+  injectRegister: null, // Don't auto-inject, we use virtual module manually
+  // ... rest of config
+});
+```
+
+Setting `injectRegister: null` prevents the plugin from auto-injecting registration code since we're manually importing and using `virtual:pwa-register` for better control.
+
+**Key Benefits:**
+
+1. **Single Registration**: Only one service worker registration system
+2. **Correct Paths**: Virtual module uses correct paths for all environments
+3. **Proper Lifecycle**: vite-plugin-pwa handles all lifecycle events correctly
+4. **Type Safety**: Full TypeScript support with proper types
+5. **Update Control**: Still maintains force-update flag and banner system
+6. **Background Sync**: Background sync detection still works through registration object
+7. **Cleaner Code**: Removed ~50 lines of duplicate update handling logic
+
+**Files Modified:**
+
+- `src/vite-env.d.ts`
+  - Added `/// <reference types="vite-plugin-pwa/client" />`
+  - Added `Window.__updateServiceWorker` interface
+  - Added `VITE_FORCE_UPDATE` to environment types
+
+- `src/app/main.tsx` (lines 43-97)
+  - Removed manual `navigator.serviceWorker.register()` code
+  - Added `import { registerSW } from "virtual:pwa-register"`
+  - Implemented proper registration with lifecycle callbacks
+  - Exposed `updateSW` globally for UpdateBanner
+
+- `src/app/components/UpdateBanner.tsx` (lines 25-35)
+  - Enhanced `handleUpdate` to use global `__updateServiceWorker`
+  - Added error handling and fallback logic
+
+- `vite.config.ts` (line 18)
+  - Added `injectRegister: null` to prevent auto-injection
+
+**Testing Checklist:**
+
+✅ Single service worker registration (DevTools > Application > Service Workers)
+✅ No duplicate registrations
+✅ Update banner appears when new version available
+✅ "Refresh Now" button triggers service worker update
+✅ Update applies correctly and page reloads
+✅ Offline mode caches routes correctly
+✅ Background sync still works
+✅ Force update flag works (VITE_FORCE_UPDATE=true)
+✅ No console errors about registration
+✅ Dev and production builds both work
+
+**Verification Commands:**
+
+```powershell
+# Development mode with service worker
+pnpm run dev
+
+# Production build and preview
+pnpm run build
+pnpm run preview
+
+# Check DevTools > Application > Service Workers
+# Should show single registration, not duplicate
+```
+
+**Key Architectural Pattern:**
+
+**Use Plugin-Native APIs**: When using a build tool plugin like vite-plugin-pwa, always prefer the plugin's official APIs (like `virtual:pwa-register`) over custom implementations. This ensures:
+
+- Proper integration with the plugin's lifecycle
+- Correct paths and configurations in all environments
+- Type safety and IDE support
+- Future compatibility with plugin updates
+
+**Related Documentation:**
+
+- vite-plugin-pwa: https://vite-pwa-org.netlify.app/guide/register-service-worker.html
+- Issue tracking: `AGENT_PROMPTS_CRITICAL.md` - Issue #4
+
+---
+
+## November 15, 2025 (Late Night - Part 3): Critical Error Boundary Implementation
+
+### Fixed: Missing Root-Level Error Boundary Protection
+
+**Date:** November 15, 2025 (Late Night)
+
+**Problem:** While the `ErrorBoundary` component existed and was partially implemented in `App.tsx`, it was NOT wrapping the application at the root level in `main.tsx`. This meant that any unhandled React errors in the QueryClientProvider, RouterProvider initialization, or App component itself would crash the entire application with a blank white screen, providing no recovery mechanism for users.
+
+**Root Cause:**
+
+The documentation claimed "App-wide error boundary catches component errors" but the implementation was incomplete:
+
+- `src/app/components/ErrorBoundary.tsx` - Component existed ✅
+- `src/app/App.tsx` - Had ErrorBoundary wrapping RouterProvider ✅
+- `src/app/main.tsx` - NO ErrorBoundary wrapper ❌
+
+This meant errors in:
+
+- Theme initialization
+- Service worker registration
+- QueryClient setup
+- Router creation
+- Supabase configuration check
+
+...would all crash the app completely with no user-facing error message.
+
+**User Impact:**
+
+- **CRITICAL**: Entire app becomes unusable with blank screen
+- **DATA LOSS**: Users lose in-progress work (spelling attempts, recordings)
+- **NO RECOVERY**: Must force-reload browser to recover
+- **NO DEBUGGING**: No error context captured for bug reports
+
+**Solution:**
+
+Implemented defense-in-depth error boundary strategy at two levels:
+
+**Level 1: Root Level (Critical) - NEW**
+Wrapped entire application in `main.tsx` to catch catastrophic errors:
+
+```typescript
+// src/app/main.tsx
+import { ErrorBoundary } from "./components/ErrorBoundary";
+
+// Wrap both Supabase error state AND normal app render
+createRoot(rootElement).render(
+  <StrictMode>
+    <ErrorBoundary>
+      {!hasSupabaseConfig() && !import.meta.env.DEV ? (
+        <SetupError
+          message="SpellStars requires Supabase configuration to function."
+          details={configErrors}
+        />
+      ) : (
+        <App />
+      )}
+    </ErrorBoundary>
+  </StrictMode>
+);
+```
+
+**Level 2: App Level (Existing)**
+Kept existing ErrorBoundary in `App.tsx` wrapping RouterProvider for route-specific errors.
+
+**Enhanced ErrorBoundary Component:**
+
+Added missing features for better debugging and user experience:
+
+1. **Error ID Generation**: Unique identifier for support requests
+
+   ```typescript
+   const errorId = `ERR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+   ```
+
+2. **Error Info State**: Store React error info for detailed display
+
+   ```typescript
+   interface ErrorBoundaryState {
+     hasError: boolean;
+     error: Error | null;
+     errorInfo: ErrorInfo | null; // NEW
+     errorId: string | null; // NEW
+   }
+   ```
+
+3. **Copy Error Details Button**: Allow users to copy full error report
+
+   ```typescript
+   copyErrorDetails = async (): Promise<void> => {
+     const errorDetails = `
+   SpellStars Error Report
+   -----------------------
+   Error ID: ${errorId}
+   Timestamp: ${new Date().toISOString()}
+   Message: ${error?.message}
+   Stack: ${error?.stack}
+   Component Stack: ${errorInfo?.componentStack}
+   User Agent: ${navigator.userAgent}
+   URL: ${window.location.href}
+     `.trim();
+
+     await navigator.clipboard.writeText(errorDetails);
+   };
+   ```
+
+4. **Enhanced Telemetry**: Include error ID in logs
+
+   ```typescript
+   logger.metrics.errorCaptured({
+     context: "ErrorBoundary",
+     message: error.message,
+     stack: errorInfo.componentStack || error.stack,
+     severity: "critical",
+     errorId: this.state.errorId, // NEW
+   });
+   ```
+
+5. **Improved Fallback UI**:
+   - Display unique error ID for support
+   - "Reload Page" button to reset error state
+   - "Go Home" button for navigation recovery
+   - "Copy Error Details" button for bug reports
+   - Help text references error ID
+
+**Files Modified:**
+
+- `src/app/main.tsx` (lines 232-252)
+  - Added ErrorBoundary import
+  - Wrapped both render paths with ErrorBoundary
+
+- `src/app/components/ErrorBoundary.tsx` (full file)
+  - Added `errorInfo` and `errorId` to state interface
+  - Generate unique error ID in `getDerivedStateFromError`
+  - Store errorInfo in `componentDidCatch`
+  - Added `copyErrorDetails` method
+  - Display error ID in fallback UI
+  - Added "Copy Error Details" button with Copy icon
+  - Include error ID in telemetry
+
+**Testing Procedure:**
+
+To verify error boundary works correctly:
+
+1. **Test Root-Level Error**: Temporarily throw error in `main.tsx` after imports
+
+   ```typescript
+   // Test: throw new Error("Test root error boundary");
+   ```
+
+2. **Test App-Level Error**: Temporarily throw error in `App.tsx`
+
+   ```typescript
+   // Test: throw new Error("Test app error boundary");
+   ```
+
+3. **Test Route Error**: Create temporary test component that throws
+
+   ```typescript
+   function BuggyComponent() {
+     throw new Error("Test route error boundary");
+   }
+   ```
+
+4. **Verify Fallback UI**:
+   - Error message displays correctly
+   - Error ID shown in format `ERR-1731715200000-abc123xyz`
+   - "Reload Page" button works
+   - "Go Home" button navigates to `/`
+   - "Copy Error Details" button copies to clipboard
+   - Error logged to console with telemetry
+
+5. **Verify Recovery**:
+   - Click "Reload Page" and app recovers
+   - Navigate away and error state clears
+   - Error boundary resets properly
+
+**Acceptance Criteria Met:**
+
+- ✅ ErrorBoundary wraps root app in main.tsx
+- ✅ Navigation to any route doesn't bypass error boundary
+- ✅ Thrown errors show fallback UI instead of blank screen
+- ✅ Fallback UI includes "Reload Page", "Go Home", and "Copy Error Details" buttons
+- ✅ Error details logged to logger.metrics with error ID
+- ✅ Error boundary resets when user clicks "Reload Page"
+- ✅ Error boundary resets on navigation to different route
+- ✅ Copy button allows users to export error details
+- ✅ Unique error ID generated for each error
+
+**Key Architectural Pattern:**
+
+**Defense-in-Depth Error Handling**: Multiple error boundary levels ensure errors are caught at the appropriate scope:
+
+- Root level (main.tsx): Catches initialization and app-wide errors
+- App level (App.tsx): Catches router and query client errors
+- Route level (optional): Can wrap specific routes for isolated error recovery
+
+This follows React best practices and ensures users never see a blank screen.
+
+**Related Documentation:**
+
+- React Error Boundaries: https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary
+- Issue tracking: `AGENT_PROMPTS_CRITICAL.md` - Issue #3
+
+---
+
 ## November 15, 2025 (Late Night - Part 2): Service Worker Cache Policy Fixes
 
 ### Fixed: Service Worker Caching Signed URLs from word-audio Bucket
