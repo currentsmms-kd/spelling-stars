@@ -80,7 +80,7 @@ const updateSW = registerSW({
           logger.debug("Checking for service worker updates");
           registration.update();
         },
-        60 * 60 * 1000
+        60 * 60 * 1000,
       );
 
       // Check for background sync support
@@ -246,7 +246,7 @@ if (rootElement) {
             details={configErrors}
           />
         </ErrorBoundary>
-      </StrictMode>
+      </StrictMode>,
     );
   } else {
     createRoot(rootElement).render(
@@ -254,7 +254,7 @@ if (rootElement) {
         <ErrorBoundary>
           <App />
         </ErrorBoundary>
-      </StrictMode>
+      </StrictMode>,
     );
   }
 }

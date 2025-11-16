@@ -171,7 +171,7 @@ export async function parseAndValidateCSV(file: File): Promise<{
       const result = WordEntrySchema.safeParse(entry);
       if (!result.success) {
         errors.push(
-          `Row ${i + 1}: ${result.error.errors.map((e) => e.message).join(", ")}`
+          `Row ${i + 1}: ${result.error.errors.map((e) => e.message).join(", ")}`,
         );
       } else {
         words.push(result.data);
@@ -433,7 +433,7 @@ if (import.meta.env.DEV || import.meta.env.MODE === "development") {
 
   console.log(
     "%c🔍 SpellStars Debug Tools",
-    "font-size: 16px; font-weight: bold; color: #4CAF50;"
+    "font-size: 16px; font-weight: bold; color: #4CAF50;",
   );
   console.log("Available commands:");
   console.log("  __spellstars.exportTelemetry() - Get telemetry data");
@@ -522,7 +522,7 @@ const handleSendErrorReport = async () => {
         "[Your description here]\n\n" +
         "---\n" +
         "Telemetry Data:\n" +
-        JSON.stringify(telemetry, null, 2)
+        JSON.stringify(telemetry, null, 2),
     )}`;
 
     window.location.href = mailto;

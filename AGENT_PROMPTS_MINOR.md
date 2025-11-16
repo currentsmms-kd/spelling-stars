@@ -608,7 +608,7 @@ const publicDir = path.join(__dirname, "..", "public");
 fs.mkdirSync(publicDir, { recursive: true });
 fs.writeFileSync(
   path.join(publicDir, "health.json"),
-  JSON.stringify(health, null, 2)
+  JSON.stringify(health, null, 2),
 );
 
 console.log("✅ Generated health.json");
