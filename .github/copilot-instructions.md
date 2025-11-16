@@ -219,6 +219,60 @@ export function applyTheme(themeId: string) {
 | `src/app/router.tsx`                | Route protection (`ProtectedRoute`, `PinProtectedRoute`)          | 179   |
 | `push-migration.ps1`                | Apply SQL migrations via Supabase Management API                  | -     |
 
+## Bug Fix Workflow
+
+When you discover and fix a bug, follow this process:
+
+1. **Fix the bug immediately** in the code
+2. **Document the fix** in `BUG_FIXES_HISTORY.md` following the existing format:
+   - Add entry under appropriate date section (create new date section if needed)
+   - Include: Date, Problem description, Root cause analysis, Solution, Files modified
+   - Use clear, searchable formatting for future reference
+3. **Do NOT create separate bug tracking documents** - all fixes go directly into history file
+
+**Why this workflow:**
+
+- Single source of truth for all bug fixes
+- No outdated "bugs to fix" lists
+- Clear chronological record
+- Easy to search and reference past fixes
+
+**Example entry format:**
+
+```markdown
+### Fixed: [Brief Description]
+
+**Date:** November 15, 2025
+**Problem:** [What was broken and user impact]
+**Root Cause:** [Technical reason for the bug]
+**Solution:** [How it was fixed]
+**Files Modified:**
+
+- `path/to/file.ts` (lines X-Y)
+```
+
+## Key Architectural Patterns
+
+These patterns emerged from bug fixes and should be followed:
+
+- **Always use `profile.id` for user identification** (not `session.user.id`)
+  - Rationale: `profile.id` is set from `auth.uid()` and guaranteed consistent with RLS policies
+  - Prevents sync failures between online/offline modes
+- **Generate signed URLs for private storage on-demand** (never cache, 1-hour TTL)
+  - Use `getSignedPromptAudioUrls()` for batch generation
+  - Service worker excludes signed URLs (NetworkOnly strategy)
+- **Use `mutate()` for non-blocking operations**, `mutateAsync()` only when you need to wait
+  - Prevents UI blocking during database operations
+- **RLS policies focus on authorization**, not data integrity validation
+  - Let foreign key constraints handle data integrity
+  - Keep policies simple for performance
+- **Enhanced error logging** with context, error codes, and detailed information
+  - Always log: `error.code`, `error.message`, `error.details`
+- **Non-blocking star awards** with try-catch
+  - Don't let reward system failures block core gameplay
+- **Guard clauses** for early returns on missing data
+  - Prevents mutations from hanging with incomplete data
+
 ## Quick Troubleshooting
 
 **"React Query not refetching"** → Check query keys match in `invalidateQueries(['word-list', listId])`
@@ -227,3 +281,5 @@ export function applyTheme(themeId: string) {
 **"PIN not working after restart"** → Expected behavior (`isPinLocked` resets to `true`)
 **"Sync stuck"** → Check `src/lib/sync.ts` for `retry_count` (max 5 retries, then `failed: true`)
 **"Game won't advance"** → Fixed in Nov 2025 update (clear cache if still occurs)
+**"RLS policy violations during sync"** → Verify using `profile.id` consistently (not `session.user.id`)
+**"403 errors on audio playback"** → Check signed URL generation is being called
