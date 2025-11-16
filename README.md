@@ -277,13 +277,20 @@ Verify: All interactive elements reachable, focus visible, logical tab order
 
 ### Prerequisites
 
-- Node.js 18+ and npm
+- Node.js 20+ with [Corepack](https://nodejs.org/api/corepack.html) enabled (pnpm 9.12.3 is auto-installed via `packageManager`)
 - A Supabase account and project
+
+```powershell
+corepack enable
+corepack install pnpm@9.12.3
+```
+
+> If you previously installed pnpm globally via `npm install -g pnpm`, uninstall it so the Corepack-managed version is used: `npm uninstall -g pnpm`.
 
 ### 1. Install Dependencies
 
 ```bash
-pnpm install
+corepack pnpm install
 ```
 
 ### 2. Set Up Environment Variables

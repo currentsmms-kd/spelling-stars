@@ -5,7 +5,13 @@
 **SpellStars** is an offline-first PWA for kids' spelling practice with dual interfaces: **parent** (content management) and **child** (gameplay). Built for WCAG 2.1 AA accessibility.
 
 **Stack:** React 18 + TypeScript (strict) | Vite | React Query | Zustand | Supabase | Dexie (IndexedDB) | Tailwind + CVA
-**Package Manager:** `pnpm` ONLY (never npm/yarn) - `pnpm-lock.yaml` is the source of truth
+**Package Manager:** `pnpm` ONLY (never npm/yarn) - `pnpm-lock.yaml` is the source of truth. Core tooling is pinned via `"packageManager": "pnpm@9.12.3"` and requires **Node.js 20+** with [Corepack](https://nodejs.org/api/corepack.html).
+
+> **Tooling contract:**
+>
+> - Enable Corepack and install the pinned pnpm before running any scripts: `corepack enable` then `corepack install` (or `corepack prepare pnpm@9.12.3 --activate`).
+> - Run package scripts through Corepack-managed pnpm, e.g. `corepack pnpm install`.
+> - Do **not** keep a global `pnpm` (`npm uninstall -g pnpm`) and never generate `package-lock.json` or `yarn.lock`.
 
 ## Critical Architectural Decisions
 
@@ -93,10 +99,18 @@ IndexedDB tables: `queuedAttempts`, `queuedAudio`, `queuedSrsUpdates`, `queuedSt
 
 ### Running Commands (Doppler for Secrets Management)
 
+pnpm run build # doppler run -- tsc && vite build
+
 ```powershell
-pnpm run dev          # doppler run -- vite (RECOMMENDED)
-pnpm run dev:local    # Without Doppler (requires .env)
-pnpm run build        # doppler run -- tsc && vite build
+corepack pnpm run dev          # doppler run -- vite (RECOMMENDED)
+corepack pnpm run dev:local    # Without Doppler (requires .env)
+corepack pnpm run build        # doppler run -- tsc && vite build
+```
+
+Always install dependencies with:
+
+```powershell
+corepack pnpm install --frozen-lockfile
 ```
 
 ### Database Migrations
